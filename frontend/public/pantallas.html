@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FICCT · Prototipo de pantallas</title>
+<style>
+  :root{
+    --ink:#16243D;
+    --ink-soft:#4B5566;
+    --ink-faint:#8890A0;
+    --paper:#F5F3ED;
+    --paper-raised:#FFFFFF;
+    --line:#DEDAD0;
+    --line-soft:#E9E6DD;
+    --accent:#1F6F5C;
+    --accent-dark:#154E41;
+    --accent-soft:#E4EFE9;
+    --seal:#A97C34;
+    --seal-soft:#F4E8D2;
+    --danger:#B23A34;
+    --font-serif: Georgia, 'Iowan Old Style', 'Source Serif Pro', 'Times New Roman', serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-sans); -webkit-font-smoothing:antialiased;}
+  a{color:inherit;}
+  input,textarea,select,button{font-family:var(--font-sans);}
+
+  /* ---------- app shell ---------- */
+  .shell{display:flex; min-height:100vh;}
+  .shell-nav{
+    width:216px; flex-shrink:0; background:var(--paper-raised); border-right:1px solid var(--line);
+    padding:22px 14px; position:sticky; top:0; height:100vh; display:flex; flex-direction:column;
+  }
+  .nav-word{font-family:var(--font-serif); font-size:16px; padding:0 8px 20px; border-bottom:1px solid var(--line-soft); margin-bottom:16px;}
+  .nav-word b{font-weight:700;}
+  .nav-word span{display:block; font-size:11.5px; color:var(--ink-faint); font-family:var(--font-sans); margin-top:2px;}
+  .nav-btn{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    padding:10px 12px; border-radius:7px; border:none; background:none; cursor:pointer;
+    font-size:13.5px; color:var(--ink-soft); margin-bottom:2px;
+  }
+  .nav-btn svg{width:17px; height:17px; flex-shrink:0;}
+  .nav-btn:hover{background:var(--paper);}
+  .nav-btn.active{background:var(--accent-soft); color:var(--accent-dark); font-weight:600;}
+  .nav-gap{height:14px;}
+  .nav-user{
+    margin-top:auto; padding-top:16px; border-top:1px solid var(--line-soft);
+    display:flex; align-items:center; gap:9px; padding-left:12px;
+  }
+  .nav-user .av{width:28px; height:28px; border-radius:50%; background:var(--accent); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+  .nav-user .info{font-size:12px;}
+  .nav-user .info b{display:block; font-size:13px;}
+  .nav-user .info span{color:var(--ink-faint);}
+
+  .shell-main{flex:1; min-width:0;}
+  .screen{display:none;}
+  .screen.active{display:block;}
+  .screen-inner{max-width:1080px; margin:0 auto; padding:48px 44px;}
+  .screen-head{margin-bottom:32px;}
+  .screen-eyebrow{font-size:13px; color:var(--ink-faint); margin:0 0 6px;}
+  .screen-title{font-family:var(--font-serif); font-weight:400; font-size:27px; margin:0;}
+
+  .btn{font-size:14px; padding:10px 18px; border-radius:6px; border:1px solid var(--ink); background:transparent; color:var(--ink); cursor:pointer; text-decoration:none; display:inline-block;}
+  .btn.solid{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+  .btn.accent{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .btn.ghost{border-color:var(--line); color:var(--ink-soft);}
+  .btn.block{width:100%; text-align:center;}
+
+  /* ================= LOGIN ================= */
+  .login-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--paper); padding:40px;}
+  .login-card{width:380px; background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:36px 34px;}
+  .login-mark{font-family:var(--font-serif); font-size:19px; text-align:center; margin-bottom:4px;}
+  .login-mark span{display:block; font-family:var(--font-sans); font-size:12px; color:var(--ink-faint); margin-top:3px;}
+  .login-title{font-family:var(--font-serif); font-size:22px; text-align:center; margin:22px 0 26px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;}
+  .field input, .field textarea, .field select{
+    width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:6px;
+    font-size:14px; background:var(--paper); color:var(--ink);
+  }
+  .field input:focus, .field textarea:focus, .field select:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent);}
+  .login-divider{display:flex; align-items:center; gap:10px; margin:20px 0; font-size:12px; color:var(--ink-faint);}
+  .login-divider::before, .login-divider::after{content:""; flex:1; height:1px; background:var(--line);}
+  .login-foot{text-align:center; font-size:12.5px; color:var(--ink-faint); margin-top:18px;}
+  .login-foot a{color:var(--accent-dark); text-decoration:underline; cursor:pointer;}
+
+  /* ================= PORTAL (condensado) ================= */
+  .hero-mini h1{font-family:var(--font-serif); font-weight:400; font-size:32px; line-height:1.2; max-width:680px; margin:0 0 14px;}
+  .hero-mini p{font-size:15.5px; color:var(--ink-soft); max-width:520px; margin:0 0 26px;}
+  .search-row{display:flex; gap:10px; max-width:560px; margin-bottom:36px;}
+  .search-row input{flex:1; padding:13px 15px; font-size:14.5px; border:1px solid var(--ink); border-radius:6px; background:var(--paper-raised);}
+  .search-row button{padding:13px 20px; font-size:14px; border-radius:6px; background:var(--ink); color:var(--paper); border:none; cursor:pointer;}
+  .activities{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin-bottom:8px;}
+  .activity{background:var(--paper-raised); padding:20px; border-left:3px solid var(--accent);}
+  .activity .kind{font-size:11.5px; color:var(--accent-dark); font-weight:600; margin-bottom:8px;}
+  .activity h3{font-family:var(--font-serif); font-weight:400; font-size:17px; margin:0 0 6px;}
+  .activity p{font-size:13px; color:var(--ink-soft); line-height:1.5; margin:0 0 12px;}
+  .activity .meta{font-size:12px; color:var(--ink-faint); display:flex; justify-content:space-between; border-top:1px solid var(--line-soft); padding-top:10px;}
+  @media (max-width:900px){ .activities{grid-template-columns:1fr;} }
+
+  /* ================= DOCUMENTO ================= */
+  .doc-layout{display:flex; gap:24px; align-items:flex-start;}
+  .doc-frame{flex:1; min-width:0; background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  .doc-header{display:flex; justify-content:space-between; align-items:center; padding:16px 24px; border-bottom:1px solid var(--line);}
+  .doc-crumb{font-size:12px; color:var(--ink-faint); margin-bottom:3px;}
+  .doc-title{font-family:var(--font-serif); font-size:18px;}
+  .doc-right{display:flex; align-items:center; gap:14px;}
+  .perm-chip{font-size:12px; background:var(--paper); border:1px solid var(--line); padding:4px 10px; border-radius:20px; color:var(--ink-soft);}
+  .avatar-stack{display:flex;}
+  .avatar-sm{width:28px; height:28px; border-radius:50%; border:2px solid var(--paper-raised); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; margin-left:-8px;}
+  .avatar-sm:first-child{margin-left:0;}
+  .doc-toolbar{display:flex; gap:16px; padding:10px 24px; border-bottom:1px solid var(--line-soft); color:var(--ink-faint);}
+  .doc-toolbar svg{width:15px; height:15px;}
+  .doc-body{padding:26px 36px; font-size:15px; line-height:1.85; color:var(--ink-soft);}
+  .doc-body p{margin:0 0 16px;}
+  .live-cursor{position:relative; background:linear-gradient(transparent 78%, #F0DEC0 78%);}
+  .cursor-tag{position:absolute; top:-22px; left:0; font-size:10.5px; color:#fff; background:var(--seal); padding:2px 7px; border-radius:4px 4px 4px 0; white-space:nowrap;}
+  .live-cursor-2{position:relative; background:linear-gradient(transparent 78%, #DCE9E2 78%);}
+  .cursor-tag-2{position:absolute; top:-22px; left:0; font-size:10.5px; color:#fff; background:var(--accent); padding:2px 7px; border-radius:4px 4px 4px 0; white-space:nowrap;}
+
+  .collab-panel{width:236px; flex-shrink:0; background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:18px;}
+  .collab-panel h4{font-size:12.5px; color:var(--ink-faint); font-weight:600; margin:0 0 14px;}
+  .collab-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line-soft);}
+  .collab-row:last-of-type{border-bottom:none;}
+  .collab-av{width:30px; height:30px; border-radius:50%; color:#fff; font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:center; position:relative; flex-shrink:0;}
+  .status-dot{width:8px; height:8px; border-radius:50%; position:absolute; bottom:-1px; right:-1px; border:2px solid var(--paper-raised);}
+  .collab-name{font-size:13px; font-weight:600; line-height:1.3;}
+  .collab-role{font-size:11.5px; color:var(--ink-faint);}
+  .collab-legend{margin-top:14px; padding-top:14px; border-top:1px solid var(--line-soft); font-size:11.5px; color:var(--ink-faint); line-height:1.8;}
+  .legend-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;}
+
+  /* ================= NUEVA CONVOCATORIA ================= */
+  .conv-layout{display:grid; grid-template-columns:1.3fr 1fr; gap:28px; align-items:start;}
+  .form-card{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:26px 28px;}
+  .type-pills{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px;}
+  .type-pill{font-size:12.5px; padding:7px 14px; border-radius:20px; border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); cursor:pointer;}
+  .type-pill.sel{background:var(--accent-soft); border-color:var(--accent); color:var(--accent-dark); font-weight:600;}
+  .dropzone{
+    border:1.5px dashed var(--line); border-radius:8px; padding:26px; text-align:center;
+    color:var(--ink-faint); font-size:12.5px; cursor:pointer; margin-bottom:16px;
+  }
+  .dropzone svg{width:22px; height:22px; margin-bottom:8px;}
+  .dropzone:hover{border-color:var(--accent); color:var(--accent-dark);}
+  .two-col{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .req-row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;}
+  .req-chip{font-size:12px; background:var(--paper); border:1px solid var(--line); padding:5px 10px; border-radius:6px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;}
+  .req-chip svg{width:11px; height:11px; cursor:pointer; color:var(--ink-faint);}
+  .form-actions{display:flex; gap:10px; margin-top:22px;}
+
+  .preview-label{font-size:12.5px; color:var(--ink-faint); margin-bottom:10px;}
+  .preview-card{background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; overflow:hidden; position:sticky; top:24px;}
+  .preview-image{height:140px; background:var(--accent-soft); display:flex; align-items:center; justify-content:center; color:var(--accent-dark); font-size:12px;}
+  .preview-body{padding:18px 20px;}
+  .preview-kind{font-size:11px; color:var(--accent-dark); font-weight:600; margin-bottom:8px;}
+  .preview-title{font-family:var(--font-serif); font-size:18px; margin:0 0 8px;}
+  .preview-desc{font-size:13px; color:var(--ink-soft); line-height:1.5; margin:0 0 14px; min-height:20px;}
+  .preview-meta{font-size:11.5px; color:var(--ink-faint); display:flex; justify-content:space-between; border-top:1px solid var(--line-soft); padding-top:10px;}
+  .preview-reqs{display:flex; gap:6px; flex-wrap:wrap; margin-top:12px;}
+  .preview-reqs span{font-size:10.5px; background:var(--paper); border:1px solid var(--line-soft); padding:3px 8px; border-radius:10px; color:var(--ink-soft);}
+
+  /* ================= CERTIFICADO / VERIFICACIÓN ================= */
+  .cert-layout{display:grid; grid-template-columns:1.1fr 0.9fr; gap:32px; align-items:start;}
+  .cert-card{background:var(--paper-raised); border:1px solid var(--seal); border-radius:4px; padding:34px 36px; position:relative;}
+  .cert-inst{font-size:11px; color:var(--ink-faint); line-height:1.5; margin-bottom:18px; padding-bottom:16px; padding-right:80px; border-bottom:1px solid var(--line-soft);}
+  .cert-inst b{color:var(--ink-soft); display:block; font-size:12px;}
+  .cert-seal{position:absolute; top:30px; right:30px; width:50px; height:50px; border-radius:50%; border:1.5px solid var(--seal); display:flex; align-items:center; justify-content:center; color:var(--seal);}
+  .cert-seal svg{width:22px; height:22px;}
+  .cert-eyebrow{font-size:12px; color:var(--seal); margin-bottom:12px; font-weight:600;}
+  .cert-name{font-family:var(--font-serif); font-size:24px; margin:0 0 6px;}
+  .cert-detail{font-size:13.5px; color:var(--ink-soft); margin:0 0 2px;}
+  .cert-sign{margin-top:28px; padding-top:16px; border-top:1px dashed var(--line); font-size:11.5px; color:var(--ink-faint);}
+  .cert-sign b{display:block; color:var(--ink-soft); font-size:12.5px; margin-bottom:2px;}
+  .cert-qr{position:absolute; bottom:34px; right:36px; width:56px; height:56px; background:var(--paper); border:1px solid var(--line); border-radius:6px; display:flex; align-items:center; justify-content:center; color:var(--ink-faint);}
+  .cert-qr svg{width:28px; height:28px;}
+
+  .verify-box{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:24px 26px;}
+  .verify-box h4{font-family:var(--font-serif); font-size:16px; font-weight:400; margin:0 0 16px;}
+  .verify-input-row{display:flex; gap:8px; margin-bottom:20px;}
+  .verify-input-row input{flex:1; padding:10px 12px; border:1px solid var(--line); border-radius:6px; font-size:13px; background:var(--paper);}
+  .verify-input-row button{padding:10px 16px; border-radius:6px; background:var(--ink); color:var(--paper); border:none; cursor:pointer; font-size:13px;}
+  .verify-step{display:flex; gap:12px; margin-bottom:14px;}
+  .verify-num{width:22px; height:22px; border-radius:50%; background:var(--paper); border:1px solid var(--line); color:var(--ink-soft); font-size:11.5px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .verify-step p{font-size:13px; color:var(--ink-soft); margin:0; line-height:1.5;}
+  .verify-result{margin-top:18px; background:var(--accent-soft); border:1px solid var(--accent); border-radius:8px; padding:14px 16px; display:flex; gap:10px; align-items:flex-start;}
+  .verify-result svg{width:18px; height:18px; color:var(--accent-dark); flex-shrink:0; margin-top:1px;}
+  .verify-result p{font-size:12.5px; color:var(--accent-dark); margin:0; line-height:1.5;}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="shell-nav">
+    <div class="nav-word"><b>FICCT</b><span>Prototipo de pantallas</span></div>
+
+    <button class="nav-btn" data-target="screen-portal" onclick="showScreen('screen-portal', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10l9-7 9 7"/><path d="M5 9v10h14V9"/></svg>
+      Portal público
+    </button>
+    <button class="nav-btn" data-target="screen-login" onclick="showScreen('screen-login', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+      Iniciar sesión
+    </button>
+    <div class="nav-gap"></div>
+    <button class="nav-btn" data-target="screen-doc" onclick="showScreen('screen-doc', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v5h5"/></svg>
+      Documento colaborativo
+    </button>
+    <button class="nav-btn" data-target="screen-conv" onclick="showScreen('screen-conv', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v4H4zM4 12h10v8H4z"/></svg>
+      Nueva convocatoria
+    </button>
+    <button class="nav-btn" data-target="screen-cert" onclick="showScreen('screen-cert', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M6 21l1-5 5-2 5 2 1 5"/></svg>
+      Certificado y verificación
+    </button>
+
+    <div class="nav-user">
+      <div class="av">D</div>
+      <div class="info"><b>Daniel Quispe</b><span>Estudiante</span></div>
+    </div>
+  </nav>
+
+  <main class="shell-main">
+
+    <!-- ================= PORTAL ================= -->
+    <section class="screen active" id="screen-portal">
+      <div class="screen-inner">
+        <div class="hero-mini">
+          <h1>Las ferias, hackathones y proyectos de investigación de la FICCT, en un solo lugar.</h1>
+          <p>Consulta actividades abiertas o busca los certificados verificados de cualquier estudiante, sin necesidad de una cuenta.</p>
+          <div class="search-row">
+            <input type="text" placeholder="Buscar un proyecto, una convocatoria o un estudiante…" />
+            <button>Buscar</button>
+          </div>
+        </div>
+        <p class="screen-eyebrow" style="margin-bottom:14px;">Abiertas esta semana</p>
+        <div class="activities">
+          <div class="activity">
+            <div class="kind">Feria de ingeniería</div>
+            <h3>Feria de Ingeniería 2026</h3>
+            <p>Exposición anual de proyectos estudiantiles de todas las carreras de la facultad.</p>
+            <div class="meta"><span>Grupos de hasta 4</span><span>Cierra 30 oct</span></div>
+          </div>
+          <div class="activity">
+            <div class="kind">Hackathon</div>
+            <h3>Hackathon FICCT</h3>
+            <p>48 horas para construir una solución de software sobre un problema real de la región.</p>
+            <div class="meta"><span>Individual o equipo</span><span>Cierra 12 nov</span></div>
+          </div>
+          <div class="activity">
+            <div class="kind">Investigación</div>
+            <h3>Convocatoria de Investigación</h3>
+            <p>Postulación abierta para proyectos de investigación aplicada de la Unidad de Investigación.</p>
+            <div class="meta"><span>Individual o dupla</span><span>Cierra 8 dic</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= LOGIN ================= -->
+    <section class="screen" id="screen-login">
+      <div class="login-wrap" style="min-height:auto; padding:64px 40px;">
+        <div class="login-card">
+          <div class="login-mark">FICCT<span>Investigación &amp; Innovación</span></div>
+          <p class="login-title">Iniciar sesión</p>
+          <div class="field">
+            <label>Correo institucional</label>
+            <input type="email" placeholder="nombre.apellido@uagrm.edu.bo" />
+          </div>
+          <div class="field">
+            <label>Contraseña</label>
+            <input type="password" placeholder="••••••••" />
+          </div>
+          <button class="btn solid block">Ingresar</button>
+          <div class="login-divider">o</div>
+          <button class="btn ghost block" onclick="showScreen('screen-portal', document.querySelector('[data-target=screen-portal]'))">Continuar como visitante</button>
+          <p class="login-foot">¿Problemas para acceder? <a>Contacta a la Unidad de Investigación</a></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= DOCUMENTO ================= -->
+    <section class="screen" id="screen-doc">
+      <div class="screen-inner">
+        <div class="screen-head">
+          <p class="screen-eyebrow">Edición en tiempo real, con permisos por documento</p>
+          <h2 class="screen-title">Documento colaborativo</h2>
+        </div>
+        <div class="doc-layout">
+          <div class="doc-frame">
+            <div class="doc-header">
+              <div>
+                <div class="doc-crumb">Feria de Ingeniería 2026 · Grupo 13</div>
+                <div class="doc-title">Perfil de Proyecto</div>
+              </div>
+              <div class="doc-right">
+                <span class="perm-chip">Grupo + docente evaluador</span>
+                <div class="avatar-stack">
+                  <div class="avatar-sm" style="background:#1F6F5C;">D</div>
+                  <div class="avatar-sm" style="background:#A97C34;">B</div>
+                  <div class="avatar-sm" style="background:#4B5566;">MC</div>
+                </div>
+              </div>
+            </div>
+            <div class="doc-toolbar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h8a4 4 0 010 8H6zM6 12h9a4 4 0 010 8H6z"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 4h-9M14 20H5M15 4L9 20"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1"/><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/></svg>
+            </div>
+            <div class="doc-body">
+              <p><strong>Tema:</strong> Sensado de humedad de suelo para riego eficiente en cultivos urbanos pequeños.</p>
+              <p>El proyecto propone un prototipo de bajo costo capaz de medir la humedad del suelo en tiempo real y <span class="live-cursor">sugerir al usuario el momento óptimo<span class="cursor-tag">Brandon está escribiendo</span></span> para regar, reduciendo el consumo de agua frente al riego programado por horario fijo.</p>
+              <p>El grupo <span class="live-cursor-2">documentará el proceso de diseño<span class="cursor-tag-2">Ing. Canedo comentó aquí</span></span>, la selección de sensores y las pruebas de campo realizadas durante las semanas previas a la feria.</p>
+            </div>
+          </div>
+
+          <div class="collab-panel">
+            <h4>Colaboradores (3)</h4>
+            <div class="collab-row">
+              <div class="collab-av" style="background:#1F6F5C;">D<span class="status-dot" style="background:#1F6F5C;"></span></div>
+              <div><div class="collab-name">Daniel Quispe</div><div class="collab-role">Estudiante · en línea</div></div>
+            </div>
+            <div class="collab-row">
+              <div class="collab-av" style="background:#A97C34;">B<span class="status-dot" style="background:#A97C34;"></span></div>
+              <div><div class="collab-name">Brandon Vásquez</div><div class="collab-role">Estudiante · en línea</div></div>
+            </div>
+            <div class="collab-row">
+              <div class="collab-av" style="background:#4B5566;">MC<span class="status-dot" style="background:var(--ink-faint);"></span></div>
+              <div><div class="collab-name">Ing. Martínez Canedo</div><div class="collab-role">Docente evaluador · desconectado</div></div>
+            </div>
+            <div class="collab-legend">
+              <div><span class="legend-dot" style="background:#1F6F5C;"></span>Verde — autor del documento</div>
+              <div><span class="legend-dot" style="background:#A97C34;"></span>Ámbar — coautor del grupo</div>
+              <div><span class="legend-dot" style="background:#4B5566;"></span>Gris — docente evaluador</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= NUEVA CONVOCATORIA ================= -->
+    <section class="screen" id="screen-conv">
+      <div class="screen-inner">
+        <div class="screen-head">
+          <p class="screen-eyebrow">Publicación visible en el portal público</p>
+          <h2 class="screen-title">Nueva convocatoria</h2>
+        </div>
+        <div class="conv-layout">
+          <div class="form-card">
+            <div class="field">
+              <label>Tipo de actividad</label>
+              <div class="type-pills">
+                <button class="type-pill sel" onclick="selectType(this,'Feria')">Feria</button>
+                <button class="type-pill" onclick="selectType(this,'Hackathon')">Hackathon</button>
+                <button class="type-pill" onclick="selectType(this,'Concurso')">Concurso</button>
+                <button class="type-pill" onclick="selectType(this,'Investigación')">Investigación</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Título</label>
+              <input id="convTitle" type="text" value="Feria de Ingeniería 2026" oninput="syncPreview()" />
+            </div>
+            <div class="field">
+              <label>Descripción</label>
+              <textarea id="convDesc" rows="3" oninput="syncPreview()">Exposición anual de proyectos estudiantiles de todas las carreras de la facultad.</textarea>
+            </div>
+            <div class="field">
+              <label>Imagen de portada</label>
+              <div class="dropzone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg>
+                <div>Arrastra una imagen o haz clic para subir<br/>Recomendado 1200 × 630 px</div>
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="field">
+                <label>Cierre de inscripción</label>
+                <input id="convDate" type="date" value="2026-10-30" oninput="syncPreview()" />
+              </div>
+              <div class="field">
+                <label>Tamaño de equipo</label>
+                <input type="text" placeholder="p. ej. 1 a 4 integrantes" value="Hasta 4 integrantes" />
+              </div>
+            </div>
+            <div class="field">
+              <label>Requisitos de inscripción</label>
+              <div class="req-row" id="reqRow">
+                <span class="req-chip">Estudiante regular de la FICCT <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+                <span class="req-chip">Promedio acumulado ≥ 70 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+                <span class="req-chip">Carta de aval del docente guía <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+              </div>
+              <input type="text" placeholder="Escribe un requisito y presiona enter…" />
+            </div>
+            <div class="form-actions">
+              <button class="btn ghost">Guardar borrador</button>
+              <button class="btn accent">Publicar convocatoria</button>
+            </div>
+          </div>
+
+          <div>
+            <p class="preview-label">Así se verá en el portal público</p>
+            <div class="preview-card">
+              <div class="preview-image">Imagen de portada</div>
+              <div class="preview-body">
+                <div class="preview-kind" id="prevKind">Feria</div>
+                <p class="preview-title" id="prevTitle">Feria de Ingeniería 2026</p>
+                <p class="preview-desc" id="prevDesc">Exposición anual de proyectos estudiantiles de todas las carreras de la facultad.</p>
+                <div class="preview-meta"><span>Hasta 4 integrantes</span><span id="prevDate">Cierra 30 oct</span></div>
+                <div class="preview-reqs">
+                  <span>Estudiante FICCT</span><span>Promedio ≥ 70</span><span>Aval docente</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CERTIFICADO ================= -->
+    <section class="screen" id="screen-cert">
+      <div class="screen-inner">
+        <div class="screen-head">
+          <p class="screen-eyebrow">Emitido al cierre del evento, con registro en blockchain</p>
+          <h2 class="screen-title">Certificado y verificación</h2>
+        </div>
+        <div class="cert-layout">
+          <div class="cert-card">
+            <div class="cert-inst">
+              <b>Universidad Autónoma Gabriel René Moreno</b>
+              Facultad de Ingeniería en Ciencias de la Computación y Telecomunicaciones — Unidad de Investigación
+            </div>
+            <div class="cert-seal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="5"/><path d="M8 12.5L6.5 21 12 18l5.5 3-1.5-8.5"/></svg>
+            </div>
+            <div class="cert-eyebrow">Certificado de participación</div>
+            <p class="cert-name">Daniel Quispe Choque</p>
+            <p class="cert-detail">Hackathon FICCT 2025 — 2.º lugar</p>
+            <p class="cert-detail">Emitido el 14 de noviembre de 2025</p>
+            <div class="cert-sign">
+              <b>Ing. Rolando Antonio Martínez Canedo</b>
+              Responsable, Unidad de Investigación — FICCT
+            </div>
+            <div class="cert-qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM19 14h2v2h-2zM14 19h2v2h-2zM19 19h2v2h-2z"/></svg></div>
+          </div>
+
+          <div class="verify-box">
+            <h4>Cómo comprobar que es válido</h4>
+            <div class="verify-input-row">
+              <input type="text" placeholder="Pega el código hash o escanea el QR" />
+              <button>Verificar</button>
+            </div>
+            <div class="verify-step">
+              <div class="verify-num">1</div>
+              <p>El certificado incluye un código hash único, generado a partir de su contenido exacto.</p>
+            </div>
+            <div class="verify-step">
+              <div class="verify-num">2</div>
+              <p>Ese hash está registrado en una red blockchain pública junto con la fecha de emisión.</p>
+            </div>
+            <div class="verify-step">
+              <div class="verify-num">3</div>
+              <p>Al verificar, el sistema recalcula el hash del archivo y lo compara con el registrado.</p>
+            </div>
+            <div class="verify-result">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <p>Coincide. Este certificado fue emitido por la Unidad de Investigación de la FICCT, UAGRM, y no ha sido alterado.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  function showScreen(id, btn){
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    document.querySelector('.shell-main').scrollTop = 0;
+    window.scrollTo(0,0);
+  }
+  document.querySelector('[data-target="screen-portal"]').classList.add('active');
+
+  function selectType(btn, label){
+    document.querySelectorAll('.type-pill').forEach(p => p.classList.remove('sel'));
+    btn.classList.add('sel');
+    document.getElementById('prevKind').textContent = label;
+  }
+  function syncPreview(){
+    document.getElementById('prevTitle').textContent = document.getElementById('convTitle').value || 'Título de la convocatoria';
+    document.getElementById('prevDesc').textContent = document.getElementById('convDesc').value || 'Descripción de la actividad…';
+    const d = document.getElementById('convDate').value;
+    if(d){
+      const dt = new Date(d + 'T00:00:00');
+      const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      document.getElementById('prevDate').textContent = 'Cierra ' + dt.getDate() + ' ' + meses[dt.getMonth()];
+    }
+  }
+  document.querySelectorAll('.req-chip svg').forEach(x => x.addEventListener('click', e => e.target.closest('.req-chip').remove()));
+</script>
+
+</body>
+</html>

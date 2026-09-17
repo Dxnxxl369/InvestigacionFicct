@@ -1,0 +1,1797 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FICCT · 2DA PARTE: Proceso de Desarrollo de Software (Scrum v3.0)</title>
+<style>
+  :root{
+    --ink:#16243D;
+    --ink-soft:#4B5566;
+    --ink-faint:#8890A0;
+    --paper:#F5F3ED;
+    --paper-raised:#FFFFFF;
+    --line:#DEDAD0;
+    --line-soft:#E9E6DD;
+    --accent:#1F6F5C;
+    --accent-dark:#154E41;
+    --accent-soft:#E4EFE9;
+    --seal:#A97C34;
+    --seal-soft:#F4E8D2;
+    --danger:#B23A34;
+    --danger-soft:#FDF2F1;
+    --font-serif: Georgia, 'Iowan Old Style', 'Source Serif Pro', 'Times New Roman', serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-sans); -webkit-font-smoothing:antialiased; line-height:1.6;}
+  a{color:inherit; text-decoration:none;}
+
+  /* Layout */
+  .layout{display:flex; min-height:100vh;}
+  .sidebar{
+    width:290px; flex-shrink:0; background:var(--paper-raised); border-right:1px solid var(--line);
+    padding:28px 18px; position:sticky; top:0; height:100vh; overflow-y:auto; display:flex; flex-direction:column;
+  }
+  .sidebar-brand{font-family:var(--font-serif); font-size:17px; padding-bottom:16px; border-bottom:1px solid var(--line-soft); margin-bottom:16px;}
+  .sidebar-brand b{font-weight:700; color:var(--ink);}
+  .sidebar-brand span{display:block; font-size:12px; color:var(--ink-faint); font-family:var(--font-sans); margin-top:3px;}
+  .nav-group-title{font-size:11px; text-transform:uppercase; letter-spacing:0.8px; color:var(--ink-faint); margin:14px 8px 6px; font-weight:700;}
+  .nav-item{
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    padding:7px 10px; border-radius:6px; border:none; background:none; cursor:pointer;
+    font-size:12.5px; color:var(--ink-soft); margin-bottom:2px; font-family:var(--font-sans);
+  }
+  .nav-item:hover{background:var(--paper);}
+  .nav-item.active{background:var(--accent-soft); color:var(--accent-dark); font-weight:600;}
+  .nav-item svg{width:15px; height:15px; flex-shrink:0;}
+
+  .content{flex:1; min-width:0; padding:40px 48px 80px;}
+  .doc-container{max-width:1120px; margin:0 auto;}
+
+  /* Header Universitario */
+  .academic-header{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:10px;
+    padding:30px 34px; margin-bottom:28px;
+  }
+  .academic-badge{
+    display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px;
+    background:var(--accent-soft); color:var(--accent-dark); padding:4px 10px; border-radius:20px; margin-bottom:12px;
+  }
+  .academic-header h1{font-family:var(--font-serif); font-size:25px; font-weight:600; line-height:1.3; margin:0 0 10px;}
+  .academic-header h2{font-family:var(--font-serif); font-size:18px; font-weight:400; color:var(--ink-soft); margin:0 0 16px;}
+  .academic-meta{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px;
+    padding-top:14px; border-top:1px solid var(--line-soft); font-size:12.5px; color:var(--ink-soft);
+  }
+  .meta-block b{display:block; color:var(--ink); font-size:11px; text-transform:uppercase; letter-spacing:0.4px;}
+
+  /* Titulos de Secciones */
+  .section-card{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:10px;
+    padding:30px 32px; margin-bottom:26px;
+  }
+  .h2-title{font-family:var(--font-serif); font-size:22px; font-weight:700; color:var(--ink); margin:0 0 6px; border-bottom:2px solid var(--accent); padding-bottom:8px;}
+  .h3-title{font-family:var(--font-serif); font-size:17px; font-weight:600; color:var(--accent-dark); margin:24px 0 10px;}
+  .section-intro{font-size:13.5px; color:var(--ink-soft); margin:0 0 18px;}
+
+  /* Tablas de pianito.docx */
+  .doc-table{
+    width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:22px;
+    background:var(--paper-raised); border:1px solid var(--line);
+  }
+  .doc-table th{
+    background:#EAE7DF; color:var(--ink); font-weight:700; text-align:left;
+    padding:9px 12px; border:1px solid var(--line); font-size:12px;
+  }
+  .doc-table td{
+    padding:8px 12px; border:1px solid var(--line); vertical-align:top; color:var(--ink);
+  }
+  .doc-table tr:hover td{background:#FAF9F5;}
+  .table-title-bar{
+    background:var(--ink) !important; color:#ffffff !important; font-family:var(--font-serif);
+    font-size:13.5px; font-weight:700; text-align:center !important; padding:10px !important; letter-spacing:0.5px;
+  }
+  .table-subtitle-bar{
+    background:#ECE8DE !important; font-weight:600; color:var(--ink-soft); font-size:12px;
+  }
+  .table-module-row{
+    background:var(--accent-soft) !important; color:var(--accent-dark) !important; font-weight:700;
+    font-size:12px; text-transform:uppercase; letter-spacing:0.5px;
+  }
+
+  /* Badges y Tags */
+  .tag{display:inline-block; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:600;}
+  .tag-high{background:#FCEBEB; color:#A82323; border:1px solid #F5C6C6;}
+  .tag-med{background:#FEF6E6; color:#9E6B08; border:1px solid #F8DFAC;}
+  .tag-low{background:#EDF5F2; color:#1C6754; border:1px solid #C4DFD5;}
+  .tag-done{background:#E6F4EA; color:#137333; border:1px solid #CEEAD6;}
+
+  .code-badge{
+    font-family:ui-monospace, monospace; font-size:11.5px; background:var(--paper);
+    padding:2px 5px; border-radius:4px; border:1px solid var(--line-soft); font-weight:600;
+  }
+
+  /* Listas estructuradas */
+  .bullet-list{margin:6px 0 16px 20px; padding:0; font-size:13px; color:var(--ink-soft);}
+  .bullet-list li{margin-bottom:5px;}
+
+  /* Daily Scrum Table styling */
+  .daily-table th{text-align:center; font-size:11.5px; padding:6px 4px;}
+  .daily-table td{font-size:11.5px; padding:6px 6px; line-height:1.35;}
+  .daily-question{font-weight:700; background:#FAF9F6; width:150px; color:var(--ink-soft);}
+  .daily-member{font-weight:700; background:#EFECE3; text-align:center; color:var(--ink);}
+
+  /* Quality criteria cards */
+  .qc-box{background:#FAF9F6; border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin-bottom:14px;}
+  .qc-title{font-size:13.5px; font-weight:700; color:var(--accent-dark); margin:0 0 4px;}
+  .qc-desc{font-size:12.5px; color:var(--ink-soft); margin:0 0 8px; line-height:1.5;}
+
+  /* Callout */
+  .callout{
+    background:var(--accent-soft); border-left:4px solid var(--accent); padding:12px 16px;
+    border-radius:0 6px 6px 0; margin:16px 0; font-size:13px; color:var(--accent-dark);
+  }
+  .callout strong{display:block; margin-bottom:2px;}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- Barra de Navegación Lateral -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <b>FICCT · UAGRM</b>
+      <span>2DA PARTE: Proceso de Software</span>
+      <span style="font-size:11px; color:var(--seal); font-weight:600;">Metodología Scrum v3.0</span>
+    </div>
+
+    <div class="nav-group-title">SPRINT 0: DEFINICIÓN INICIAL</div>
+    <a href="#s0-equipo" class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Equipo Scrum (Daniel y Brandon)
+    </a>
+    <a href="#s0-objetivo" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Objetivo del Producto
+    </a>
+    <a href="#s0-requerimientos" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Requerimientos Iniciales (RF / RNF)
+    </a>
+    <a href="#s0-duracion" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Duración de los Sprints (3 Semanas)
+    </a>
+    <a href="#s0-infraestructura" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      Infraestructura Tecnológica
+    </a>
+    <a href="#s0-patron" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      Patrón de Desarrollo (4 Fases)
+    </a>
+    <a href="#s0-modelos" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Modelos Iniciales
+    </a>
+    <a href="#s0-calidad" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Los 7 Criterios de Calidad
+    </a>
+    <a href="#s0-backlog" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Product Backlog (Tabla F3)
+    </a>
+
+    <div class="nav-group-title">SPRINT 1: CORE DEL SISTEMA</div>
+    <a href="#s1-planning" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Sprint Planning (Tabla Oficial)
+    </a>
+    <a href="#s1-hu" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+      Historias de Usuario (HU-01 a HU-07)
+    </a>
+    <a href="#s1-backlog" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Sprint Backlog (Tareas F5)
+    </a>
+    <a href="#s1-review" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Revisión de Sprint 1 (F1)
+    </a>
+    <a href="#s1-retro" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Retrospectiva de Sprint 1 (F2)
+    </a>
+    <a href="#s1-daily" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Daily Scrum (Semana 1, 2, 3)
+    </a>
+    <a href="#s1-burndown" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Burndown &amp; Burnup
+    </a>
+
+    <div class="nav-group-title">ROADMAP SIGUIENTES SPRINTS</div>
+    <a href="#roadmap-futuro" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      Sprints 2, 3 y 4 (IA, Blockchain)
+    </a>
+  </aside>
+
+  <!-- Contenedor Principal de Contenido -->
+  <main class="content">
+    <div class="doc-container">
+
+      <!-- Encabezado Académico -->
+      <header class="academic-header">
+        <span class="academic-badge">Universidad Autónoma Gabriel René Moreno · FICCT</span>
+        <h1>2DA PARTE — Proceso de Desarrollo de Software</h1>
+        <h2>Sistema de Apoyo a la Investigación Estudiantil FICCT</h2>
+        <div class="academic-meta">
+          <div class="meta-block">
+            <b>Materia</b>
+            <span>Taller de Grado 1 (INF-511)</span>
+          </div>
+          <div class="meta-block">
+            <b>Docente</b>
+            <span>Ing. Rolando Antonio Martínez Canedo</span>
+          </div>
+          <div class="meta-block">
+            <b>Equipo de Desarrollo</b>
+            <span>Daniel Quispe Choque &amp; Brandon Vásquez</span>
+          </div>
+          <div class="meta-block">
+            <b>Metodología</b>
+            <span>Scrum v3.0 (Guía Docente)</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- ======================================================== -->
+      <!-- SPRINT 0: DEFINICIONES INICIALES (R-1)                    -->
+      <!-- ======================================================== -->
+      <section class="section-card">
+        <h2 class="h2-title">SPRINT 0</h2>
+        <p class="section-intro">
+          El objetivo principal del Sprint 0 es preparar el entorno y sentar las bases para el desarrollo del proyecto en los siguientes sprints, definiendo el equipo, el alcance, los requerimientos, la infraestructura técnica inicial y los criterios de calidad.
+        </p>
+
+        <!-- Equipo Scrum (Tabla 32 de pianito.docx) -->
+        <h3 class="h3-title" id="s0-equipo">Equipo Scrum</h3>
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="3" class="table-title-bar">Equipo Scrum</th>
+            </tr>
+            <tr>
+              <th style="width:22%;">Rol</th>
+              <th style="width:30%;">Integrantes</th>
+              <th>Descripción del rol</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Product Owner</strong></td>
+              <td>Daniel Quispe Choque</td>
+              <td>Encargado de la coordinación y acuerdos con la Unidad de Investigación de la FICCT, mediador entre las autoridades/docentes y el equipo de desarrollo; responsable de definir y priorizar el Product Backlog.</td>
+            </tr>
+            <tr>
+              <td><strong>Scrum Master</strong></td>
+              <td>Brandon Vásquez</td>
+              <td>Capacitado para asegurar que el equipo siga el plan y marco Scrum v3.0 del Ing. Rolando Martínez; encargado de hacer posible el desarrollo del proyecto bajo el marco de trabajo, facilitando las ceremonias y removiendo impedimentos.</td>
+            </tr>
+            <tr>
+              <td><strong>Development Team (Desarrolladores)</strong></td>
+              <td>Daniel Quispe Choque<br/>Brandon Vásquez</td>
+              <td>Encargados del desarrollo de los artefactos que se necesiten para el avance del proyecto y desarrolladores del software full-stack (Next.js en frontend, Spring Boot en backend, PostgreSQL en base de datos).</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Objetivo del Producto -->
+        <h3 class="h3-title" id="s0-objetivo">Objetivo del Producto</h3>
+        <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:12px;">
+          Desarrollar una plataforma integral de gestión de la investigación estudiantil para la Unidad de Investigación de la FICCT - UAGRM, que centralice la administración de convocatorias (ferias, hackathones, concursos e investigación), la postulación y seguimiento de proyectos estudiantiles, la documentación académica colaborativa en tiempo real mediante WebSockets, la asistencia inteligente mediante chatbot, el análisis preventivo de contenido asistido por IA (RoBERTa), la evaluación formal por jurados y la certificación verificable con tecnología blockchain.
+        </p>
+        <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:16px;">
+          El sistema busca ordenar y transparentar todo el ciclo de investigación formativa de la facultad, eliminando la dispersión física o documental, facilitando el acompañamiento docente y dotando de inalterabilidad y prestigio a los reconocimientos académicos otorgados.
+        </p>
+
+        <!-- Requerimientos Iniciales -->
+        <h3 class="h3-title" id="s0-requerimientos">Requerimientos Iniciales</h3>
+        <p style="font-size:13px; font-weight:700; color:var(--ink); margin-bottom:6px;">Requerimientos Funcionales por Módulo:</p>
+        
+        <p style="font-size:13px; font-weight:600; color:var(--accent-dark); margin:10px 0 4px;">Módulo de Identidad, Usuarios y Control de Accesos</p>
+        <ul class="bullet-list">
+          <li>El sistema debe permitir el registro y creación de cuentas de usuario con nombre, correo electrónico institucional (@uagrm.edu.bo) y contraseña segura.</li>
+          <li>El sistema debe permitir el inicio de sesión seguro con autenticación mediante tokens JWT.</li>
+          <li>El sistema debe gestionar los roles de usuario: Administrador FICCT, Docente Supervisor, Jurado Evaluador, Estudiante y Visitante público.</li>
+          <li>El sistema debe ofrecer administración de cuentas (listar, buscar, activar, suspender usuarios y asignar roles).</li>
+          <li>El sistema debe permitir a los usuarios consultar y editar su perfil personal.</li>
+        </ul>
+
+        <p style="font-size:13px; font-weight:600; color:var(--accent-dark); margin:10px 0 4px;">Módulo de Convocatorias y Eventos Académicos</p>
+        <ul class="bullet-list">
+          <li>El sistema debe permitir crear y parametrizar convocatorias clasificadas en: Ferias, Hackathones, Concursos y Convocatorias de Investigación.</li>
+          <li>El sistema debe permitir definir fechas de apertura, cierre de inscripción, tamaño de equipo y requisitos dinámicos de postulación.</li>
+          <li>El sistema debe gestionar los estados de las convocatorias: Borrador, Publicada y Finalizada.</li>
+        </ul>
+
+        <p style="font-size:13px; font-weight:600; color:var(--accent-dark); margin:10px 0 4px;">Módulo de Portal Público y Repositorio</p>
+        <ul class="bullet-list">
+          <li>El sistema debe ofrecer una landing page pública accesible para visitantes y la comunidad sin inicio de sesión.</li>
+          <li>El sistema debe permitir buscar y filtrar convocatorias vigentes y proyectos aprobados por temática o palabra clave.</li>
+          <li>El sistema debe proveer una vista de consulta y verificación pública de certificados emitidos.</li>
+        </ul>
+
+        <p style="font-size:13px; font-weight:600; color:var(--accent-dark); margin:10px 0 4px;">Módulos para Sprints Posteriores (S2 y S3)</p>
+        <ul class="bullet-list">
+          <li><strong>Proyectos e Inscripciones:</strong> Postulación individual o en equipo de proyectos de investigación.</li>
+          <li><strong>Documentación Colaborativa en Tiempo Real:</strong> Editor concurrente con WebSockets (STOMP), presencia en vivo y permisos granulares (Personal, Grupo, Grupo+Docente).</li>
+          <li><strong>Asistente Virtual (Chatbot):</strong> Agente IA con capacidad de acción (crear convocatorias guiadas) y navegación a rutas del sistema.</li>
+          <li><strong>Detector de Contenido IA:</strong> Servicio clasificador NLP (RoBERTa) para estimar porcentaje de probabilidad de texto generado por IA y resaltar fragmentos.</li>
+          <li><strong>Supervisión Docente y Evaluación por Jurados:</strong> Observaciones de tutores y rúbricas estructuradas de veredicto.</li>
+          <li><strong>Certificación Blockchain:</strong> Emisión de certificados digitales con hash inmutable y verificación QR.</li>
+        </ul>
+
+        <p style="font-size:13px; font-weight:700; color:var(--ink); margin-top:14px; margin-bottom:6px;">Requerimientos No Funcionales:</p>
+        <ul class="bullet-list">
+          <li><strong>Rendimiento:</strong> El tiempo de respuesta de las APIs REST en operaciones frecuentes debe ser inferior a 300 ms.</li>
+          <li><strong>Seguridad:</strong> Almacenamiento de contraseñas hasheadas con BCrypt; endpoints privados protegidos mediante Spring Security con JWT.</li>
+          <li><strong>Usabilidad:</strong> Interfaz sobria, funcional y responsive desarrollada en Next.js bajo la paleta institucional (definida en pantallas.html).</li>
+          <li><strong>Disponibilidad:</strong> Arquitectura backend y base de datos con alta disponibilidad en red local/nube (99.5%).</li>
+          <li><strong>Mantenibilidad:</strong> Arquitectura por capas en Spring Boot (Controller, Service, Repository, DTO) y código documentado.</li>
+        </ul>
+
+        <!-- Duración de los Sprints -->
+        <h3 class="h3-title" id="s0-duracion">Duración de los Sprints</h3>
+        <p style="font-size:13px; color:var(--ink-soft); line-height:1.6;">
+          El equipo ha decidido trabajar con <strong>sprints de 3 semanas de duración</strong> (21 días calendario / 15 días hábiles). Este tiempo se considera adecuado para planificar, desarrollar y revisar incrementos funcionales sin sobrecargar al equipo de 2 integrantes, permitiendo una entrega constante de valor al cliente y cumpliendo con las ceremonias formales.
+        </p>
+
+        <!-- Infraestructura Tecnológica (Tablas 33, 34 de pianito.docx) -->
+        <h3 class="h3-title" id="s0-infraestructura">Infraestructura Tecnológica</h3>
+        <p style="font-size:13px; font-weight:700; color:var(--ink); margin-bottom:6px;">Hardware Mínimo por Integrante:</p>
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th style="width:30%;">Componente</th>
+              <th>Especificación Mínima</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Procesador</strong></td>
+              <td>Intel Core i5 de 8ª generación o AMD Ryzen 5 (o superior)</td>
+            </tr>
+            <tr>
+              <td><strong>Memoria RAM</strong></td>
+              <td>16 GB DDR4 (mínimo 8 GB)</td>
+            </tr>
+            <tr>
+              <td><strong>Almacenamiento</strong></td>
+              <td>SSD 256 GB disponibles</td>
+            </tr>
+            <tr>
+              <td><strong>Conectividad</strong></td>
+              <td>Conexión a internet estable de al menos 10 Mbps</td>
+            </tr>
+            <tr>
+              <td><strong>Sistema Operativo</strong></td>
+              <td>Windows 10/11 (64 bits) o Linux Ubuntu 22.04 LTS</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p style="font-size:13px; font-weight:700; color:var(--ink); margin-top:14px; margin-bottom:6px;">Software y Tecnologías del Proyecto:</p>
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th style="width:25%;">Capa</th>
+              <th style="width:25%;">Tecnología</th>
+              <th>Propósito en el Proyecto</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Frontend Web</strong></td>
+              <td>Next.js 14+ (React / TS)</td>
+              <td>Portal público, formularios reactivos y panel administrativo institucional.</td>
+            </tr>
+            <tr>
+              <td><strong>Backend API</strong></td>
+              <td>Spring Boot 3.3.x (Java 17/21)</td>
+              <td>Servicios RESTful, Spring Security con JWT, lógica de negocio y validaciones.</td>
+            </tr>
+            <tr>
+              <td><strong>Base de Datos</strong></td>
+              <td>PostgreSQL 15+</td>
+              <td>Almacenamiento relacional principal (BD: <code>investigacion_db</code>, User: <code>postgres</code>, Pass: <code>admin369</code>).</td>
+            </tr>
+            <tr>
+              <td><strong>Mensajería Tiempo Real</strong></td>
+              <td>Spring WebSocket + STOMP</td>
+              <td>Infraestructura de WebSockets para colaboración y presencia en tiempo real (Sprint 2).</td>
+            </tr>
+            <tr>
+              <td><strong>Control de Versiones</strong></td>
+              <td>Git &amp; GitHub</td>
+              <td>Repositorio de código, modelo de ramas (<code>main</code>, <code>develop</code>, <code>feature/*</code>) y Conventional Commits.</td>
+            </tr>
+            <tr>
+              <td><strong>Pruebas y Documentación</strong></td>
+              <td>Postman / JUnit 5</td>
+              <td>Pruebas de endpoints REST, contratos JSON y pruebas unitarias de backend.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Patrón de Desarrollo -->
+        <h3 class="h3-title" id="s0-patron">Patrón de Desarrollo</h3>
+        <p style="font-size:13px; color:var(--ink-soft); line-height:1.6;">
+          Durante cada sprint, el equipo de desarrollo seguirá un patrón estructurado compuesto por las siguientes cuatro fases aplicadas a cada historia de usuario seleccionada en el Sprint Backlog:
+        </p>
+        <ul class="bullet-list">
+          <li><strong>Análisis:</strong> El equipo analiza en detalle las historias de usuario del sprint, comprendiendo su propósito, alcance y criterios de aceptación. Se identifican los módulos afectados, las posibles dependencias técnicas y las implicancias funcionales. También se revisan los datos necesarios, la lógica de negocio involucrada y los roles que interactúan con la funcionalidad.</li>
+          <li><strong>Diseño:</strong> A partir del análisis, se define la solución técnica. Se diseñan las estructuras de datos necesarias, se determinan los endpoints o servicios a crear o modificar, y se maquetan las interfaces de usuario cuando corresponda. También se documentan las reglas de validación y se planifica cómo se integrará la funcionalidad con el resto del sistema.</li>
+          <li><strong>Implementación:</strong> En esta fase se lleva a cabo el desarrollo del código, tanto en el backend como en el frontend. Se implementan los modelos, servicios, controladores y vistas, y se aplican las validaciones y reglas definidas. Todo el código se versiona en el repositorio y se realiza de forma colaborativa, cumpliendo con los estándares del equipo.</li>
+          <li><strong>Prueba:</strong> Una vez implementada la funcionalidad, se realizan pruebas unitarias e integradas para verificar su correcto funcionamiento. Se validan todos los criterios de aceptación, se corrigen errores y se deja la funcionalidad lista para la revisión del Product Owner.</li>
+        </ul>
+
+        <!-- Modelos Iniciales -->
+        <h3 class="h3-title" id="s0-modelos">Modelos Iniciales</h3>
+        <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:8px;">
+          <strong>Modelo de Contexto Inicial:</strong> El sistema se relaciona con los siguientes actores y sistemas externos:
+        </p>
+        <ul class="bullet-list">
+          <li><strong>Administrador FICCT:</strong> Gestiona convocatorias, usuarios, roles, eventos y el panel público general.</li>
+          <li><strong>Docente Supervisor:</strong> Revisa propuestas de investigación, da seguimiento académico y crea convocatorias.</li>
+          <li><strong>Jurado Evaluador:</strong> Califica proyectos al cierre de un evento y registra actas de veredicto.</li>
+          <li><strong>Estudiante Investigador:</strong> Se inscribe en actividades, gestiona su perfil y colabora en proyectos.</li>
+          <li><strong>Visitante Público:</strong> Consulta convocatorias abiertas y busca certificados verificados sin requerir sesión.</li>
+          <li><strong>Asistente Virtual (IA):</strong> Media entre el usuario y los módulos mediante lenguaje natural.</li>
+        </ul>
+
+        <!-- LOS 7 CRITERIOS DE CALIDAD (Exactos de pianito.docx) -->
+        <h3 class="h3-title" id="s0-calidad">Definición de Criterios de Calidad</h3>
+        <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:16px;">
+          Siguiendo el estándar de ingeniería de software, el sistema adopta formalmente los <strong>7 criterios de calidad</strong> para garantizar que el producto cumpla con los niveles requeridos de madurez técnica:
+        </p>
+
+        <!-- 1. Correctividad -->
+        <div class="qc-box">
+          <div class="qc-title">1. Correctividad</div>
+          <div class="qc-desc">El sistema debe ejecutar correctamente todas las funciones especificadas en los requerimientos, sin comportamientos inesperados ni errores en los flujos principales.</div>
+          <ul class="bullet-list" style="margin-bottom:0;">
+            <li>El flujo de creación y registro de usuario debe validar correos institucionales únicos y contraseñas seguras sin fallos.</li>
+            <li>La autenticación con JWT debe validar credenciales y emitir tokens firmados con el rol exacto del usuario.</li>
+            <li>La parametrización de convocatorias debe registrar fielmente los requisitos dinámicos, tipos de evento y fechas límite.</li>
+            <li>El portal público debe listar el 100% de las convocatorias marcadas en estado "Publicada", omitiendo estrictamente los borradores.</li>
+            <li>El control de accesos basado en roles (RBAC) debe restringir las funciones administrativas únicamente a usuarios con rol ADMIN.</li>
+          </ul>
+        </div>
+
+        <!-- 2. Eficiencia -->
+        <div class="qc-box">
+          <div class="qc-title">2. Eficiencia</div>
+          <div class="qc-desc">El sistema debe hacer uso óptimo de los recursos computacionales del servidor y del cliente, minimizando los tiempos de procesamiento y respuesta.</div>
+          <ul class="bullet-list" style="margin-bottom:0;">
+            <li>El tiempo de respuesta de los endpoints REST en Spring Boot debe ser inferior a 250 ms en operaciones frecuentes.</li>
+            <li>La carga inicial de la aplicación Next.js y el renderizado del portal público no debe superar 1.5 segundos.</li>
+            <li>Las consultas a la base de datos PostgreSQL deben optimizarse con índices en campos de búsqueda (`email`, `convocatoria_id`, `estado`).</li>
+            <li>Las operaciones de hashing con BCrypt deben calibrarse (factor 10) para no sobrecargar la CPU del servidor.</li>
+          </ul>
+        </div>
+
+        <!-- 3. Fiabilidad -->
+        <div class="qc-box">
+          <div class="qc-title">3. Fiabilidad</div>
+          <div class="qc-desc">El sistema debe operar de manera consistente y estable, recuperándose de fallos sin pérdida de datos críticos del usuario.</div>
+          <ul class="bullet-list" style="margin-bottom:0;">
+            <li>La plataforma debe garantizar una disponibilidad continua durante las sesiones operativas y evaluaciones.</li>
+            <li>Las transacciones en base de datos deben aplicar `@Transactional` en Spring Boot para garantizar atomicidad y consistencia.</li>
+            <li>Los errores no controlados deben ser capturados por un manejador global (`@ControllerAdvice`), retornando códigos HTTP estandarizados y mensajes amigables sin exponer trazas de error.</li>
+            <li>Manejo de reconexión transparente en el cliente si ocurre una pérdida temporal de conexión a la red.</li>
+          </ul>
+        </div>
+
+        <!-- 4. Facilidad de Uso (Usabilidad) -->
+        <div class="qc-box">
+          <div class="qc-title">4. Facilidad de Uso (Usabilidad)</div>
+          <div class="qc-desc">La interfaz debe ser intuitiva, accesible y sobria para docentes, estudiantes y visitantes, siguiendo principios de diseño UX y la identidad visual institucional.</div>
+          <ul class="bullet-list" style="margin-bottom:0;">
+            <li>Un usuario nuevo debe poder completar su registro e iniciar sesión en menos de 2 minutos sin asistencia técnica.</li>
+            <li>Los formularios de convocatoria deben incluir previsualización interactiva en vivo que refleje el aspecto final en el portal.</li>
+            <li>Los mensajes de validación deben presentarse de forma clara junto al campo correspondiente en tiempo real.</li>
+            <li>La interfaz debe cumplir con principios de diseño responsive adaptándose a computadoras, tablets y teléfonos.</li>
+          </ul>
+        </div>
+
+        <!-- 5. Facilidad de Mantenimiento -->
+        <div class="qc-box">
+          <div class="qc-title">5. Facilidad de Mantenimiento</div>
+          <div class="qc-desc">El código fuente debe ser modular, documentado y estructurado para facilitar la incorporación de nuevas funcionalidades y la corrección de errores.</div>
+          <ul class="bullet-list" style="margin-bottom:0;">
+            <li>El backend en Spring Boot debe seguir estrictamente la arquitectura por capas: Controller, Service, Repository, DTO y Mapper.</li>
+            <li>El frontend en Next.js debe estructurarse con componentes desacoplados y reutilizables bajo TypeScript con tipado estricto.</li>
+            <li>Cobertura de pruebas unitarias mínimas en la lógica de negocio del backend mediante JUnit 5.</li>
+            <li>El esquema de base de datos PostgreSQL debe administrarse con scripts DDL estructurados y versionados.</li>
+          </ul>
+        </div>
+
+        <!-- 6. Seguridad e Integridad -->
+        <div class="qc-box">
+          <div class="qc-title">6. Seguridad e Integridad</div>
+          <div class="qc-desc">El sistema debe proteger los datos personales y académicos contra accesos no autorizados, manipulación indebida o fugas de información.</div>
+          <ul class="bullet-list" style="margin-bottom:0;">
+            <li>Autenticación basada en JWT con algoritmo HMAC-SHA256, expiración configurada y almacenamiento seguro en el cliente.</li>
+            <li>Las contraseñas de los usuarios deben almacenarse hasheadas con BCrypt, nunca en texto claro en la base de datos.</li>
+            <li>Todos los endpoints privados deben protegerse mediante Spring Security validando el token y los roles autorizados.</li>
+            <li>Sanitización de entradas para prevenir inyecciones SQL (vía JPA Hibernate) y vulnerabilidades XSS.</li>
+          </ul>
+        </div>
+
+        <!-- 7. Portabilidad -->
+        <div class="qc-box">
+          <div class="qc-title">7. Portabilidad</div>
+          <div class="qc-desc">El sistema debe poder ejecutarse en diferentes plataformas y entornos con mínimas modificaciones de configuración.</div>
+          <ul class="bullet-list" style="margin-bottom:0;">
+            <li>La aplicación web cliente Next.js debe ser totalmente compatible con navegadores modernos: Chrome, Firefox, Edge y Safari.</li>
+            <li>El backend Spring Boot compilado en Java 17/21 debe ser ejecutable indistintamente en sistemas operativos Windows o Linux.</li>
+            <li>La base de datos PostgreSQL debe operar bajo estándares SQL estándar que faciliten su migración o respaldo hacia entornos de nube.</li>
+          </ul>
+        </div>
+
+        <!-- Product Backlog (Tabla 36 de pianito.docx) -->
+        <h3 class="h3-title" id="s0-backlog">Product Backlog Global</h3>
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="4" class="table-title-bar">Product Backlog</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Proyecto: Sistema de Investigación FICCT</th>
+              <th colspan="2">Product Owner: Daniel Quispe Choque</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Versión: 1.0</th>
+              <th colspan="2">Fecha: Septiembre 2026</th>
+            </tr>
+            <tr>
+              <th style="width:70px;">ID</th>
+              <th style="width:220px;">Nombre corto del requerimiento</th>
+              <th>Descripción del requerimiento funcional usando &lt;como&gt;... &lt;quiero&gt;... &lt;para&gt;</th>
+              <th style="width:90px;">Prioridad</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Modulo 1 -->
+            <tr class="table-module-row">
+              <td colspan="4">MÓDULO: IDENTIDAD, AUTENTICACIÓN Y GESTIÓN DE USUARIOS</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-01</span></td>
+              <td>Crear usuario / Registro de usuario</td>
+              <td>Como nuevo estudiante o docente de la facultad, quiero registrar una cuenta con mi nombre, correo institucional y contraseña para habilitar mi acceso al sistema.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-02</span></td>
+              <td>Autenticación de usuario (JWT)</td>
+              <td>Como usuario registrado, quiero iniciar sesión de forma segura con mis credenciales para acceder a mi panel correspondiente según mi rol.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-03</span></td>
+              <td>Gestión de usuarios y roles (Admin)</td>
+              <td>Como administrador de la Unidad, quiero listar, buscar, activar o suspender usuarios y asignar roles para controlar los privilegios en la plataforma.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-04</span></td>
+              <td>Gestión de perfil personal</td>
+              <td>Como usuario con sesión iniciada, quiero ver y actualizar mis datos de perfil para mantener mi información al día.</td>
+              <td><span class="tag tag-med">Media</span></td>
+            </tr>
+
+            <!-- Modulo 2 -->
+            <tr class="table-module-row">
+              <td colspan="4">MÓDULO: CONVOCATORIAS, FERIAS Y EVENTOS ACADÉMICOS</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-05</span></td>
+              <td>Creación y configuración de convocatorias</td>
+              <td>Como administrador o docente, quiero registrar una nueva convocatoria (feria, hackathon, concurso o investigación) con fechas, tamaño de equipo y requisitos para abrir postulaciones.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-06</span></td>
+              <td>Publicación de convocatorias</td>
+              <td>Como administrador, quiero cambiar el estado de una convocatoria a "Publicada" para que sea visible públicamente en el portal.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-07</span></td>
+              <td>Portal público y catálogo de eventos</td>
+              <td>Como visitante o estudiante, quiero explorar las convocatorias abiertas y buscar por palabras clave en una landing page para conocer las actividades de la facultad.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+
+            <!-- Modulos Posteriores (Sprint 2 y 3) -->
+            <tr class="table-module-row">
+              <td colspan="4">MÓDULO: PROYECTOS, COLABORACIÓN E INNOVACIÓN (SPRINTS POSTERIORES)</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-08</span></td>
+              <td>Inscripción de proyectos y equipos (Sprint 2)</td>
+              <td>Como estudiante, quiero postular un proyecto individual o grupal a una convocatoria activa para formalizar mi participación.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-09</span></td>
+              <td>Documento colaborativo en tiempo real (Sprint 2)</td>
+              <td>Como estudiante o tutor, quiero redactar documentos de avance con edición concurrente vía WebSockets y presencia en vivo para trabajar en equipo.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-10</span></td>
+              <td>Permisos granulares por documento (Sprint 2)</td>
+              <td>Como autor, quiero fijar el nivel de acceso (Personal, Solo Grupo, Grupo+Docente) para controlar quién lee o comenta mi investigación.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-11</span></td>
+              <td>Asistente Virtual para crear convocatorias (Sprint 2)</td>
+              <td>Como docente evaluador, quiero pedirle por chat al chatbot que cree una convocatoria para agilizar su publicación en lenguaje natural.</td>
+              <td><span class="tag tag-high">Alta</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-12</span></td>
+              <td>Navegación asistida vía Chatbot (Sprint 2)</td>
+              <td>Como usuario, quiero consultar al asistente por mis tareas pendientes para ser redirigido directamente a la vista requerida.</td>
+              <td><span class="tag tag-med">Media</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-13</span></td>
+              <td>Detección de contenido generado por IA (Sprint 2)</td>
+              <td>Como docente o estudiante, quiero evaluar fragmentos de texto con un clasificador RoBERTa para estimar la probabilidad de texto sintético.</td>
+              <td><span class="tag tag-med">Media</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-14</span></td>
+              <td>Supervisión académica y observaciones (Sprint 2)</td>
+              <td>Como docente supervisor, quiero registrar observaciones directas en los documentos para orientar el avance estudiantil.</td>
+              <td><span class="tag tag-med">Media</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-15</span></td>
+              <td>Evaluación por jurados y rúbricas (Sprint 3)</td>
+              <td>Como jurado evaluador, quiero registrar calificaciones y veredictos mediante rúbricas para dictaminar el resultado final del proyecto.</td>
+              <td><span class="tag tag-med">Media</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-16</span></td>
+              <td>Emisión y certificación en Blockchain (Sprint 3)</td>
+              <td>Como administrador, quiero emitir certificados digitales con registro inmutable en blockchain para garantizar la autenticidad del mérito.</td>
+              <td><span class="tag tag-med">Media</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-17</span></td>
+              <td>Verificación pública de certificados (Sprint 3)</td>
+              <td>Como visitante, quiero verificar un certificado mediante código hash o código QR para comprobar su validez sin alterar.</td>
+              <td><span class="tag tag-med">Media</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">HU-18</span></td>
+              <td>Reportes generativos en lenguaje natural (Sprint 4)</td>
+              <td>Como director de la Unidad, quiero solicitar informes consolidados generados por IA sobre la producción científica de la facultad.</td>
+              <td><span class="tag tag-low">Baja</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SPRINT 1: CORE DEL SISTEMA (3 SEMANAS)                    -->
+      <!-- ======================================================== -->
+      <section class="section-card">
+        <h2 class="h2-title">SPRINT 1</h2>
+        <p class="section-intro">
+          <strong>Alcance Realista y Fundacional:</strong> Para el Sprint 1 se aborda el núcleo operativo del sistema: creación y registro de usuarios, autenticación segura mediante JWT, gestión administrativa de roles, creación y publicación de convocatorias, y el portal público de difusión de actividades. Los módulos de mayor complejidad técnica (Documentación Colaborativa WebSockets, Chatbot Asistente y Detector IA) se programan para el Sprint 2.
+        </p>
+
+        <!-- Sprint Planning (Tabla 40 de pianito.docx) -->
+        <h3 class="h3-title" id="s1-planning">Sprint Planning</h3>
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="2" class="table-title-bar">Sprint Planning</th>
+            </tr>
+            <tr>
+              <th style="width:45px;">ID</th>
+              <th>Tarea</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>a)</strong></td>
+              <td>
+                <strong>Historias de Usuario candidatas:</strong><br/>
+                HU-01: Crear usuario / Registro de usuario.<br/>
+                HU-02: Autenticación de usuario con JWT y control de sesión.<br/>
+                HU-03: Gestión de usuarios y roles en panel administrativo (Admin FICCT).<br/>
+                HU-05: Creación y parametrización de convocatorias y ferias científicas.<br/>
+                HU-06: Publicación de convocatorias y control de estados.<br/>
+                HU-07: Portal público con catálogo y buscador reactivo de eventos.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>b)</strong></td>
+              <td>
+                <strong>Objetivo Principal:</strong><br/>
+                Implementar la infraestructura base tecnológica (PostgreSQL <code>investigacion_db</code>, Spring Boot 3 y Next.js 14), el flujo completo de registro y autenticación con JWT, el panel administrativo de usuarios y roles, la creación y publicación de convocatorias y el portal público de difusión institucional para la Unidad de Investigación FICCT.<br/><br/>
+                <strong>Objetivos Específicos:</strong><br/>
+                • Configurar la base de datos relacional PostgreSQL con entidades de usuarios, roles, convocatorias y requisitos.<br/>
+                • Implementar el registro de usuarios con validaciones de correo institucional y contraseñas hasheadas en BCrypt.<br/>
+                • Implementar el endpoint seguro de login con generación y validación de tokens JWT en Spring Boot.<br/>
+                • Desarrollar el panel web administrativo en Next.js para gestionar usuarios y sus roles.<br/>
+                • Construir el formulario interactivo de nueva convocatoria con previsualización en vivo.<br/>
+                • Publicar la landing page del portal público con catálogo de eventos y buscador integrado.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>c)</strong></td>
+              <td>
+                <strong>Estimación de esfuerzo (Planning Poker — Serie de Fibonacci):</strong><br/>
+                HU-01: Crear usuario / Registro de usuario ————————— 5 pts<br/>
+                HU-02: Autenticación de usuario con JWT ————————— 5 pts<br/>
+                HU-03: Gestión de usuarios y roles (Admin) ———————— 8 pts<br/>
+                HU-05: Creación y configuración de convocatorias ————— 5 pts<br/>
+                HU-06: Publicación de convocatorias ———————————— 3 pts<br/>
+                HU-07: Portal público y buscador reactivo ————————— 5 pts<br/>
+                <strong>Total estimado:</strong> 31 puntos de historia de usuario (PHU).
+              </td>
+            </tr>
+            <tr>
+              <td><strong>d)</strong></td>
+              <td>
+                <strong>Historias de Usuario seleccionadas para el Sprint 1:</strong><br/>
+                HU-01 — Crear usuario / Registro de usuario (Prioridad: Alta)<br/>
+                HU-02 — Autenticación de usuario con JWT (Prioridad: Alta)<br/>
+                HU-03 — Gestión de usuarios y asignación de roles (Prioridad: Alta)<br/>
+                HU-05 — Creación y configuración de convocatorias (Prioridad: Alta)<br/>
+                HU-06 — Publicación de convocatorias (Prioridad: Alta)<br/>
+                HU-07 — Portal público y catálogo de eventos (Prioridad: Alta)
+              </td>
+            </tr>
+            <tr>
+              <td><strong>e)</strong></td>
+              <td>
+                <strong>Diagramas a realizar en UML:</strong><br/>
+                • <em>Diseño de Arquitectura:</em> Diagrama de paquetes del Sprint 1 y Diagrama de despliegue físico.<br/>
+                • <em>Diseño de Datos:</em> Diagrama de clases del Sprint 1 y Diagrama de entidad-relación en PostgreSQL.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>f)</strong></td>
+              <td>
+                Ver sección <strong>Sprint Backlog</strong> a continuación con tareas técnicas específicas, estimaciones en horas y responsables asignados.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Historias de Usuario Detalladas (Tablas 42, 43, 44, 45 de pianito.docx) -->
+        <h3 class="h3-title" id="s1-hu">Historias de Usuario Detalladas (Sprint 1)</h3>
+
+        <!-- HU-01: CREAR USUARIO / REGISTRO -->
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="5" class="table-title-bar">Historia de usuario</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="3">Logo del proyecto: FICCT Investigación</th>
+              <th colspan="2">Sprint: 1</th>
+            </tr>
+            <tr>
+              <th style="width:70px;">Id</th>
+              <th>Nombre corto de HU</th>
+              <th style="width:90px;">Prioridad</th>
+              <th style="width:60px;">PHU</th>
+              <th style="width:100px;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">HU-01</span></td>
+              <td>Crear usuario / Registro de usuario</td>
+              <td><span class="tag tag-high">Alta</span></td>
+              <td>5</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><strong>Como:</strong></td>
+              <td colspan="4">Nuevo estudiante o docente de la facultad</td>
+            </tr>
+            <tr>
+              <td><strong>Quiero:</strong></td>
+              <td colspan="4">Registrar una cuenta en el sistema proporcionando mi nombre completo, correo institucional (@uagrm.edu.bo) y contraseña</td>
+            </tr>
+            <tr>
+              <td><strong>Para:</strong></td>
+              <td colspan="4">Habilitar mi perfil de usuario y poder participar en las actividades académicas y de investigación.</td>
+            </tr>
+            <tr>
+              <td><strong>Criterios de aceptación:</strong></td>
+              <td colspan="4">
+                1. El formulario valida formato de correo institucional (@uagrm.edu.bo) y contraseña con mínimo 8 caracteres.<br/>
+                2. Si el correo ya se encuentra registrado en la base de datos, el sistema muestra un mensaje de error claro.<br/>
+                3. La contraseña se almacena de forma segura en PostgreSQL hasheada con algoritmo BCrypt, nunca en texto plano.<br/>
+                4. Por defecto, un usuario nuevo se crea con el rol base de "Estudiante" en estado "Activo".<br/>
+                5. Tras el registro exitoso, el sistema muestra confirmación visual y permite pasar a iniciar sesión.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Conversación / Reglas (opcional):</strong></td>
+              <td colspan="4">
+                Se acordó no requerir verificación de correo por enlace en esta primera iteración para evitar dependencias de servidores SMTP externos en pruebas locales. La asignación de roles superiores (Docente/Jurado) se realiza mediante el panel de administración.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Prototipo / Mockup (opcional):</strong></td>
+              <td colspan="4">Pantalla de Registro adaptada del módulo Login de <code>pantallas.html</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>Desarrolladores:</strong></td>
+              <td colspan="4">Brandon Vásquez (UI/UX Next.js) / Daniel Quispe Choque (API &amp; Modelo Spring Boot)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- HU-02: AUTENTICACIÓN JWT -->
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="5" class="table-title-bar">Historia de usuario</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="3">Logo del proyecto: FICCT Investigación</th>
+              <th colspan="2">Sprint: 1</th>
+            </tr>
+            <tr>
+              <th style="width:70px;">Id</th>
+              <th>Nombre corto de HU</th>
+              <th style="width:90px;">Prioridad</th>
+              <th style="width:60px;">PHU</th>
+              <th style="width:100px;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">HU-02</span></td>
+              <td>Autenticación de usuario (JWT)</td>
+              <td><span class="tag tag-high">Alta</span></td>
+              <td>5</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><strong>Como:</strong></td>
+              <td colspan="4">Usuario registrado de la comunidad universitaria (Admin, Docente, Jurado o Estudiante)</td>
+            </tr>
+            <tr>
+              <td><strong>Quiero:</strong></td>
+              <td colspan="4">Iniciar sesión con mi correo institucional (@uagrm.edu.bo) y contraseña de forma segura</td>
+            </tr>
+            <tr>
+              <td><strong>Para:</strong></td>
+              <td colspan="4">Acceder a mi panel de trabajo y funciones autorizadas de acuerdo con mi rol asignado.</td>
+            </tr>
+            <tr>
+              <td><strong>Criterios de aceptación:</strong></td>
+              <td colspan="4">
+                1. El formulario valida formato de correo institucional y contraseña mínima de 8 caracteres.<br/>
+                2. El backend en Spring Boot valida credenciales contra la BD PostgreSQL con hash BCrypt.<br/>
+                3. Si la autenticación es exitosa, se genera un token JWT firmado con claims del rol y vigencia de 8 horas.<br/>
+                4. En Next.js el token se almacena en cookies/almacenamiento seguro y se protegen las rutas privadas.<br/>
+                5. Credenciales inválidas devuelven error HTTP 401 con mensaje genérico sin revelar qué campo falló.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Conversación / Reglas (opcional):</strong></td>
+              <td colspan="4">
+                Se acordó que un docente puede desempeñar simultáneamente el rol de Jurado sin requerir dos cuentas distintas. Las sesiones expiran a las 8 horas por seguridad académica.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Prototipo / Mockup (opcional):</strong></td>
+              <td colspan="4">Pantalla de Login documentada en <code>pantallas.html</code> (líneas 71-88 y 263-282).</td>
+            </tr>
+            <tr>
+              <td><strong>Desarrolladores:</strong></td>
+              <td colspan="4">Daniel Quispe Choque (Backend Spring Boot) / Brandon Vásquez (Frontend Next.js)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- HU-03: GESTIÓN DE USUARIOS Y ROLES -->
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="5" class="table-title-bar">Historia de usuario</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="3">Logo del proyecto: FICCT Investigación</th>
+              <th colspan="2">Sprint: 1</th>
+            </tr>
+            <tr>
+              <th style="width:70px;">Id</th>
+              <th>Nombre corto de HU</th>
+              <th style="width:90px;">Prioridad</th>
+              <th style="width:60px;">PHU</th>
+              <th style="width:100px;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">HU-03</span></td>
+              <td>Gestión de usuarios y asignación de roles (Admin)</td>
+              <td><span class="tag tag-high">Alta</span></td>
+              <td>8</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><strong>Como:</strong></td>
+              <td colspan="4">Administrador de la Unidad de Investigación FICCT</td>
+            </tr>
+            <tr>
+              <td><strong>Quiero:</strong></td>
+              <td colspan="4">Visualizar la lista de usuarios, buscar por nombre o correo, activar/suspender cuentas y asignar roles</td>
+            </tr>
+            <tr>
+              <td><strong>Para:</strong></td>
+              <td colspan="4">Controlar la seguridad, facultades y permisos de acceso en la plataforma académica.</td>
+            </tr>
+            <tr>
+              <td><strong>Criterios de aceptación:</strong></td>
+              <td colspan="4">
+                1. El panel muestra la lista paginada de usuarios con buscador por nombre, correo o rol.<br/>
+                2. El administrador puede alternar el estado de un usuario entre "Activo" y "Suspendido".<br/>
+                3. Se puede modificar el rol del usuario (Administrador, Docente, Jurado, Estudiante).<br/>
+                4. Solo usuarios con rol ADMINISTRADOR tienen acceso a este módulo (RBAC validado en backend).<br/>
+                5. Los cambios en el rol se registran inmediatamente en la base de datos PostgreSQL.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Conversación / Reglas (opcional):</strong></td>
+              <td colspan="4">
+                No se permite suspender la propia cuenta de administrador en sesión para evitar bloqueos del sistema.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Prototipo / Mockup (opcional):</strong></td>
+              <td colspan="4">Módulo de Administración de Usuarios en App Shell de <code>pantallas.html</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>Desarrolladores:</strong></td>
+              <td colspan="4">Brandon Vásquez (Next.js UI) / Daniel Quispe Choque (API REST Spring Boot)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- HU-05: CREACIÓN DE CONVOCATORIAS -->
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="5" class="table-title-bar">Historia de usuario</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="3">Logo del proyecto: FICCT Investigación</th>
+              <th colspan="2">Sprint: 1</th>
+            </tr>
+            <tr>
+              <th style="width:70px;">Id</th>
+              <th>Nombre corto de HU</th>
+              <th style="width:90px;">Prioridad</th>
+              <th style="width:60px;">PHU</th>
+              <th style="width:100px;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">HU-05</span></td>
+              <td>Creación y parametrización de convocatorias</td>
+              <td><span class="tag tag-high">Alta</span></td>
+              <td>5</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><strong>Como:</strong></td>
+              <td colspan="4">Administrador de la Unidad o Docente Supervisor autorizado</td>
+            </tr>
+            <tr>
+              <td><strong>Quiero:</strong></td>
+              <td colspan="4">Crear una nueva convocatoria configurando tipo de evento, título, fechas, integrantes y requisitos</td>
+            </tr>
+            <tr>
+              <td><strong>Para:</strong></td>
+              <td colspan="4">Abrir oportunidades formales de participación en ferias, hackathones o investigaciones.</td>
+            </tr>
+            <tr>
+              <td><strong>Criterios de aceptación:</strong></td>
+              <td colspan="4">
+                1. Selección de tipo de actividad mediante pastillas (Feria, Hackathon, Concurso, Investigación).<br/>
+                2. Campos de título, descripción general, fecha límite de postulación y tamaño de equipo.<br/>
+                3. Posibilidad de agregar dinámicamente requisitos de postulación en formato de chips.<br/>
+                4. Previsualización en tiempo real a la derecha mostrando la tarjeta idéntica al portal público.<br/>
+                5. Botón para guardar como borrador o proceder a la publicación.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Conversación / Reglas (opcional):</strong></td>
+              <td colspan="4">
+                La fecha de cierre de inscripción debe ser igual o posterior a la fecha actual de registro.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Prototipo / Mockup (opcional):</strong></td>
+              <td colspan="4">Formulario Nueva Convocatoria documentado en <code>pantallas.html</code> (líneas 345-418).</td>
+            </tr>
+            <tr>
+              <td><strong>Desarrolladores:</strong></td>
+              <td colspan="4">Brandon Vásquez (Maquetación &amp; Reactividad) / Daniel Quispe Choque (API &amp; Entidad JPA)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- HU-07: PORTAL PÚBLICO -->
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="5" class="table-title-bar">Historia de usuario</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="3">Logo del proyecto: FICCT Investigación</th>
+              <th colspan="2">Sprint: 1</th>
+            </tr>
+            <tr>
+              <th style="width:70px;">Id</th>
+              <th>Nombre corto de HU</th>
+              <th style="width:90px;">Prioridad</th>
+              <th style="width:60px;">PHU</th>
+              <th style="width:100px;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">HU-07</span></td>
+              <td>Portal público y catálogo de eventos</td>
+              <td><span class="tag tag-high">Alta</span></td>
+              <td>5</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><strong>Como:</strong></td>
+              <td colspan="4">Estudiante o visitante sin sesión iniciada</td>
+            </tr>
+            <tr>
+              <td><strong>Quiero:</strong></td>
+              <td colspan="4">Visualizar las actividades de investigación abiertas y buscar por palabras clave en una landing page</td>
+            </tr>
+            <tr>
+              <td><strong>Para:</strong></td>
+              <td colspan="4">Conocer los eventos activos, fechas límite y requisitos sin necesidad de autenticarme.</td>
+            </tr>
+            <tr>
+              <td><strong>Criterios de aceptación:</strong></td>
+              <td colspan="4">
+                1. Acceso público sin requerir token JWT (endpoint público en Spring Security).<br/>
+                2. Buscador reactivo por título, categoría o área de investigación.<br/>
+                3. Tarjetas con distintivo de tipo de evento, título, fechas y requisitos principales.<br/>
+                4. Diseño responsive adaptado a computadoras, tablets y dispositivos móviles.<br/>
+                5. Botón directo de "Iniciar sesión" en la cabecera para los usuarios que deseen postularse.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Conversación / Reglas (opcional):</strong></td>
+              <td colspan="4">
+                Solo se deben mostrar aquellas convocatorias que se encuentren en estado "Publicada".
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Prototipo / Mockup (opcional):</strong></td>
+              <td colspan="4">Portal Público en <code>index.html</code> y pantalla portal en <code>pantallas.html</code> (líneas 228-260).</td>
+            </tr>
+            <tr>
+              <td><strong>Desarrolladores:</strong></td>
+              <td colspan="4">Brandon Vásquez (Diseño Next.js) / Daniel Quispe Choque (API Pública Spring Boot)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Sprint Backlog (Tabla 47, 48 de pianito.docx) -->
+        <h3 class="h3-title" id="s1-backlog">Sprint Backlog (Tareas Técnicas del Sprint 1)</h3>
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="5" class="table-title-bar">SPRINT BACKLOG</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="5">Objetivo del Sprint: Implementar registro de usuarios, autenticación JWT, gestión de roles, creación y publicación de convocatorias y portal público para el Sistema de Investigación FICCT.</th>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Sprint 1</th>
+              <th>Tiempo programado: 3 semanas</th>
+              <th>Inicio: 01 / 09 / 2026</th>
+              <th>Fin: 21 / 09 / 2026</th>
+            </tr>
+            <tr>
+              <th style="width:65px;">ID</th>
+              <th>TAREA</th>
+              <th style="width:75px;">EST. (h)</th>
+              <th style="width:140px;">RESPONSABLE</th>
+              <th style="width:105px;">ESTADO</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">T-01</span></td>
+              <td>Configuración de PostgreSQL (<code>investigacion_db</code>), esquemas DDL y tablas de usuarios y roles</td>
+              <td>4h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-02</span></td>
+              <td>Configuración de Spring Boot 3 con Spring Data JPA, Spring Security y dependencias BCrypt/JWT</td>
+              <td>5h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-03</span></td>
+              <td>Configuración inicial de Next.js 14 (App Router), Tailwind CSS y tokens de diseño institucional</td>
+              <td>4h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-04</span></td>
+              <td>[HU-01] Maquetación de la pantalla de Registro / Crear Usuario en Next.js con validaciones de campos</td>
+              <td>3h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-05</span></td>
+              <td>[HU-01] Endpoint POST /api/auth/register en Spring Boot con hash BCrypt y validación de correo institucional</td>
+              <td>4h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-06</span></td>
+              <td>[HU-01] Integración Next.js → API de Registro con manejo de mensajes de éxito y errores de duplicidad</td>
+              <td>3h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-07</span></td>
+              <td>[HU-02] Maquetación de la pantalla de Login en Next.js (diseño institucional según pantallas.html)</td>
+              <td>3h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-08</span></td>
+              <td>[HU-02] Endpoint POST /api/auth/login con validación de credenciales BCrypt y generación de token JWT</td>
+              <td>4h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-09</span></td>
+              <td>[HU-02] Almacenamiento seguro del token JWT, cierre de sesión y middleware de rutas privadas en Next.js</td>
+              <td>4h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-10</span></td>
+              <td>[HU-03] Script Seeder en Spring Boot para poblar usuario administrador y roles base al inicio</td>
+              <td>3h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-11</span></td>
+              <td>[HU-03] Endpoints GET /api/admin/users y PUT /api/admin/users/{id}/role con seguridad RBAC</td>
+              <td>4h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-12</span></td>
+              <td>[HU-03] Módulo Next.js: Tabla administrativa de gestión de usuarios con buscador por nombre, correo y rol</td>
+              <td>5h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-13</span></td>
+              <td>[HU-03] Acciones de usuario: Modal para modificar roles y botón para activar o suspender cuentas</td>
+              <td>3h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-14</span></td>
+              <td>[HU-05] Modelo de datos JPA para Convocatorias, Categorías (Feria, Hackathon, etc.) y Requisitos</td>
+              <td>4h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-15</span></td>
+              <td>[HU-05] Endpoints REST POST /api/convocatorias y GET /api/convocatorias/admin</td>
+              <td>4h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-16</span></td>
+              <td>[HU-05] Formulario Nueva Convocatoria en Next.js: selector de tipo, fechas y requisitos dinámicos</td>
+              <td>5h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-17</span></td>
+              <td>[HU-05] Componente de previsualización reactiva en vivo de la convocatoria a la derecha del formulario</td>
+              <td>4h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-18</span></td>
+              <td>[HU-06] Endpoint PUT /api/convocatorias/{id}/publicar con validación de campos obligatorios completos</td>
+              <td>2h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-19</span></td>
+              <td>[HU-07] Endpoint público GET /api/public/convocatorias con filtros por temática y buscador de texto</td>
+              <td>3h</td>
+              <td>Daniel Quispe</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">T-20</span></td>
+              <td>[HU-07] Desarrollo de la Landing Page pública en Next.js con catálogo de tarjetas y buscador reactivo</td>
+              <td>5h</td>
+              <td>Brandon Vásquez</td>
+              <td><span class="tag tag-done">Terminado</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Revisión de Sprint (Tabla 50 de pianito.docx) -->
+        <h3 class="h3-title" id="s1-review">Revisión de Sprint (Sprint Review 1)</h3>
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="2" class="table-title-bar">Revisión de Sprint</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="width:30%;"><strong>Nombre del proyecto y número de revisión:</strong></td>
+              <td>Sistema de Apoyo a la Investigación Estudiantil FICCT — Sprint Review 1</td>
+            </tr>
+            <tr>
+              <td><strong>Objetivo de la revisión:</strong></td>
+              <td>Verificar el cumplimiento de las Historias de Usuario del Sprint 1 (Registro de Usuarios, Autenticación JWT, Gestión de Roles, Convocatorias y Portal Público).</td>
+            </tr>
+            <tr>
+              <td><strong>Fecha y Hora:</strong></td>
+              <td>21 / 09 / 2026 &nbsp;&nbsp;|&nbsp;&nbsp; Hora: 18:00</td>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Participantes</th>
+            </tr>
+            <tr>
+              <td><strong>Daniel Quispe Choque</strong></td>
+              <td>Product Owner &amp; Lead Backend Developer</td>
+            </tr>
+            <tr>
+              <td><strong>Brandon Vásquez</strong></td>
+              <td>Scrum Master &amp; Lead Frontend Developer</td>
+            </tr>
+            <tr>
+              <td><strong>Ing. Rolando Antonio Martínez Canedo</strong></td>
+              <td>Docente Guía / Interesado Clave (Evaluador)</td>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Presentación del incremento</th>
+            </tr>
+            <tr>
+              <th>Función presentada</th>
+              <th>Retroalimentación</th>
+            </tr>
+            <tr>
+              <td><strong>Creación y Registro de Usuarios (HU-01)</strong><br/>Formulario de registro institucional con validación de correo @uagrm.edu.bo y hash BCrypt.</td>
+              <td>Aprobado. Se verificó que las contraseñas no se almacenan en texto plano y que se previene el registro duplicado de correos.</td>
+            </tr>
+            <tr>
+              <td><strong>Autenticación con JWT y Control de Sesión (HU-02)</strong><br/>Inicio de sesión seguro, control de expiración a 8h y protección de rutas privadas.</td>
+              <td>Validado satisfactoriamente. Se verificó que los tokens contienen los claims correspondientes y bloquean accesos indebidos.</td>
+            </tr>
+            <tr>
+              <td><strong>Panel de Gestión de Usuarios y Roles (HU-03)</strong><br/>Listado de usuarios, buscador, cambio de roles en tiempo real y activación/suspensión.</td>
+              <td>Aprobado. El docente destacó la facilidad para asignar el rol de jurado a docentes supervisores sin duplicar cuentas.</td>
+            </tr>
+            <tr>
+              <td><strong>Gestión y Previsualización de Convocatorias (HU-05, HU-06)</strong><br/>Formulario con pastillas de tipo de evento, requisitos dinámicos y previsualización interactiva.</td>
+              <td>Excelente recepción. La vista previa en vivo que simula la tarjeta del portal fue muy valorada por su claridad visual.</td>
+            </tr>
+            <tr>
+              <td><strong>Portal Público y Catálogo de Eventos (HU-07)</strong><br/>Landing page pública con buscador para visitantes y estudiantes sin sesión.</td>
+              <td>Aprobado sin observaciones. El diseño sobrio institucional cumple con la línea gráfica de la facultad.</td>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Tareas completadas</th>
+            </tr>
+            <tr>
+              <td colspan="2">
+                Se completaron satisfactoriamente las 20 tareas técnicas del Sprint Backlog (<strong>T-01 a T-20</strong>). Las 6 Historias de Usuario comprometidas (<strong>HU-01, HU-02, HU-03, HU-05, HU-06, HU-07</strong>) cumplieron su <em>Definition of Done</em> sumando <strong>31 PHU</strong> terminados.
+              </td>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Para lo que viene (Acuerdos para Sprint 2)</th>
+            </tr>
+            <tr>
+              <td colspan="2">
+                Para el <strong>Sprint 2</strong> se integrará el componente colaborativo y la primera fase de Inteligencia Artificial:
+                1) <strong>Documentación Colaborativa en Tiempo Real</strong> mediante WebSockets (STOMP) con presencia activa y permisos por documento;<br/>
+                2) <strong>Asistente Virtual (Chatbot)</strong> con doble capacidad: acción (crear convocatorias en lenguaje natural) y navegación a rutas;<br/>
+                3) <strong>Detector de Contenido IA</strong> (microservicio con clasificador RoBERTa para evaluación de textos).
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Retrospectiva de Sprint (Tabla 52 de pianito.docx) -->
+        <h3 class="h3-title" id="s1-retro">Retrospectiva de Sprint (Sprint Retrospective 1)</h3>
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th colspan="2" class="table-title-bar">Retrospectiva de Sprint</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="width:30%;"><strong>Nombre del proyecto y número de retrospectiva:</strong></td>
+              <td>Sistema de Apoyo a la Investigación Estudiantil FICCT — Retrospectiva Sprint 1</td>
+            </tr>
+            <tr>
+              <td><strong>Objetivos de la retrospectiva:</strong></td>
+              <td>Identificar qué funcionó bien en el equipo durante las 3 semanas del Sprint 1, qué dificultades se encontraron y definir compromisos de mejora para el Sprint 2.</td>
+            </tr>
+            <tr>
+              <td><strong>Fecha y Hora:</strong></td>
+              <td>21 / 09 / 2026 &nbsp;&nbsp;|&nbsp;&nbsp; Hora: 19:30</td>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Participantes</th>
+            </tr>
+            <tr>
+              <td colspan="2">Daniel Quispe Choque &amp; Brandon Vásquez</td>
+            </tr>
+            <tr class="table-subtitle-bar">
+              <th colspan="2">Discusión</th>
+            </tr>
+            <tr>
+              <td><strong>¿Qué salió bien?</strong></td>
+              <td>
+                • La decisión de definir el alcance del Sprint 1 de forma realista (registro, autenticación, usuarios y convocatorias) permitió entregar código probado sin estrés.<br/>
+                • Excelente complementariedad entre Spring Boot 3 y Next.js 14; el desacoplamiento por API REST facilitó que Daniel y Brandon trabajaran en paralelo.<br/>
+                • Apego estricto a los prototipos de <code>pantallas.html</code>, manteniendo consistencia en colores, bordes y tipografías.<br/>
+                • La duración de 3 semanas otorgó el tiempo adecuado para pruebas y ajustes sin interferir con otras asignaturas del semestre.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>¿Qué no salió bien? [Problemas encontrados y resolución]</strong></td>
+              <td>
+                • <em>Problema:</em> Se presentaron dudas iniciales en la configuración de CORS y cookies de autenticación entre Next.js (puerto 3000) y Spring Boot (puerto 8080).<br/>
+                • <em>Solución:</em> Se configuró formalmente un <code>CorsConfigurationSource</code> en Spring Security habilitando credenciales y orígenes locales.<br/>
+                • <em>Problema:</em> Al inicio se cargaron usuarios de prueba de forma manual, lo que consumió tiempo valioso en reinicios de base de datos.<br/>
+                • <em>Solución:</em> Daniel implementó un <code>CommandLineRunner</code> en Spring Boot para poblar automáticamente usuarios y roles al iniciar.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>¿Qué debemos cambiar para mejorar en el Sprint 2?</strong></td>
+              <td>
+                1. <strong>Definir contratos de WebSocket anticipadamente:</strong> Documentar los tópicos STOMP (<code>/topic/document/{id}</code>) antes de programar el cliente colaborativo.<br/>
+                2. <strong>Preparar el microservicio de IA con antelación:</strong> Probar el modelo RoBERTa y los prompts del asistente en un script de prueba de FastAPI antes de conectarlo al frontend.<br/>
+                3. <strong>Mantener Dailies de 10 minutos al inicio de cada jornada</strong> para detectar a tiempo cualquier bloqueo técnico.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Daily Scrum (Tablas 53, 54, 55 de pianito.docx) -->
+        <h3 class="h3-title" id="s1-daily">Daily Scrum (Seguimiento Diario de 3 Semanas)</h3>
+        <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;">
+          Registro de las reuniones técnicas diarias de sincronización (15 minutos) durante las 3 semanas de ejecución del Sprint 1 respondiendo a las tres preguntas clave:
+        </p>
+
+        <!-- Semana 1 -->
+        <p style="font-size:13px; font-weight:700; color:var(--ink); margin-bottom:6px;">Semana 1 (01/09 al 07/09/2026) — Configuración Base, Registro y Autenticación JWT:</p>
+        <table class="doc-table daily-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Pregunta</th>
+              <th>Mar. 01</th>
+              <th>Mié. 02</th>
+              <th>Jue. 03</th>
+              <th>Vie. 04</th>
+              <th>Sáb. 05</th>
+              <th>Dom. 06</th>
+              <th>Lun. 07</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="3" class="daily-member">Daniel Quispe</td>
+              <td class="daily-question">¿Qué hiciste ayer?</td>
+              <td>Sprint Planning inicial</td>
+              <td>Configuré PostgreSQL investigacion_db</td>
+              <td>Inicialicé Spring Boot 3 con JPA</td>
+              <td>Diseñé entidades User y Role</td>
+              <td>Endpoint POST /auth/register</td>
+              <td>Implementé hash BCrypt</td>
+              <td>Endpoint /auth/login JWT</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué tienes planeado hacer hoy?</td>
+              <td>Crear BD en PostgreSQL</td>
+              <td>Inicializar Spring Boot 3</td>
+              <td>Crear entidades User y Role</td>
+              <td>Crear endpoint de registro</td>
+              <td>Implementar hash de contraseña</td>
+              <td>Crear endpoint de login con JWT</td>
+              <td>Validar endpoints con Postman</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué obstáculo encontraste?</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ajuste de versión de Spring Security 6</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td rowspan="3" class="daily-member">Brandon Vásquez</td>
+              <td class="daily-question">¿Qué hiciste ayer?</td>
+              <td>Sprint Planning inicial</td>
+              <td>Inicialicé Next.js 14 App Router</td>
+              <td>Configuré Tailwind CSS y fuentes</td>
+              <td>Diseñé pantalla de registro</td>
+              <td>Maqueté formulario registro</td>
+              <td>Conecté registro a API</td>
+              <td>Diseñé pantalla de Login</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué tienes planeado hacer hoy?</td>
+              <td>Configurar proyecto Next.js</td>
+              <td>Integrar paleta de pantallas.html</td>
+              <td>Diseñar pantalla de registro</td>
+              <td>Maquetar formulario registro</td>
+              <td>Conectar con API de registro</td>
+              <td>Diseñar pantalla de login</td>
+              <td>Probar flujo de registro</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué obstáculo encontraste?</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Validación de correo institucional</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>-</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Semana 2 -->
+        <p style="font-size:13px; font-weight:700; color:var(--ink); margin-top:16px; margin-bottom:6px;">Semana 2 (08/09 al 14/09/2026) — Gestión de Usuarios y Convocatorias:</p>
+        <table class="doc-table daily-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Pregunta</th>
+              <th>Mar. 08</th>
+              <th>Mié. 09</th>
+              <th>Jue. 10</th>
+              <th>Vie. 11</th>
+              <th>Sáb. 12</th>
+              <th>Dom. 13</th>
+              <th>Lun. 14</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="3" class="daily-member">Daniel Quispe</td>
+              <td class="daily-question">¿Qué hiciste ayer?</td>
+              <td>Validé login completo</td>
+              <td>Creé Seeder de usuarios</td>
+              <td>Endpoint GET /admin/users</td>
+              <td>Endpoint PUT /role y status</td>
+              <td>Diseñé entidad Convocatoria</td>
+              <td>Endpoint POST /convocatorias</td>
+              <td>Endpoint PUT /publicar</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué tienes planeado hacer hoy?</td>
+              <td>Crear Seeder de usuarios</td>
+              <td>Crear endpoints de admin usuarios</td>
+              <td>Añadir lógica cambiar rol/estado</td>
+              <td>Diseñar modelo de Convocatoria</td>
+              <td>Crear API de nueva convocatoria</td>
+              <td>Crear API para publicar convocatoria</td>
+              <td>Integrar con vistas de Brandon</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué obstáculo encontraste?</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Validación de llaves foráneas</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td rowspan="3" class="daily-member">Brandon Vásquez</td>
+              <td class="daily-question">¿Qué hiciste ayer?</td>
+              <td>Probé login exitoso</td>
+              <td>Maqueté App Shell y Sidebar</td>
+              <td>Creé tabla gestión usuarios</td>
+              <td>Añadí modal para cambiar roles</td>
+              <td>Diseñé formulario convocatoria</td>
+              <td>Añadí pastillas de categorías</td>
+              <td>Programé previsualización viva</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué tienes planeado hacer hoy?</td>
+              <td>Maquetar shell con barra lateral</td>
+              <td>Crear tabla de gestión de usuarios</td>
+              <td>Conectar tabla a API de admin</td>
+              <td>Diseñar formulario convocatoria</td>
+              <td>Agregar selección de tipo de evento</td>
+              <td>Implementar vista previa reactiva</td>
+              <td>Conectar guardado de convocatoria</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué obstáculo encontraste?</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Sincronización en vivo de fecha</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>-</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Semana 3 -->
+        <p style="font-size:13px; font-weight:700; color:var(--ink); margin-top:16px; margin-bottom:6px;">Semana 3 (15/09 al 21/09/2026) — Portal Público, Pruebas y Cierre:</p>
+        <table class="doc-table daily-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Pregunta</th>
+              <th>Mar. 15</th>
+              <th>Mié. 16</th>
+              <th>Jue. 17</th>
+              <th>Vie. 18</th>
+              <th>Sáb. 19</th>
+              <th>Dom. 20</th>
+              <th>Lun. 21</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="3" class="daily-member">Daniel Quispe</td>
+              <td class="daily-question">¿Qué hiciste ayer?</td>
+              <td>Revisé estado corte 15 sep</td>
+              <td>Endpoint público /convocatorias</td>
+              <td>Añadí filtros por temática</td>
+              <td>Pruebas de seguridad RBAC</td>
+              <td>Pruebas de carga en BD</td>
+              <td>Ajusté Seeder demo final</td>
+              <td>Sprint Review y Retrospectiva</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué tienes planeado hacer hoy?</td>
+              <td>Crear API pública de convocatorias</td>
+              <td>Optimizar consultas con índices</td>
+              <td>Pruebas de seguridad y roles</td>
+              <td>Pruebas de estrés y rendimiento</td>
+              <td>Verificar BD para demostración</td>
+              <td>Preparar acta de Sprint Review</td>
+              <td>Presentación de incremento</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué obstáculo encontraste?</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td rowspan="3" class="daily-member">Brandon Vásquez</td>
+              <td class="daily-question">¿Qué hiciste ayer?</td>
+              <td>Revisé avance corte 15 sep</td>
+              <td>Diseñé Landing Page pública</td>
+              <td>Conecté catálogo a API pública</td>
+              <td>Programé buscador en tiempo real</td>
+              <td>Pruebas E2E de flujos</td>
+              <td>Pulido estético y responsive</td>
+              <td>Sprint Review y Retrospectiva</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué tienes planeado hacer hoy?</td>
+              <td>Maquetar portal público</td>
+              <td>Conectar catálogo a API pública</td>
+              <td>Programar buscador de eventos</td>
+              <td>Pruebas de flujo completas</td>
+              <td>Ajustes visuales y responsive</td>
+              <td>Preparar demo para el docente</td>
+              <td>Demostración formal</td>
+            </tr>
+            <tr>
+              <td class="daily-question">¿Qué obstáculo encontraste?</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>Ninguno</td>
+              <td>-</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Burndown y Burnup -->
+        <h3 class="h3-title" id="s1-burndown">Burndown y BurnUp del Sprint 1</h3>
+        <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:12px;">
+          Seguimiento de la velocidad y ritmo de quema de los 31 Puntos de Historia de Usuario (PHU) a lo largo de las 3 semanas de ejecución:
+        </p>
+        <table class="doc-table" style="text-align:center;">
+          <thead>
+            <tr>
+              <th>Hito / Día</th>
+              <th>Día 0 (01/09)</th>
+              <th>Día 4 (04/09)</th>
+              <th>Día 7 (07/09)</th>
+              <th>Día 11 (11/09)</th>
+              <th>Día 15 (15/09 - Hoy)</th>
+              <th>Día 18 (18/09)</th>
+              <th>Día 21 (21/09 - Cierre)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Puntos Restantes (Burndown)</strong></td>
+              <td>31 pts</td>
+              <td>26 pts</td>
+              <td>21 pts</td>
+              <td>13 pts</td>
+              <td>8 pts</td>
+              <td>3 pts</td>
+              <td><strong style="color:#137333;">0 pts (100% Done)</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Puntos Acumulados (Burnup)</strong></td>
+              <td>0 pts</td>
+              <td>5 pts</td>
+              <td>10 pts</td>
+              <td>18 pts</td>
+              <td>23 pts</td>
+              <td>28 pts</td>
+              <td><strong style="color:#137333;">31 pts</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- ROADMAP DE SPRINTS POSTERIORES                            -->
+      <!-- ======================================================== -->
+      <section class="section-card" id="roadmap-futuro">
+        <h2 class="h2-title">Planificación de Sprints Posteriores</h2>
+        <p class="section-intro">
+          Evolución planificada del proyecto de investigación integrando los módulos de innovación tecnológica distribuidos en ciclos de 3 semanas:
+        </p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(310px, 1fr)); gap:18px;">
+          <!-- Sprint 2 -->
+          <div style="background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:18px;">
+            <span class="tag tag-high" style="margin-bottom:8px;">Sprint 2 · 22/09 al 12/10/2026</span>
+            <h4 style="margin:0 0 6px; font-size:15px; font-family:var(--font-serif); color:var(--accent-dark);">Colaboración, Asistente Virtual &amp; Detector IA</h4>
+            <p style="font-size:12.5px; color:var(--ink-soft); line-height:1.5; margin:0 0 10px;">
+              • <strong>Documentación Colaborativa:</strong> Editor concurrente vía WebSockets (STOMP) con avatares de presencia, cursores coloreados y permisos (Personal, Grupo, Grupo+Docente).<br/>
+              • <strong>Asistente Virtual (Chatbot):</strong> Agente en lenguaje natural con doble capacidad: acción (crear convocatorias guiadas) y navegación rápida.<br/>
+              • <strong>Detector de Contenido IA:</strong> Microservicio RoBERTa para cálculo de porcentaje y resaltado de oraciones sospechosas.<br/>
+              • <strong>Inscripción de Proyectos:</strong> Postulación formal individual o en equipo.
+            </p>
+          </div>
+
+          <!-- Sprint 3 -->
+          <div style="background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:18px;">
+            <span class="tag tag-med" style="margin-bottom:8px;">Sprint 3 · 13/10 al 02/11/2026</span>
+            <h4 style="margin:0 0 6px; font-size:15px; font-family:var(--font-serif); color:var(--seal);">Evaluación por Jurados &amp; Blockchain</h4>
+            <p style="font-size:12.5px; color:var(--ink-soft); line-height:1.5; margin:0 0 10px;">
+              • <strong>Supervisión Docente:</strong> Observaciones de tutores y validación de hitos.<br/>
+              • <strong>Evaluación por Jurados:</strong> Rúbricas parametrizadas y actas de veredicto.<br/>
+              • <strong>Certificación en Blockchain:</strong> Registro de hash inmutable de certificados estudiantiles en red descentralizada.<br/>
+              • <strong>Portal de Verificación:</strong> Validación pública instantánea por código hash o escaneo QR.
+            </p>
+          </div>
+
+          <!-- Sprint 4 -->
+          <div style="background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:18px;">
+            <span class="tag tag-low" style="margin-bottom:8px;">Sprint 4 · 03/11 al 23/11/2026</span>
+            <h4 style="margin:0 0 6px; font-size:15px; font-family:var(--font-serif); color:var(--ink);">Reportes IA, Cierre &amp; Defensa</h4>
+            <p style="font-size:12.5px; color:var(--ink-soft); line-height:1.5; margin:0 0 10px;">
+              • <strong>Reportes Generativos:</strong> Informes consolidados de investigación generados por IA para la dirección de la Unidad.<br/>
+              • <strong>Auditoría y Pruebas de Carga:</strong> Pruebas de concurrencia de WebSockets y optimización de base de datos.<br/>
+              • <strong>Manuales y Documentación:</strong> Manual de usuario, manual técnico y carpeta final para la defensa de Taller de Grado 1.
+            </p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  // Resaltado de navegación activa al hacer scroll
+  const navItems = document.querySelectorAll('.nav-item');
+  const sections = document.querySelectorAll('h3[id], section[id]');
+
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      const top = s.offsetTop - 120;
+      if (pageYOffset >= top) {
+        current = s.getAttribute('id');
+      }
+    });
+
+    navItems.forEach(item => {
+      item.classList.remove('active');
+      if (item.getAttribute('href') === `#${current}`) {
+        item.classList.add('active');
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

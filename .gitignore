@@ -1,0 +1,44 @@
+# Dependencies & Build Artifacts
+node_modules/
+.next/
+out/
+build/
+target/
+*.tsbuildinfo
+
+# Frontend specific
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/tsconfig.tsbuildinfo
+frontend/.env.local
+frontend/.env.*.local
+frontend/.turbo/
+
+# Backend specific
+backend/target/
+backend/.idea/
+backend/*.iml
+backend/.settings/
+backend/.project
+backend/.classpath
+
+# Ignored non-code directories as requested
+diagramas/
+scrum/
+scrum-data/
+scrum-engine/
+.github/
+
+# Ignored outside HTML and loose files as requested
+/*.html
+/*.txt
+/*.ps1
+
+# OS and IDE Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

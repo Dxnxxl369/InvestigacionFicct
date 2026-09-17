@@ -1,0 +1,258 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #16243D;
+  --ink-rgb: 22, 36, 61;
+  --ink-soft: #4B5566;
+  --ink-faint: #8890A0;
+  --paper: #F5F3ED;
+  --paper-rgb: 245, 243, 237;
+  --paper-raised: #FFFFFF;
+  --paper-raised-rgb: 255, 255, 255;
+  --paper-sunken: #FBFAF6;
+  --paper-sunken-rgb: 251, 250, 246;
+  --line: #DEDAD0;
+  --line-soft: #E9E6DD;
+  --accent: #1F6F5C;
+  --accent-dark: #154E41;
+  --accent-soft: #E4EFE9;
+  --accent-rgb: 31, 111, 92;
+  --seal: #A97C34;
+  --seal-soft: #F4E8D2;
+  --seal-rgb: 169, 124, 52;
+  --danger: #B23A34;
+  --danger-rgb: 178, 58, 52;
+  --danger-soft: #F7E2DE;
+  --shadow: 0 12px 32px rgba(22, 36, 61, 0.10);
+  --shadow-lg: 0 20px 60px rgba(22, 36, 61, 0.22);
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-line: rgba(255, 255, 255, 0.5);
+  --blob-a: #16243D;
+  --blob-b: #1F6F5C;
+  --font-serif: Georgia, 'Iowan Old Style', 'Source Serif Pro', 'Times New Roman', serif;
+  color-scheme: light;
+}
+
+html[data-theme="dark"], .dark {
+  --ink: #EAEDF3;
+  --ink-rgb: 234, 237, 243;
+  --ink-soft: #A7B0C2;
+  --ink-faint: #6B7488;
+  --paper: #0C1220;
+  --paper-rgb: 12, 18, 32;
+  --paper-raised: #131B2E;
+  --paper-raised-rgb: 19, 27, 46;
+  --paper-sunken: #101728;
+  --paper-sunken-rgb: 16, 23, 40;
+  --line: #232F48;
+  --line-soft: #1B253C;
+  --accent: #49B394;
+  --accent-dark: #7BD6BA;
+  --accent-soft: rgba(73, 179, 148, 0.16);
+  --accent-rgb: 73, 179, 148;
+  --seal: #D9AE63;
+  --seal-soft: rgba(217, 174, 99, 0.16);
+  --seal-rgb: 217, 174, 99;
+  --danger: #E27871;
+  --danger-rgb: 226, 120, 113;
+  --danger-soft: rgba(226, 120, 113, 0.16);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.55);
+  --glass-bg: rgba(19, 27, 46, 0.65);
+  --glass-line: rgba(255, 255, 255, 0.08);
+  --blob-a: #49B394;
+  --blob-b: #0C1220;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+/* ================= ANIMACIONES DE RESPIRACIÓN Y ORGANIC BLOB ================= */
+.blob-wrap {
+  position: relative;
+  overflow: hidden;
+}
+
+.blob {
+  position: absolute;
+  inset: -30%;
+  z-index: 0;
+  background: conic-gradient(from 200deg at 30% 30%, var(--blob-a), var(--blob-b), var(--blob-a));
+  opacity: 0.16;
+  filter: blur(6px);
+  animation: blobMove 16s ease-in-out infinite alternate;
+  border-radius: 42% 58% 65% 35% / 45% 40% 60% 55%;
+  pointer-events: none;
+}
+
+@keyframes blobMove {
+  0% {
+    border-radius: 42% 58% 65% 35% / 45% 40% 60% 55%;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    border-radius: 60% 40% 30% 70% / 55% 65% 35% 45%;
+    transform: rotate(8deg) scale(1.05);
+  }
+  100% {
+    border-radius: 35% 65% 55% 45% / 40% 55% 45% 60%;
+    transform: rotate(-6deg) scale(1);
+  }
+}
+
+/* ================= ESTÉTICA LIQUID GLASS (VISA STYLE) ================= */
+.liquid-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-lg);
+}
+
+.liquid-glass-subtle {
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow);
+}
+
+/* ================= MICROINTERACCIONES & HEURÍSTICAS DE NIELSEN ================= */
+/* Spinner en botones (Feedback visual de estado) */
+.btn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Animación de checkmark dibujado */
+.check-draw {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: drawCheck 0.45s ease forwards 0.1s;
+}
+
+@keyframes drawCheck {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Indicador de presencia en tiempo real */
+.status-dot-ping {
+  box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.5);
+  animation: statusPing 2s infinite;
+}
+
+@keyframes statusPing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(var(--accent-rgb), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0);
+  }
+}
+
+/* Cursores colaborativos en vivo */
+.live-cursor {
+  position: relative;
+  background: linear-gradient(transparent 78%, rgba(var(--seal-rgb), 0.28) 78%);
+}
+
+.cursor-tag {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  font-size: 10.5px;
+  color: #fff;
+  background: var(--seal);
+  padding: 2px 7px;
+  border-radius: 4px 4px 4px 0;
+  white-space: nowrap;
+  animation: tagPulse 2.6s ease-in-out infinite;
+}
+
+@keyframes tagPulse {
+  0%, 100% {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* Dots de escritura tipo Chatbot */
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  animation: typingBounce 1.2s infinite;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* Scrollbars estilizadas */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--paper);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+}
