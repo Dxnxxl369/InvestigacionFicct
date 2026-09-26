@@ -46,6 +46,7 @@ public class SecurityConfig {
                         // Rutas públicas: autenticación y portal público
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/permisos/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         // Rutas de administración

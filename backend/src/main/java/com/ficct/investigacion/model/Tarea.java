@@ -17,6 +17,10 @@ public class Tarea {
     @JoinColumn(name = "convocatoria_id", nullable = false)
     private Convocatoria convocatoria;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "modulo_id")
+    private Modulo modulo;
+
     @Column(nullable = false, length = 180)
     private String titulo;
 
@@ -203,6 +207,14 @@ public class Tarea {
 
     public void setEntregas(List<EntregaTarea> entregas) {
         this.entregas = entregas;
+    }
+
+    public Modulo getModulo() {
+        return modulo;
+    }
+
+    public void setModulo(Modulo modulo) {
+        this.modulo = modulo;
     }
 
     public LocalDateTime getCreatedAt() {

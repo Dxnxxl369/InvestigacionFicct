@@ -20,6 +20,7 @@ public class DataSeeder implements CommandLineRunner {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final TareaRepository tareaRepository;
     private final EntregaTareaRepository entregaTareaRepository;
+    private final ModuloRepository moduloRepository;
 
     public DataSeeder(UserRepository userRepository,
                       ConvocatoriaRepository convocatoriaRepository,
@@ -29,7 +30,8 @@ public class DataSeeder implements CommandLineRunner {
                       DocumentoColaboradorRepository documentoColaboradorRepository,
                       ConvocatoriaParticipanteRepository participanteRepository,
                       TareaRepository tareaRepository,
-                      EntregaTareaRepository entregaTareaRepository) {
+                      EntregaTareaRepository entregaTareaRepository,
+                      ModuloRepository moduloRepository) {
         this.userRepository = userRepository;
         this.convocatoriaRepository = convocatoriaRepository;
         this.rolPermisoRepository = rolPermisoRepository;
@@ -39,6 +41,7 @@ public class DataSeeder implements CommandLineRunner {
         this.participanteRepository = participanteRepository;
         this.tareaRepository = tareaRepository;
         this.entregaTareaRepository = entregaTareaRepository;
+        this.moduloRepository = moduloRepository;
     }
 
     @Override
@@ -285,21 +288,48 @@ public class DataSeeder implements CommandLineRunner {
                     .filter(c -> c.getTitulo().toLowerCase().contains("hackathon"))
                     .findFirst().orElse(null);
 
+            User estGen = userRepository.findByEmail("estudiante@uagrm.edu.bo").orElse(null);
+
             if (feria != null) {
-                // Designar Docente y Jurado en la Feria
+                // Designar Docente y Jurado en la Feria (Directamente ACEPTADO)
                 if (docente != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, docente, Rol.DOCENTE, null, admin));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, docente, Rol.DOCENTE, EstadoInscripcion.ACEPTADO, null, admin));
                 }
                 if (jurado != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, jurado, Rol.JURADO, null, admin));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, jurado, Rol.JURADO, EstadoInscripcion.ACEPTADO, null, admin));
                 }
-                // Inscribir Estudiantes con su Equipo en la Feria
+                // Inscribir Estudiantes Admitidos en la Feria
                 if (daniel != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, daniel, Rol.ESTUDIANTE, "Equipo ByteWarriors", daniel));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, daniel, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, "Equipo ByteWarriors", daniel));
                 }
                 if (brandon != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, brandon, Rol.ESTUDIANTE, "Equipo ByteWarriors", brandon));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, brandon, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, "Equipo ByteWarriors", brandon));
                 }
+                // Sembrar solicitud pendiente de prueba para que docente/admin puedan probar admisión
+                if (estGen != null) {
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, estGen, Rol.ESTUDIANTE, EstadoInscripcion.PENDIENTE, "Grupo Sigma FICCT", estGen));
+                }
+
+                // Sembrar Módulos de Aprendizaje estilo LMS
+                Modulo mod1 = new Modulo(
+                        feria,
+                        "Módulo 1: Propuesta y Marco Metodológico",
+                        "Fundamentación del proyecto, formulación de objetivos e investigación preliminar.",
+                        null,
+                        1,
+                        true
+                );
+                mod1 = moduloRepository.save(mod1);
+
+                Modulo mod2 = new Modulo(
+                        feria,
+                        "Módulo 2: Arquitectura y Modelado del Sistema",
+                        "Especificación de requerimientos, diagramas UML / C4 y diseño de bases de datos.",
+                        null,
+                        2,
+                        true
+                );
+                mod2 = moduloRepository.save(mod2);
 
                 // Tarea 1: Perfil de Proyecto y Marco Metodológico (Habilitada y abierta)
                 Tarea tarea1 = new Tarea(
@@ -315,6 +345,7 @@ public class DataSeeder implements CommandLineRunner {
                         100.0,
                         docente
                 );
+                tarea1.setModulo(mod1);
                 tarea1 = tareaRepository.save(tarea1);
 
                 // Sembrar entrega previa de Daniel en la Feria
@@ -347,15 +378,16 @@ public class DataSeeder implements CommandLineRunner {
                         100.0,
                         docente
                 );
+                tarea2.setModulo(mod2);
                 tareaRepository.save(tarea2);
             }
 
             if (hackathon != null) {
                 if (docente != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(hackathon, docente, Rol.DOCENTE, null, admin));
+                    participanteRepository.save(new ConvocatoriaParticipante(hackathon, docente, Rol.DOCENTE, EstadoInscripcion.ACEPTADO, null, admin));
                 }
                 if (daniel != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(hackathon, daniel, Rol.ESTUDIANTE, "HackDevelopers", daniel));
+                    participanteRepository.save(new ConvocatoriaParticipante(hackathon, daniel, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, "HackDevelopers", daniel));
                 }
 
                 Tarea tareaHack = new Tarea(

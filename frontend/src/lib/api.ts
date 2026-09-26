@@ -30,6 +30,8 @@ export interface RequisitoDTO {
 
 export type Requisito = RequisitoDTO;
 
+export type EstadoInscripcion = "PENDIENTE" | "ACEPTADO" | "RECHAZADO" | "CANCELADO";
+
 export interface Convocatoria {
   id: number;
   titulo: string;
@@ -45,6 +47,14 @@ export interface Convocatoria {
   requisitos?: RequisitoDTO[];
   createdAt?: string;
   updatedAt?: string;
+  // Métricas y asignaciones
+  docenteIds?: number[];
+  juradoIds?: number[];
+  docentesEncargados?: string[];
+  juradosAsignados?: string[];
+  totalAdmitidos?: number;
+  totalSolicitudesPendientes?: number;
+  miEstadoInscripcion?: EstadoInscripcion;
 }
 
 export type ConvocatoriaDTO = Convocatoria;
@@ -57,6 +67,8 @@ export interface ConvocatoriaRequest {
   tamanoEquipo?: string;
   imagenPortada?: string;
   requisitos?: string[];
+  docenteIds?: number[];
+  juradoIds?: number[];
 }
 
 export interface ConvocatoriaParticipanteDTO {
@@ -67,9 +79,18 @@ export interface ConvocatoriaParticipanteDTO {
   apellidos: string;
   email: string;
   rol: "ADMIN" | "DOCENTE" | "JURADO" | "ESTUDIANTE";
+  estadoInscripcion: EstadoInscripcion;
   nombreEquipo?: string;
+  fechaSolicitud?: string;
+  fechaRespuesta?: string;
   fechaAsignacion: string;
+  motivoRechazo?: string;
   asignadoPorNombre?: string;
+}
+
+export interface ResponderSolicitudRequest {
+  accion: "ADMITIR" | "RECHAZAR";
+  motivo?: string;
 }
 
 export interface DesignarParticipanteRequest {
@@ -240,6 +261,32 @@ export const convocatoriasAPI = {
     return handleResponse<Convocatoria>(res);
   },
 
+  async getEncargadosDisponibles(): Promise<{ docentes: UserDTO[]; jurados: UserDTO[] }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/convocatorias/encargados-disponibles`, {
+        headers: { ...getAuthHeader() },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Fallback
+    }
+
+    try {
+      const allUsers = await adminUsersAPI.getAll();
+      const docentes = allUsers.filter(
+        (u) => (u.rol === "DOCENTE" || u.rol === "ADMIN")
+      );
+      const jurados = allUsers.filter(
+        (u) => (u.rol === "JURADO" || u.rol === "DOCENTE")
+      );
+      return { docentes, jurados };
+    } catch {
+      return { docentes: [], jurados: [] };
+    }
+  },
+
   async getParticipantes(id: number): Promise<ConvocatoriaParticipanteDTO[]> {
     const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/participantes`, {
       headers: { ...getAuthHeader() },
@@ -256,11 +303,90 @@ export const convocatoriasAPI = {
     return handleResponse<ConvocatoriaParticipanteDTO>(res);
   },
 
+  async getMisAreas(): Promise<Convocatoria[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/convocatorias/mis-areas`, {
+        headers: { ...getAuthHeader() },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Fallback a lógica resiliente
+    }
+
+    // Fallback: Si el endpoint aún no está listo o responde 400
+    try {
+      const savedUserStr = typeof window !== "undefined" ? localStorage.getItem("auth_user") : null;
+      const currentUser: User | null = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const allConvs = await convocatoriasAPI.getAdminList().catch(async () => {
+        return await publicConvocatoriasAPI.getAll();
+      });
+
+      if (!currentUser || currentUser.rol === "ADMIN") {
+        return allConvs;
+      }
+
+      const misAreas: Convocatoria[] = [];
+      for (const conv of allConvs) {
+        if (conv.creadorId === currentUser.id) {
+          misAreas.push({ ...conv, miEstadoInscripcion: "ACEPTADO" });
+          continue;
+        }
+        try {
+          const parts = await convocatoriasAPI.getParticipantes(conv.id);
+          const miPart = parts.find(
+            (p) => p.usuarioId === currentUser.id || p.email?.toLowerCase() === currentUser.email?.toLowerCase()
+          );
+          if (miPart) {
+            if (currentUser.rol === "DOCENTE" || currentUser.rol === "JURADO") {
+              if (miPart.estadoInscripcion === "ACEPTADO") {
+                misAreas.push({ ...conv, miEstadoInscripcion: miPart.estadoInscripcion });
+              }
+            } else {
+              misAreas.push({ ...conv, miEstadoInscripcion: miPart.estadoInscripcion });
+            }
+          }
+        } catch {
+          // continuar con la siguiente
+        }
+      }
+      return misAreas;
+    } catch {
+      return [];
+    }
+  },
+
   async inscribirse(id: number, data?: InscribirseAreaRequest): Promise<ConvocatoriaParticipanteDTO> {
     const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/inscribirse`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify(data || {}),
+    });
+    return handleResponse<ConvocatoriaParticipanteDTO>(res);
+  },
+
+  async declinarSolicitud(id: number): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/declinar-solicitud`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ message: string }>(res);
+  },
+
+  async admitirParticipante(convocatoriaId: number, participanteId: number): Promise<ConvocatoriaParticipanteDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/participantes/${participanteId}/admitir`, {
+      method: "PUT",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ConvocatoriaParticipanteDTO>(res);
+  },
+
+  async rechazarParticipante(convocatoriaId: number, participanteId: number, motivo?: string): Promise<ConvocatoriaParticipanteDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/participantes/${participanteId}/rechazar`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ accion: "RECHAZAR", motivo }),
     });
     return handleResponse<ConvocatoriaParticipanteDTO>(res);
   },
@@ -568,10 +694,13 @@ export interface TareaDTO {
   estadoMoodle?: "ABIERTA" | "PENDIENTE_APERTURA" | "CERRADA_CORTE" | "DESHABILITADA" | "ENTREGA_CON_RETRASO";
   createdAt?: string;
   miEntrega?: EntregaTareaDTO;
+  moduloId?: number;
+  moduloTitulo?: string;
 }
 
 export interface TareaRequest {
   convocatoriaId?: number;
+  moduloId?: number;
   titulo: string;
   descripcion?: string;
   fechaHabilitacion?: string;
@@ -647,6 +776,109 @@ export const tareasAPI = {
   },
 };
 
+// 7. Modulos API (LMS / Moodle)
+export interface ModuloDTO {
+  id: number;
+  convocatoriaId: number;
+  convocatoriaTitulo?: string;
+  titulo: string;
+  descripcion?: string;
+  imagenUrl?: string;
+  orden?: number;
+  activo: boolean;
+  totalTareas: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ModuloRequest {
+  titulo: string;
+  descripcion?: string;
+  imagenUrl?: string;
+  orden?: number;
+  activo?: boolean;
+}
+
+export const modulosAPI = {
+  async getPorConvocatoria(convocatoriaId: number): Promise<ModuloDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/modulos`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ModuloDTO[]>(res);
+  },
+
+  async getById(id: number): Promise<ModuloDTO> {
+    const res = await fetch(`${API_BASE_URL}/modulos/${id}`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ModuloDTO>(res);
+  },
+
+  async create(convocatoriaId: number, data: ModuloRequest): Promise<ModuloDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/modulos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ModuloDTO>(res);
+  },
+
+  async update(id: number, data: ModuloRequest): Promise<ModuloDTO> {
+    const res = await fetch(`${API_BASE_URL}/modulos/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ModuloDTO>(res);
+  },
+
+  async delete(id: number): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE_URL}/modulos/${id}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ message: string }>(res);
+  },
+};
+
+// Subida de archivos / imágenes / documentos
+export const uploadsAPI = {
+  async uploadImagen(file: File): Promise<{ url: string; relativePath: string; filename: string; size: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE_URL}/uploads/imagen`, {
+      method: "POST",
+      headers: { ...getAuthHeader() },
+      body: formData,
+    });
+    return handleResponse<{ url: string; relativePath: string; filename: string; size: number }>(res);
+  },
+
+  async uploadArchivo(file: File): Promise<{ url: string; relativePath: string; filename: string; originalFilename: string; size: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE_URL}/uploads/documento`, {
+      method: "POST",
+      headers: { ...getAuthHeader() },
+      body: formData,
+    });
+    return handleResponse<{ url: string; relativePath: string; filename: string; originalFilename: string; size: number }>(res);
+  },
+};
+
+/**
+ * Resuelve URLs de recursos multimedia (locales o externas)
+ */
+export function getMediaUrl(url?: string): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+  const origin = apiBase.replace(/\/api$/, "");
+  return `${origin}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
 // Unified api object
 export const api = {
   // Auth
@@ -661,16 +893,32 @@ export const api = {
 
   // Convocatorias & Áreas
   getConvocatorias: convocatoriasAPI.getAdminList,
+  getMisAreas: convocatoriasAPI.getMisAreas,
   getConvocatoriaById: convocatoriasAPI.getById,
   createConvocatoria: convocatoriasAPI.create,
   updateConvocatoria: convocatoriasAPI.update,
   publicarConvocatoria: convocatoriasAPI.publish,
+  getEncargadosDisponibles: convocatoriasAPI.getEncargadosDisponibles,
   getParticipantesConvocatoria: convocatoriasAPI.getParticipantes,
   designarParticipante: convocatoriasAPI.designarParticipante,
   inscribirseConvocatoria: convocatoriasAPI.inscribirse,
+  declinarSolicitudConvocatoria: convocatoriasAPI.declinarSolicitud,
+  admitirParticipante: convocatoriasAPI.admitirParticipante,
+  rechazarParticipante: convocatoriasAPI.rechazarParticipante,
   removerParticipante: convocatoriasAPI.removerParticipante,
   getTareasConvocatoria: convocatoriasAPI.getTareas,
   createTareaConvocatoria: convocatoriasAPI.createTarea,
+
+  // Módulos
+  getModulosConvocatoria: modulosAPI.getPorConvocatoria,
+  getModuloById: modulosAPI.getById,
+  createModulo: modulosAPI.create,
+  updateModulo: modulosAPI.update,
+  deleteModulo: modulosAPI.delete,
+
+  // Subida de Archivos
+  uploadImagen: uploadsAPI.uploadImagen,
+  uploadArchivo: uploadsAPI.uploadArchivo,
 
   // Public
   getPublicConvocatorias: publicConvocatoriasAPI.getAll,

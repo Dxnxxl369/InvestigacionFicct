@@ -31,7 +31,17 @@ public class TareaRequest {
 
     private Double puntajeMaximo = 100.0;
 
+    private Long moduloId;
+
     public TareaRequest() {
+    }
+
+    public Long getModuloId() {
+        return moduloId;
+    }
+
+    public void setModuloId(Long moduloId) {
+        this.moduloId = moduloId;
     }
 
     public Long getConvocatoriaId() {

@@ -23,6 +23,8 @@ public class TareaDTO {
     private String estadoMoodle; // "ABIERTA", "PENDIENTE_APERTURA", "CERRADA_CORTE", "DESHABILITADA"
     private LocalDateTime createdAt;
     private EntregaTareaDTO miEntrega;
+    private Long moduloId;
+    private String moduloTitulo;
 
     public TareaDTO() {
     }
@@ -177,5 +179,21 @@ public class TareaDTO {
 
     public void setMiEntrega(EntregaTareaDTO miEntrega) {
         this.miEntrega = miEntrega;
+    }
+
+    public Long getModuloId() {
+        return moduloId;
+    }
+
+    public void setModuloId(Long moduloId) {
+        this.moduloId = moduloId;
+    }
+
+    public String getModuloTitulo() {
+        return moduloTitulo;
+    }
+
+    public void setModuloTitulo(String moduloTitulo) {
+        this.moduloTitulo = moduloTitulo;
     }
 }

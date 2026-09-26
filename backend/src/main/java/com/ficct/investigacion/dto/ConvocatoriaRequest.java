@@ -26,6 +26,10 @@ public class ConvocatoriaRequest {
 
     private List<String> requisitos = new ArrayList<>();
 
+    // Encargados y Jurados asignados al crear o editar
+    private List<Long> docenteIds = new ArrayList<>();
+    private List<Long> juradoIds = new ArrayList<>();
+
     public ConvocatoriaRequest() {
     }
 
@@ -94,5 +98,21 @@ public class ConvocatoriaRequest {
 
     public void setRequisitos(List<String> requisitos) {
         this.requisitos = requisitos;
+    }
+
+    public List<Long> getDocenteIds() {
+        return docenteIds;
+    }
+
+    public void setDocenteIds(List<Long> docenteIds) {
+        this.docenteIds = docenteIds;
+    }
+
+    public List<Long> getJuradoIds() {
+        return juradoIds;
+    }
+
+    public void setJuradoIds(List<Long> juradoIds) {
+        this.juradoIds = juradoIds;
     }
 }

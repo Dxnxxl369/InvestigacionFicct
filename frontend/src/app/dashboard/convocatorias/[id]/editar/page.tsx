@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
-import { api, ConvocatoriaRequest, ConvocatoriaDTO } from "@/lib/api";
+import { api, ConvocatoriaRequest, UserDTO, getMediaUrl } from "@/lib/api";
 import {
   Sparkles,
   Calendar,
@@ -16,13 +16,43 @@ import {
   Plus,
   ArrowLeft,
   UploadCloud,
+  Image as ImageIcon,
+  ShieldCheck,
+  Award,
+  Search,
+  Check,
+  Trash2,
   Save,
+  RotateCcw,
 } from "lucide-react";
+
+// Normalizador para búsqueda insensible a acentos
+function normalizeText(text: string): string {
+  return (text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+// Convertir base64 dataURL a File para subir al guardar
+function dataURLtoFile(dataurl: string, filename: string): File {
+  const arr = dataurl.split(",");
+  const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], filename, { type: mime });
+}
 
 export default function EditarConvocatoriaPage() {
   const router = useRouter();
   const params = useParams();
   const convId = Number(params?.id);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftKey = `ficct_convocatoria_edit_${convId}_draft`;
 
   const { user, canEditModule } = useAuth();
   const { toast } = useToast();
@@ -34,7 +64,12 @@ export default function EditarConvocatoriaPage() {
   const [tipo, setTipo] = useState<"FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION">("FERIA");
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
+
+  // Imagen Portada (Local vs URL)
+  const [imageMode, setImageMode] = useState<"LOCAL" | "URL">("LOCAL");
   const [imagenPortada, setImagenPortada] = useState("");
+  const [imagenNombre, setImagenNombre] = useState<string>("");
+
   const [fechaCierre, setFechaCierre] = useState("");
   const [cuposMinEquipo, setCuposMinEquipo] = useState(1);
   const [cuposMaxEquipo, setCuposMaxEquipo] = useState(4);
@@ -42,21 +77,66 @@ export default function EditarConvocatoriaPage() {
   const [newReq, setNewReq] = useState("");
   const [estadoActual, setEstadoActual] = useState<string>("BORRADOR");
 
+  // Asignación de Encargados (Docentes y Jurados)
+  const [availableDocentes, setAvailableDocentes] = useState<UserDTO[]>([]);
+  const [availableJurados, setAvailableJurados] = useState<UserDTO[]>([]);
+  const [selectedDocenteIds, setSelectedDocenteIds] = useState<number[]>([]);
+  const [selectedJuradoIds, setSelectedJuradoIds] = useState<number[]>([]);
+  const [originalDocenteIds, setOriginalDocenteIds] = useState<number[]>([]);
+  const [originalJuradoIds, setOriginalJuradoIds] = useState<number[]>([]);
+  const [searchDocente, setSearchDocente] = useState("");
+  const [searchJurado, setSearchJurado] = useState("");
+  const [loadingEncargados, setLoadingEncargados] = useState(true);
+
+  // LocalStorage State
+  const [lastSavedLocal, setLastSavedLocal] = useState<string | null>(null);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+
   useEffect(() => {
     if (!convId) return;
 
-    const fetchConvocatoria = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await api.getConvocatoriaById(convId);
+        const [data, encargados, parts] = await Promise.all([
+          api.getConvocatoriaById(convId),
+          api.getEncargadosDisponibles().catch(() => ({ docentes: [], jurados: [] })),
+          api.getParticipantesConvocatoria(convId).catch(() => []),
+        ]);
+
         setTitulo(data.titulo);
         setDescripcion(data.descripcion);
         setTipo(data.tipo);
         setImagenPortada(data.imagenPortada || "");
+        if (
+          data.imagenPortada &&
+          (data.imagenPortada.startsWith("http://") || data.imagenPortada.startsWith("https://")) &&
+          !data.imagenPortada.includes("/api/uploads/")
+        ) {
+          setImageMode("URL");
+        } else {
+          setImageMode("LOCAL");
+        }
         setFechaCierre(data.fechaCierre || "");
         setEstadoActual(data.estado);
 
-        // Parsear min y max del tamaño de equipo guardado
+        // Extraer participantes existentes (docentes y jurados) de ambas fuentes para máxima robustez
+        const existingDocs = data.docenteIds && data.docenteIds.length > 0
+          ? data.docenteIds
+          : parts.filter((p) => p.rol === "DOCENTE").map((p) => p.usuarioId);
+
+        const existingJurs = data.juradoIds && data.juradoIds.length > 0
+          ? data.juradoIds
+          : parts.filter((p) => p.rol === "JURADO").map((p) => p.usuarioId);
+
+        setSelectedDocenteIds(existingDocs);
+        setSelectedJuradoIds(existingJurs);
+        setOriginalDocenteIds(existingDocs);
+        setOriginalJuradoIds(existingJurs);
+
+        setAvailableDocentes(encargados.docentes || []);
+        setAvailableJurados(encargados.jurados || []);
+
         if (data.tamanoEquipo) {
           const nums = data.tamanoEquipo.match(/\d+/g);
           if (nums && nums.length >= 2) {
@@ -77,15 +157,91 @@ export default function EditarConvocatoriaPage() {
         if (data.requisitos && data.requisitos.length > 0) {
           setRequisitos(data.requisitos.map((r) => r.descripcion));
         }
+
+        // Revisar si había un borrador local no guardado para esta convocatoria
+        try {
+          const draftStr = localStorage.getItem(draftKey);
+          if (draftStr) {
+            const d = JSON.parse(draftStr);
+            if (d.titulo) setTitulo(d.titulo);
+            if (d.descripcion !== undefined) setDescripcion(d.descripcion);
+            if (d.tipo) setTipo(d.tipo);
+            if (d.fechaCierre) setFechaCierre(d.fechaCierre);
+            if (d.cuposMinEquipo) setCuposMinEquipo(d.cuposMinEquipo);
+            if (d.cuposMaxEquipo) setCuposMaxEquipo(d.cuposMaxEquipo);
+            if (d.requisitos) setRequisitos(d.requisitos);
+            if (d.selectedDocenteIds) setSelectedDocenteIds(d.selectedDocenteIds);
+            if (d.selectedJuradoIds) setSelectedJuradoIds(d.selectedJuradoIds);
+            if (d.imagenPortada) setImagenPortada(d.imagenPortada);
+            if (d.imagenNombre) setImagenNombre(d.imagenNombre);
+            if (d.imageMode) setImageMode(d.imageMode);
+            if (d.savedAt) setLastSavedLocal(d.savedAt);
+            setHasRestoredDraft(true);
+          }
+        } catch {
+          // ignorar error lectura
+        }
       } catch (err: any) {
         setError(err.message || "Error al cargar la convocatoria.");
       } finally {
         setLoading(false);
+        setLoadingEncargados(false);
       }
     };
 
-    fetchConvocatoria();
-  }, [convId]);
+    fetchData();
+  }, [convId, draftKey]);
+
+  // Auto-guardar en LocalStorage cada cambio (sin saturar la base de datos)
+  useEffect(() => {
+    if (loading || typeof window === "undefined" || !titulo) return;
+    const now = new Date().toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const draftData = {
+      titulo,
+      descripcion,
+      tipo,
+      fechaCierre,
+      cuposMinEquipo,
+      cuposMaxEquipo,
+      requisitos,
+      selectedDocenteIds,
+      selectedJuradoIds,
+      imagenPortada,
+      imagenNombre,
+      imageMode,
+      savedAt: now,
+    };
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+      setLastSavedLocal(now);
+    } catch (e) {
+      console.warn("No se pudo guardar borrador local:", e);
+    }
+  }, [
+    loading,
+    titulo,
+    descripcion,
+    tipo,
+    fechaCierre,
+    cuposMinEquipo,
+    cuposMaxEquipo,
+    requisitos,
+    selectedDocenteIds,
+    selectedJuradoIds,
+    imagenPortada,
+    imagenNombre,
+    imageMode,
+    draftKey,
+  ]);
+
+  const descartarBorradorLocal = () => {
+    if (confirm("¿Descartar el borrador local y recargar los datos originales del servidor?")) {
+      localStorage.removeItem(draftKey);
+      setHasRestoredDraft(false);
+      setLastSavedLocal(null);
+      window.location.reload();
+    }
+  };
 
   const addRequisito = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -97,6 +253,40 @@ export default function EditarConvocatoriaPage() {
 
   const removeRequisito = (index: number) => {
     setRequisitos(requisitos.filter((_, i) => i !== index));
+  };
+
+  // Manejo de imagen local en memoria (Base64) - NO satura la base de datos hasta confirmar
+  const handleLocalImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      setError("La imagen no debe superar los 8MB para almacenamiento temporal.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setImagenPortada(base64);
+      setImagenNombre(file.name);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Toggle docente
+  const handleToggleDocente = (id: number) => {
+    setSelectedDocenteIds((prev) =>
+      prev.includes(id) ? prev.filter((dId) => dId !== id) : [...prev, id]
+    );
+  };
+
+  // Toggle jurado
+  const handleToggleJurado = (id: number) => {
+    setSelectedJuradoIds((prev) =>
+      prev.includes(id) ? prev.filter((jId) => jId !== id) : [...prev, id]
+    );
   };
 
   const computedTamanoEquipo =
@@ -113,25 +303,55 @@ export default function EditarConvocatoriaPage() {
 
     setSaving(true);
     try {
+      let finalImageUrl: string | undefined = imagenPortada.trim() || undefined;
+
+      // Si la imagen es un Base64 local no subido aún, ahora sí la persistimos físicamente
+      if (imagenPortada && imagenPortada.startsWith("data:image/")) {
+        try {
+          const fileToUpload = dataURLtoFile(imagenPortada, imagenNombre || `portada_${convId}.jpg`);
+          const uploadRes = await api.uploadImagen(fileToUpload);
+          finalImageUrl = uploadRes.url;
+        } catch (uploadErr) {
+          console.warn("No se pudo subir la imagen al servidor, se continuará:", uploadErr);
+        }
+      }
+
       const payload: ConvocatoriaRequest = {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         tipo,
         fechaCierre: fechaCierre || undefined,
         tamanoEquipo: computedTamanoEquipo,
-        imagenPortada: imagenPortada.trim() || undefined,
+        imagenPortada: finalImageUrl,
         requisitos: requisitos,
+        docenteIds: selectedDocenteIds,
+        juradoIds: selectedJuradoIds,
       };
 
       await api.updateConvocatoria(convId, payload);
 
+      // Sincronizar participantes agregados / removidos (compatibilidad con cualquier backend)
+      const docsToAdd = selectedDocenteIds.filter((id) => !originalDocenteIds.includes(id));
+      const jursToAdd = selectedJuradoIds.filter((id) => !originalJuradoIds.includes(id));
+
+      const assignPromises = [
+        ...docsToAdd.map((dId) =>
+          api.designarParticipante(convId, { usuarioId: dId, rol: "DOCENTE" }).catch(() => {})
+        ),
+        ...jursToAdd.map((jId) =>
+          api.designarParticipante(convId, { usuarioId: jId, rol: "JURADO" }).catch(() => {})
+        ),
+      ];
+      await Promise.all(assignPromises);
+
       if (publishAfter && estadoActual === "BORRADOR") {
         await api.publicarConvocatoria(convId);
-        toast("Convocatoria actualizada y publicada en el portal", "success");
-      } else {
-        toast("Cambios guardados exitosamente", "success");
       }
 
+      // Limpiar borrador local tras éxito en base de datos
+      localStorage.removeItem(draftKey);
+
+      toast("Cambios y asignaciones guardados exitosamente en la base de datos", "success");
       router.push("/dashboard/convocatorias");
     } catch (err: any) {
       setError(err.message || "Error al actualizar la convocatoria.");
@@ -146,6 +366,26 @@ export default function EditarConvocatoriaPage() {
     INVESTIGACION: "Investigación",
   };
 
+  // Filtrado flexible e insensible a acentos
+  const qDoc = normalizeText(searchDocente);
+  const filteredDocentes = availableDocentes.filter((d) => {
+    if (!qDoc) return true;
+    const full = normalizeText(`${d.nombre} ${d.apellido}`);
+    const email = normalizeText(d.email);
+    return full.includes(qDoc) || email.includes(qDoc);
+  });
+
+  const qJur = normalizeText(searchJurado);
+  const filteredJurados = availableJurados.filter((j) => {
+    if (!qJur) return true;
+    const full = normalizeText(`${j.nombre} ${j.apellido}`);
+    const email = normalizeText(j.email);
+    return full.includes(qJur) || email.includes(qJur);
+  });
+
+  const selectedDocentesObj = availableDocentes.filter((d) => selectedDocenteIds.includes(d.id));
+  const selectedJuradosObj = availableJurados.filter((j) => selectedJuradoIds.includes(j.id));
+
   if (!canEditModule("CONVOCATORIAS")) {
     return (
       <DashboardLayout>
@@ -153,7 +393,7 @@ export default function EditarConvocatoriaPage() {
           <AlertCircle className="w-10 h-10 text-red-600 mx-auto mb-2" />
           <h2 className="font-serif text-lg text-ink font-semibold">Acceso Denegado</h2>
           <p className="text-xs text-ink-soft mt-1">
-            No tienes permisos suficientes para editar convocatorias.
+            Tu rol actual no cuenta con permisos para editar convocatorias.
           </p>
         </div>
       </DashboardLayout>
@@ -163,8 +403,9 @@ export default function EditarConvocatoriaPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="p-16 text-center text-ink-faint text-sm">
-          Cargando datos de la convocatoria...
+        <div className="max-w-6xl mx-auto py-20 text-center">
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs text-ink-soft">Cargando convocatoria y personal asignado...</p>
         </div>
       </DashboardLayout>
     );
@@ -173,30 +414,57 @@ export default function EditarConvocatoriaPage() {
   return (
     <DashboardLayout>
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Cabecera */}
-        <div>
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-1.5 text-xs text-ink-soft hover:text-accent font-medium mb-3 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Volver a Convocatorias
-          </button>
-          <span className="block text-xs font-semibold text-ink-faint tracking-wider uppercase">
-            Edición de Actividad Institucional #{convId}
-          </span>
-          <div className="flex items-center gap-3 mt-0.5">
-            <h1 className="font-serif text-2xl sm:text-3xl font-normal text-ink">
+        {/* Cabecera y Estado LocalStorage */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <button
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-1.5 text-xs text-ink-soft hover:text-accent font-medium mb-3 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Volver a Convocatorias
+            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="block text-xs font-semibold text-ink-faint tracking-wider uppercase">
+                Edición de Convocatoria #{convId}
+              </span>
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                  estadoActual === "PUBLICADA"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : estadoActual === "BORRADOR"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-gray-100 text-gray-800"
+                }`}
+              >
+                {estadoActual}
+              </span>
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-normal text-ink mt-0.5">
               Editar Convocatoria
             </h1>
-            <span
-              className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-                estadoActual === "PUBLICADA"
-                  ? "bg-emerald-100 text-emerald-800"
-                  : "bg-amber-100 text-amber-800"
-              }`}
-            >
-              {estadoActual}
-            </span>
+            <p className="text-xs text-ink-soft mt-1">
+              Modifica los datos generales, personal docente/jurados asignados o actualiza la foto de portada.
+            </p>
+          </div>
+
+          {/* Indicador de Auto-guardado LocalStorage */}
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            {lastSavedLocal && (
+              <span className="text-[11px] px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 flex items-center gap-1.5 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Borrador local activo ({lastSavedLocal})
+              </span>
+            )}
+            {hasRestoredDraft && (
+              <button
+                type="button"
+                onClick={descartarBorradorLocal}
+                className="text-[11px] px-2.5 py-1 rounded-full border border-danger/30 text-danger hover:bg-danger/10 transition-colors flex items-center gap-1"
+                title="Descartar borrador local y recargar del servidor"
+              >
+                <RotateCcw className="w-3 h-3" /> Descartar
+              </button>
+            )}
           </div>
         </div>
 
@@ -207,10 +475,10 @@ export default function EditarConvocatoriaPage() {
           </div>
         )}
 
-        {/* Layout de 2 columnas: Formulario y Previsualización */}
+        {/* Layout de 2 columnas: Formulario a la izquierda, Previsualización a la derecha */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Formulario (7 columnas) */}
-          <div className="lg:col-span-7 bg-paper-raised border border-line rounded-xl p-6 sm:p-7 shadow-sm space-y-5">
+          <div className="lg:col-span-7 bg-paper-raised border border-line rounded-xl p-6 sm:p-7 shadow-sm space-y-6">
             {/* Tipo de Actividad (Pills) */}
             <div>
               <label className="block text-xs font-semibold text-ink-soft uppercase tracking-wider mb-2">
@@ -242,7 +510,7 @@ export default function EditarConvocatoriaPage() {
             {/* Título */}
             <div>
               <label className="block text-xs font-medium text-ink-soft mb-1.5">
-                Título del evento
+                Título del evento <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -267,18 +535,347 @@ export default function EditarConvocatoriaPage() {
               />
             </div>
 
-            {/* URL Imagen Portada */}
-            <div>
-              <label className="block text-xs font-medium text-ink-soft mb-1.5">
-                URL de imagen de portada (opcional)
-              </label>
-              <input
-                type="url"
-                value={imagenPortada}
-                onChange={(e) => setImagenPortada(e.target.value)}
-                placeholder="https://images.unsplash.com/... o deja en blanco"
-                className="w-full px-3.5 py-2.5 rounded-md border border-line bg-paper text-ink text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              />
+            {/* SECCIÓN: FOTO DE PORTADA CON PREVISUALIZACIÓN IN SITU EN EL RECUADRO */}
+            <div className="p-4 bg-paper rounded-xl border border-line space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-semibold text-ink uppercase tracking-wider">
+                    Fotografía de Portada
+                  </label>
+                  <p className="text-[11px] text-ink-faint">
+                    Previsualizada en este recuadro y guardada localmente hasta confirmar.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 bg-paper-sunken p-0.5 rounded-lg border border-line-soft">
+                  <button
+                    type="button"
+                    onClick={() => setImageMode("LOCAL")}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      imageMode === "LOCAL"
+                        ? "bg-accent text-white shadow-xs"
+                        : "text-ink-soft hover:text-ink"
+                    }`}
+                  >
+                    Foto local
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageMode("URL")}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      imageMode === "URL"
+                        ? "bg-accent text-white shadow-xs"
+                        : "text-ink-soft hover:text-ink"
+                    }`}
+                  >
+                    Enlace URL
+                  </button>
+                </div>
+              </div>
+
+              {/* RECUADRO DE PREVISUALIZACIÓN DIRECTA */}
+              {imageMode === "LOCAL" ? (
+                <div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={handleLocalImageSelect}
+                    className="hidden"
+                  />
+
+                  {imagenPortada ? (
+                    <div className="relative rounded-xl overflow-hidden border-2 border-line bg-paper-sunken group">
+                      {/* Imagen mostrada directamente dentro de este recuadro */}
+                      <div className="h-52 w-full relative">
+                        <img
+                          src={getMediaUrl(imagenPortada)}
+                          alt="Previsualización de portada"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-black/70 text-white backdrop-blur-sm">
+                            {imagenPortada.startsWith("data:image/") ? "En memoria local" : "Foto actual"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Barra de control inferior en el mismo recuadro */}
+                      <div className="p-3 bg-paper border-t border-line flex items-center justify-between">
+                        <div className="flex items-center gap-2 overflow-hidden text-xs text-ink-soft">
+                          <ImageIcon className="w-4 h-4 text-accent flex-shrink-0" />
+                          <span className="truncate max-w-[220px] font-medium text-ink">
+                            {imagenNombre || "Foto de portada"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-line bg-paper hover:bg-paper-raised text-ink transition-colors flex items-center gap-1"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" /> Cambiar foto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImagenPortada("");
+                              setImagenNombre("");
+                            }}
+                            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-danger/30 text-danger hover:bg-danger-soft/20 transition-colors flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Quitar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-line hover:border-accent rounded-xl p-8 text-center cursor-pointer transition-colors bg-paper-sunken/40 hover:bg-accent-soft/20"
+                    >
+                      <UploadCloud className="w-9 h-9 text-accent mx-auto mb-2" />
+                      <p className="text-xs font-semibold text-ink">
+                        Haz clic aquí para seleccionar una nueva foto
+                      </p>
+                      <p className="text-[11px] text-ink-faint mt-1">
+                        Formatos soportados: JPG, PNG, WEBP o GIF (previsualización instantánea en este recuadro)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <input
+                    type="url"
+                    value={imagenPortada}
+                    onChange={(e) => setImagenPortada(e.target.value)}
+                    placeholder="https://images.unsplash.com/... o pega el enlace web"
+                    className="w-full px-3.5 py-2.5 rounded-md border border-line bg-paper text-ink text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                  {imagenPortada && (
+                    <div className="rounded-xl overflow-hidden border border-line max-h-48 relative">
+                      <img
+                        src={getMediaUrl(imagenPortada)}
+                        alt="Previsualización URL"
+                        className="w-full h-44 object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* SECCIÓN: ENCARGADOS Y JURADOS (N DOCENTES Y N JURADOS) */}
+            <div className="space-y-4 pt-2 border-t border-line-soft">
+              <div>
+                <span className="block text-xs font-semibold text-ink uppercase tracking-wider mb-1">
+                  Personal a Cargo de la Convocatoria
+                </span>
+                <p className="text-[11px] text-ink-soft">
+                  Selecciona y asigna <b>N docentes guías</b> y <b>N jurados evaluadores</b>.
+                </p>
+              </div>
+
+              {/* 1. Docentes Encargados */}
+              <div className="p-4 bg-paper rounded-xl border border-line space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-accent" />
+                    <span className="text-xs font-semibold text-ink">Docentes Encargados</span>
+                  </div>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-accent-soft text-accent-dark font-semibold">
+                    {selectedDocenteIds.length} asignado(s)
+                  </span>
+                </div>
+
+                {/* Buscador de docentes */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+                  <input
+                    type="text"
+                    placeholder="Buscar docente por nombre o correo (ej: Rolando, rmartinez@uagrm.edu.bo)..."
+                    value={searchDocente}
+                    onChange={(e) => setSearchDocente(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-paper-sunken border border-line-soft focus:border-accent focus:outline-none"
+                  />
+                </div>
+
+                {/* Lista de selección de docentes */}
+                <div className="max-h-44 overflow-y-auto border border-line-soft rounded-lg divide-y divide-line-soft bg-paper">
+                  {loadingEncargados ? (
+                    <div className="p-3 text-center text-xs text-ink-faint">Cargando docentes disponibles...</div>
+                  ) : filteredDocentes.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-ink-soft">
+                      No se encontró ningún docente con &quot;{searchDocente}&quot;.
+                    </div>
+                  ) : (
+                    filteredDocentes.map((doc) => {
+                      const isSelected = selectedDocenteIds.includes(doc.id);
+                      return (
+                        <div
+                          key={doc.id}
+                          onClick={() => handleToggleDocente(doc.id)}
+                          className={`p-2.5 flex items-center justify-between cursor-pointer transition-colors text-xs ${
+                            isSelected ? "bg-accent-soft/40 hover:bg-accent-soft/60" : "hover:bg-paper-sunken"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center text-[11px]">
+                              {doc.nombre.charAt(0)}{doc.apellido ? doc.apellido.charAt(0) : ""}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-ink block">{doc.nombre} {doc.apellido}</span>
+                              <span className="text-[10px] text-ink-faint">{doc.email}</span>
+                            </div>
+                          </div>
+                          <div className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all ${
+                            isSelected
+                              ? "bg-accent text-white"
+                              : "bg-paper-sunken text-ink-soft hover:bg-accent hover:text-white"
+                          }`}>
+                            {isSelected ? (
+                              <>
+                                <Check className="w-3 h-3" /> Asignado
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3 h-3" /> Agregar
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Chips de docentes seleccionados */}
+                {selectedDocentesObj.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[11px] font-medium text-ink-faint">Docentes que coordinarán esta área:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedDocentesObj.map((doc) => (
+                        <span
+                          key={doc.id}
+                          className="inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1 rounded-full bg-accent-soft border border-accent/40 text-accent-dark text-xs font-medium shadow-2xs"
+                        >
+                          <span>{doc.nombre} {doc.apellido}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDocente(doc.id)}
+                            className="w-4 h-4 rounded-full hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center text-ink-soft"
+                            title="Quitar de la lista"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Jurados Evaluadores */}
+              <div className="p-4 bg-paper rounded-xl border border-line space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Award className="w-4 h-4 text-purple-600" />
+                    <span className="text-xs font-semibold text-ink">Jurados Evaluadores</span>
+                  </div>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">
+                    {selectedJuradoIds.length} asignado(s)
+                  </span>
+                </div>
+
+                {/* Buscador de jurados */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+                  <input
+                    type="text"
+                    placeholder="Buscar jurado por nombre o correo (ej: Carlos, cfernandez@uagrm.edu.bo)..."
+                    value={searchJurado}
+                    onChange={(e) => setSearchJurado(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-paper-sunken border border-line-soft focus:border-accent focus:outline-none"
+                  />
+                </div>
+
+                {/* Lista de selección de jurados */}
+                <div className="max-h-44 overflow-y-auto border border-line-soft rounded-lg divide-y divide-line-soft bg-paper">
+                  {loadingEncargados ? (
+                    <div className="p-3 text-center text-xs text-ink-faint">Cargando jurados disponibles...</div>
+                  ) : filteredJurados.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-ink-soft">
+                      No se encontró ningún jurado con &quot;{searchJurado}&quot;.
+                    </div>
+                  ) : (
+                    filteredJurados.map((jur) => {
+                      const isSelected = selectedJuradoIds.includes(jur.id);
+                      return (
+                        <div
+                          key={jur.id}
+                          onClick={() => handleToggleJurado(jur.id)}
+                          className={`p-2.5 flex items-center justify-between cursor-pointer transition-colors text-xs ${
+                            isSelected ? "bg-purple-50 hover:bg-purple-100" : "hover:bg-paper-sunken"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-purple-200 text-purple-800 font-bold flex items-center justify-center text-[11px]">
+                              {jur.nombre.charAt(0)}{jur.apellido ? jur.apellido.charAt(0) : ""}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-ink block">{jur.nombre} {jur.apellido}</span>
+                              <span className="text-[10px] text-ink-faint">{jur.email}</span>
+                            </div>
+                          </div>
+                          <div className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all ${
+                            isSelected
+                              ? "bg-purple-600 text-white"
+                              : "bg-paper-sunken text-ink-soft hover:bg-purple-600 hover:text-white"
+                          }`}>
+                            {isSelected ? (
+                              <>
+                                <Check className="w-3 h-3" /> Asignado
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3 h-3" /> Agregar
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Chips de jurados seleccionados */}
+                {selectedJuradosObj.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[11px] font-medium text-ink-faint">Jurados que evaluarán a los proyectos:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedJuradosObj.map((jur) => (
+                        <span
+                          key={jur.id}
+                          className="inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-900 text-xs font-medium shadow-2xs"
+                        >
+                          <span>{jur.nombre} {jur.apellido}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleJurado(jur.id)}
+                            className="w-4 h-4 rounded-full hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center text-ink-soft"
+                            title="Quitar de la lista"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Fechas y Equipos */}
@@ -326,7 +923,9 @@ export default function EditarConvocatoriaPage() {
                   </div>
                 </div>
                 <div className="text-[11px] text-accent font-medium mt-1.5">
-                  {computedTamanoEquipo}
+                  {cuposMinEquipo === cuposMaxEquipo
+                    ? `Hasta ${cuposMaxEquipo} integrantes`
+                    : `De ${cuposMinEquipo} a ${cuposMaxEquipo} integrantes`}
                 </div>
               </div>
             </div>
@@ -358,7 +957,7 @@ export default function EditarConvocatoriaPage() {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Escribe un requisito y presiona enter..."
+                  placeholder="Escribe un requisito y presiona agregar..."
                   value={newReq}
                   onChange={(e) => setNewReq(e.target.value)}
                   onKeyDown={(e) => {
@@ -380,15 +979,24 @@ export default function EditarConvocatoriaPage() {
             </div>
 
             {/* Botones de acción */}
-            <div className="pt-4 border-t border-line-soft flex items-center justify-end gap-3">
+            <div className="pt-4 border-t border-line-soft flex flex-wrap items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => router.back()}
+                className="px-4 py-2.5 rounded-lg border border-line text-ink-soft text-xs font-medium hover:bg-paper transition-all disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => handleSave(false)}
-                className="px-5 py-2.5 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-black transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                className="px-5 py-2.5 rounded-lg bg-ink text-white hover:bg-black text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
-                {saving ? "Guardando..." : "Guardar cambios"}
+                <Save className="w-4 h-4 text-accent" />
+                {saving ? "Guardando en BD..." : "Guardar cambios en BD"}
               </button>
 
               {estadoActual === "BORRADOR" && (
@@ -399,13 +1007,13 @@ export default function EditarConvocatoriaPage() {
                   className="px-5 py-2.5 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-opacity-95 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  {saving ? "Guardando..." : "Guardar y Publicar"}
+                  Guardar y publicar
                 </button>
               )}
             </div>
           </div>
 
-          {/* Previsualización en Tiempo Real */}
+          {/* Previsualización en Tiempo Real (5 columnas - STICKY) */}
           <div className="lg:col-span-5 sticky top-6">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-semibold text-ink-faint tracking-wider uppercase">
@@ -413,15 +1021,16 @@ export default function EditarConvocatoriaPage() {
               </span>
               <span className="text-[11px] text-accent font-medium flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
-                Actualización en tiempo real
+                Actualizado en tiempo real
               </span>
             </div>
 
             <div className="bg-paper-raised border border-line rounded-xl overflow-hidden shadow-sm">
-              <div className="h-32 bg-accent-soft border-b border-line flex items-center justify-center relative overflow-hidden">
+              {/* Header de la tarjeta con imagen o fallback */}
+              <div className="h-36 bg-accent-soft border-b border-line flex items-center justify-center relative overflow-hidden">
                 {imagenPortada ? (
                   <img
-                    src={imagenPortada}
+                    src={getMediaUrl(imagenPortada)}
                     alt="Portada"
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -441,6 +1050,7 @@ export default function EditarConvocatoriaPage() {
                 </div>
               </div>
 
+              {/* Contenido de la tarjeta */}
               <div className="p-5 space-y-3">
                 <h3 className="font-serif text-lg font-normal text-ink leading-snug">
                   {titulo || "Título de la convocatoria"}
@@ -450,6 +1060,29 @@ export default function EditarConvocatoriaPage() {
                   {descripcion || "La descripción aparecerá aquí tal como la redactes..."}
                 </p>
 
+                {/* Encargados seleccionados en preview */}
+                {(selectedDocentesObj.length > 0 || selectedJuradosObj.length > 0) && (
+                  <div className="p-2.5 rounded-lg bg-paper-sunken border border-line-soft space-y-1.5 text-[11px]">
+                    {selectedDocentesObj.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-accent-dark">
+                        <ShieldCheck className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                        <span className="truncate">
+                          <b>Docente(s):</b> {selectedDocentesObj.map((d) => `${d.nombre} ${d.apellido}`).join(", ")}
+                        </span>
+                      </div>
+                    )}
+                    {selectedJuradosObj.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-purple-900">
+                        <Award className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                        <span className="truncate">
+                          <b>Jurado(s):</b> {selectedJuradosObj.map((j) => `${j.nombre} ${j.apellido}`).join(", ")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Metadatos */}
                 <div className="pt-3 border-t border-line-soft flex items-center justify-between text-xs text-ink-faint">
                   <span className="flex items-center gap-1">
                     <Users className="w-3.5 h-3.5 text-accent" />
@@ -468,6 +1101,7 @@ export default function EditarConvocatoriaPage() {
                   </span>
                 </div>
 
+                {/* Requisitos tags */}
                 {requisitos.length > 0 && (
                   <div className="pt-2 flex flex-wrap gap-1">
                     {requisitos.map((r, i) => (

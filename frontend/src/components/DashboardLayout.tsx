@@ -186,16 +186,16 @@ export default function DashboardLayout({
               </Link>
 
               <Link
-                href="/dashboard/cursos"
+                href="/dashboard/mis-areas"
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                  pathname.startsWith("/dashboard/cursos")
+                  pathname.startsWith("/dashboard/mis-areas")
                     ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
                     : "text-ink-soft hover:bg-paper-sunken"
                 }`}
               >
                 <GraduationCap className="w-4 h-4" />
-                <span className="flex-1">Aulas &amp; Tareas</span>
+                <span className="flex-1">Mis Áreas</span>
                 <span className="text-[10px] bg-seal/20 text-seal-dark px-1.5 py-0.5 rounded font-bold">
                   Moodle
                 </span>
@@ -320,15 +320,15 @@ export default function DashboardLayout({
           </Link>
 
           <Link
-            href="/dashboard/cursos"
+            href="/dashboard/mis-areas"
             className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
-              pathname.startsWith("/dashboard/cursos")
+              pathname.startsWith("/dashboard/mis-areas")
                 ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
                 : "text-ink-soft hover:bg-paper-sunken"
             }`}
           >
             <GraduationCap className="w-4 h-4" />
-            <span className="flex-1">Aulas &amp; Tareas</span>
+            <span className="flex-1">Mis Áreas</span>
             <span className="text-[10px] bg-seal/20 text-seal-dark px-1.5 py-0.5 rounded font-bold">
               Moodle
             </span>

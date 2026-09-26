@@ -1,6 +1,7 @@
 package com.ficct.investigacion.dto;
 
 import com.ficct.investigacion.model.ConvocatoriaParticipante;
+import com.ficct.investigacion.model.EstadoInscripcion;
 import com.ficct.investigacion.model.Rol;
 
 import java.time.LocalDateTime;
@@ -14,8 +15,12 @@ public class ConvocatoriaParticipanteDTO {
     private String apellidos;
     private String email;
     private Rol rol;
+    private EstadoInscripcion estadoInscripcion;
     private String nombreEquipo;
+    private LocalDateTime fechaSolicitud;
+    private LocalDateTime fechaRespuesta;
     private LocalDateTime fechaAsignacion;
+    private String motivoRechazo;
     private String asignadoPorNombre;
 
     public ConvocatoriaParticipanteDTO() {
@@ -31,8 +36,12 @@ public class ConvocatoriaParticipanteDTO {
             this.email = cp.getUsuario().getEmail();
         }
         this.rol = cp.getRol();
+        this.estadoInscripcion = cp.getEstadoInscripcion();
         this.nombreEquipo = cp.getNombreEquipo();
+        this.fechaSolicitud = cp.getFechaSolicitud();
+        this.fechaRespuesta = cp.getFechaRespuesta();
         this.fechaAsignacion = cp.getFechaAsignacion();
+        this.motivoRechazo = cp.getMotivoRechazo();
         if (cp.getAsignadoPor() != null) {
             this.asignadoPorNombre = cp.getAsignadoPor().getNombre() + " " + cp.getAsignadoPor().getApellidos();
         }
@@ -94,6 +103,14 @@ public class ConvocatoriaParticipanteDTO {
         this.rol = rol;
     }
 
+    public EstadoInscripcion getEstadoInscripcion() {
+        return estadoInscripcion;
+    }
+
+    public void setEstadoInscripcion(EstadoInscripcion estadoInscripcion) {
+        this.estadoInscripcion = estadoInscripcion;
+    }
+
     public String getNombreEquipo() {
         return nombreEquipo;
     }
@@ -102,12 +119,36 @@ public class ConvocatoriaParticipanteDTO {
         this.nombreEquipo = nombreEquipo;
     }
 
+    public LocalDateTime getFechaSolicitud() {
+        return fechaSolicitud;
+    }
+
+    public void setFechaSolicitud(LocalDateTime fechaSolicitud) {
+        this.fechaSolicitud = fechaSolicitud;
+    }
+
+    public LocalDateTime getFechaRespuesta() {
+        return fechaRespuesta;
+    }
+
+    public void setFechaRespuesta(LocalDateTime fechaRespuesta) {
+        this.fechaRespuesta = fechaRespuesta;
+    }
+
     public LocalDateTime getFechaAsignacion() {
         return fechaAsignacion;
     }
 
     public void setFechaAsignacion(LocalDateTime fechaAsignacion) {
         this.fechaAsignacion = fechaAsignacion;
+    }
+
+    public String getMotivoRechazo() {
+        return motivoRechazo;
+    }
+
+    public void setMotivoRechazo(String motivoRechazo) {
+        this.motivoRechazo = motivoRechazo;
     }
 
     public String getAsignadoPorNombre() {

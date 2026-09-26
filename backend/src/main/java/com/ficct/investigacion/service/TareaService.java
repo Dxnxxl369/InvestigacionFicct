@@ -23,19 +23,22 @@ public class TareaService {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final DocumentoRepository documentoRepository;
     private final UserRepository userRepository;
+    private final ModuloRepository moduloRepository;
 
     public TareaService(TareaRepository tareaRepository,
                         EntregaTareaRepository entregaRepository,
                         ConvocatoriaRepository convocatoriaRepository,
                         ConvocatoriaParticipanteRepository participanteRepository,
                         DocumentoRepository documentoRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        ModuloRepository moduloRepository) {
         this.tareaRepository = tareaRepository;
         this.entregaRepository = entregaRepository;
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.documentoRepository = documentoRepository;
         this.userRepository = userRepository;
+        this.moduloRepository = moduloRepository;
     }
 
     private boolean puedeDocenteGestionarTarea(Convocatoria convocatoria, User user) {
@@ -43,8 +46,11 @@ public class TareaService {
             return true;
         }
         if (user.getRol() == Rol.DOCENTE) {
-            return participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRol(
-                    convocatoria.getId(), user.getId(), Rol.DOCENTE);
+            if (convocatoria.getCreador() != null && convocatoria.getCreador().getId().equals(user.getId())) {
+                return true;
+            }
+            return participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
+                    convocatoria.getId(), user.getId(), Rol.DOCENTE, EstadoInscripcion.ACEPTADO);
         }
         return false;
     }
@@ -75,6 +81,10 @@ public class TareaService {
                 request.getPuntajeMaximo(),
                 user
         );
+
+        if (request.getModuloId() != null && request.getModuloId() > 0) {
+            moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
+        }
 
         Tarea saved = tareaRepository.save(tarea);
         return toDTO(saved, user);
@@ -115,6 +125,13 @@ public class TareaService {
         }
         if (request.getPuntajeMaximo() != null) {
             tarea.setPuntajeMaximo(request.getPuntajeMaximo());
+        }
+        if (request.getModuloId() != null) {
+            if (request.getModuloId() > 0) {
+                moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
+            } else {
+                tarea.setModulo(null);
+            }
         }
 
         Tarea saved = tareaRepository.save(tarea);
@@ -157,6 +174,15 @@ public class TareaService {
         User estudiante = getUserByEmail(userEmail);
         Tarea tarea = tareaRepository.findById(tareaId)
                 .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
+
+        // 0. Validar que el estudiante esté formalmente admitido en esta área
+        if (estudiante.getRol() == Rol.ESTUDIANTE) {
+            boolean admitido = participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
+                    tarea.getConvocatoria().getId(), estudiante.getId(), Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO);
+            if (!admitido) {
+                throw new AccessDeniedException("Debes estar formalmente admitido en esta área para realizar entregas de tareas.");
+            }
+        }
 
         // 1. Control manual de habilitación
         if (!tarea.isHabilitada()) {
@@ -284,6 +310,10 @@ public class TareaService {
         if (tarea.getCreador() != null) {
             dto.setCreadorId(tarea.getCreador().getId());
             dto.setCreadorNombre(tarea.getCreador().getNombreCompleto());
+        }
+        if (tarea.getModulo() != null) {
+            dto.setModuloId(tarea.getModulo().getId());
+            dto.setModuloTitulo(tarea.getModulo().getTitulo());
         }
         dto.setTotalEntregas(tarea.getEntregas().size());
         dto.setCreatedAt(tarea.getCreatedAt());
