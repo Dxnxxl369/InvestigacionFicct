@@ -139,6 +139,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: res.email,
       rol: res.rol,
       estado: res.estado,
+      fotoPerfil: res.fotoPerfil,
+      descripcion: res.descripcion,
+      ocultarCursos: res.ocultarCursos,
     };
     setToken(res.token);
     setUser(u);

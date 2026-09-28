@@ -31,6 +31,15 @@ public class User {
     @Column(nullable = false, length = 30)
     private EstadoUsuario estado = EstadoUsuario.ACTIVO;
 
+    @Column(name = "foto_perfil", length = 500)
+    private String fotoPerfil;
+
+    @Column(name = "descripcion", columnDefinition = "TEXT")
+    private String descripcion;
+
+    @Column(name = "ocultar_cursos")
+    private Boolean ocultarCursos = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -124,6 +133,30 @@ public class User {
 
     public void setEstado(EstadoUsuario estado) {
         this.estado = estado;
+    }
+
+    public String getFotoPerfil() {
+        return fotoPerfil;
+    }
+
+    public void setFotoPerfil(String fotoPerfil) {
+        this.fotoPerfil = fotoPerfil;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
+    }
+
+    public Boolean getOcultarCursos() {
+        return ocultarCursos != null ? ocultarCursos : false;
+    }
+
+    public void setOcultarCursos(Boolean ocultarCursos) {
+        this.ocultarCursos = ocultarCursos;
     }
 
     public LocalDateTime getCreatedAt() {

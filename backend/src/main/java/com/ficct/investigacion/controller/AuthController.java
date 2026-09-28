@@ -2,6 +2,7 @@ package com.ficct.investigacion.controller;
 
 import com.ficct.investigacion.dto.AuthRequest;
 import com.ficct.investigacion.dto.AuthResponse;
+import com.ficct.investigacion.dto.PerfilUpdateRequest;
 import com.ficct.investigacion.dto.RegisterRequest;
 import com.ficct.investigacion.dto.UserDTO;
 import com.ficct.investigacion.service.AuthService;
@@ -65,5 +66,24 @@ public class AuthController {
         }
         UserDTO userDTO = authService.getCurrentUser(userDetails.getUsername());
         return ResponseEntity.ok(userDTO);
+    }
+
+    /**
+     * Actualizar perfil del usuario autenticado (fotoPerfil y descripcion unicamente)
+     */
+    @PutMapping("/me")
+    public ResponseEntity<?> updateProfile(@AuthenticationPrincipal UserDetails userDetails,
+                                           @RequestBody PerfilUpdateRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        UserDTO userDTO = authService.updateProfile(userDetails.getUsername(), request);
+        return ResponseEntity.ok(userDTO);
+    }
+
+    @PutMapping("/perfil")
+    public ResponseEntity<?> updatePerfil(@AuthenticationPrincipal UserDetails userDetails,
+                                          @RequestBody PerfilUpdateRequest request) {
+        return updateProfile(userDetails, request);
     }
 }

@@ -1,0 +1,2193 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FICCT Móvil - Simulador de Aplicación Académica & Moodle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ================= PALETA DE COLORES FICCT ================= */
+    :root {
+      --ink: #16243D;
+      --ink-soft: #4B5566;
+      --ink-faint: #8890A0;
+      --paper: #F5F3ED;
+      --paper-raised: #FFFFFF;
+      --paper-sunken: #FBFAF6;
+      --line: #DEDAD0;
+      --line-soft: #E9E6DD;
+      --accent: #1F6F5C;
+      --accent-dark: #154E41;
+      --accent-soft: #E4EFE9;
+      --seal: #A97C34;
+      --seal-soft: #F4E8D2;
+      --danger: #B23A34;
+      --danger-soft: #F7E2DE;
+      --shadow-sm: 0 2px 8px rgba(22, 36, 61, 0.06);
+      --shadow-md: 0 8px 24px rgba(22, 36, 61, 0.08);
+      --shadow-lg: 0 16px 40px rgba(22, 36, 61, 0.14);
+      --liquid-bg: rgba(255, 255, 255, 0.72);
+      --liquid-border: rgba(255, 255, 255, 0.55);
+      --phone-border: #2C3545;
+      --phone-bg: #F5F3ED;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-serif: 'Playfair Display', Georgia, serif;
+    }
+
+    [data-theme="dark"] {
+      --ink: #EAEDF3;
+      --ink-soft: #A7B0C2;
+      --ink-faint: #6B7488;
+      --paper: #0C1220;
+      --paper-raised: #131B2E;
+      --paper-sunken: #101728;
+      --line: #232F48;
+      --line-soft: #1B253C;
+      --accent: #49B394;
+      --accent-dark: #7BD6BA;
+      --accent-soft: rgba(73, 179, 148, 0.16);
+      --seal: #D9AE63;
+      --seal-soft: rgba(217, 174, 99, 0.16);
+      --danger: #E27871;
+      --danger-soft: rgba(226, 120, 113, 0.16);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+      --liquid-bg: rgba(19, 27, 46, 0.78);
+      --liquid-border: rgba(255, 255, 255, 0.12);
+      --phone-border: #3B4861;
+      --phone-bg: #0C1220;
+    }
+
+    /* Reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: #0B0F19;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(31, 111, 92, 0.2) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(169, 124, 52, 0.15) 0px, transparent 50%);
+      color: #EAEDF3;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      overflow-x: hidden;
+    }
+
+    /* ================= CONTENEDOR MAESTRO (PROTOTYPE WORKSPACE) ================= */
+    .prototype-container {
+      width: 100%;
+      max-width: 1360px;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+
+    @media (max-width: 1080px) {
+      .prototype-container {
+        grid-template-columns: 1fr;
+        justify-items: center;
+      }
+    }
+
+    /* ================= PANEL DE CONTROL EXTERNO (HEURÍSTICAS & CONTROL) ================= */
+    .controls-panel {
+      background: rgba(19, 27, 46, 0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 28px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      position: sticky;
+      top: 24px;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+    }
+
+    .badge-ficct {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(73, 179, 148, 0.2);
+      border: 1px solid rgba(73, 179, 148, 0.4);
+      color: #7BD6BA;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      width: fit-content;
+    }
+
+    .panel-title {
+      font-family: var(--font-serif);
+      font-size: 22px;
+      color: #FFFFFF;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .panel-subtitle {
+      font-size: 13px;
+      color: #94A3B8;
+      line-height: 1.45;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #CBD5E1;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .role-selector-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .role-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: #E2E8F0;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .role-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .role-btn.active {
+      background: #1F6F5C;
+      border-color: #49B394;
+      color: #FFFFFF;
+      box-shadow: 0 4px 14px rgba(31, 111, 92, 0.4);
+    }
+
+    .screen-pills-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .screen-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #CBD5E1;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s ease;
+    }
+
+    .screen-pill:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #FFFFFF;
+      padding-left: 15px;
+    }
+
+    .screen-pill.active {
+      background: rgba(73, 179, 148, 0.25);
+      border-color: #49B394;
+      color: #7BD6BA;
+      font-weight: 700;
+    }
+
+    .heuristics-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 11.5px;
+      color: #94A3B8;
+      line-height: 1.5;
+    }
+
+    .heuristics-box b {
+      color: #F8FAFC;
+    }
+
+    /* ================= MARCO DEL CELULAR (SMARTPHONE FRAME) ================= */
+    .phone-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      perspective: 1200px;
+    }
+
+    .phone-case {
+      width: 412px;
+      height: 860px;
+      background: var(--phone-border);
+      border-radius: 54px;
+      padding: 12px;
+      box-shadow: 
+        0 0 0 2px rgba(255, 255, 255, 0.12),
+        0 25px 70px -10px rgba(0, 0, 0, 0.85),
+        0 0 50px rgba(73, 179, 148, 0.15);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.35s ease;
+    }
+
+    /* Botones físicos laterales */
+    .phone-case::before {
+      content: '';
+      position: absolute;
+      left: -4px;
+      top: 140px;
+      width: 4px;
+      height: 38px;
+      background: #475569;
+      border-radius: 4px 0 0 4px;
+      box-shadow: 0 60px 0 #475569, 0 110px 0 #475569;
+    }
+
+    .phone-case::after {
+      content: '';
+      position: absolute;
+      right: -4px;
+      top: 180px;
+      width: 4px;
+      height: 65px;
+      background: #475569;
+      border-radius: 0 4px 4px 0;
+    }
+
+    /* Pantalla OLED */
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 44px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.1);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* Barra Superior / Dynamic Island */
+    .status-bar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+      z-index: 50;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .dynamic-island {
+      width: 110px;
+      height: 28px;
+      background: #000000;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .dynamic-island:hover {
+      width: 140px;
+      box-shadow: 0 0 15px rgba(73, 179, 148, 0.4);
+    }
+
+    .camera-lens {
+      width: 10px;
+      height: 10px;
+      background: #08101F;
+      border-radius: 50%;
+      border: 1px solid #1E293B;
+    }
+
+    .sensor-dot {
+      width: 6px;
+      height: 6px;
+      background: #052e16;
+      border-radius: 50%;
+    }
+
+    /* Área Scrolleable de Pantallas */
+    .screen-viewport {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: relative;
+      padding-bottom: 96px; /* Espacio para barra Liquid Glass flotante */
+      scroll-behavior: smooth;
+    }
+
+    .screen-viewport::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Contenedor de Pantalla Individual */
+    .screen-view {
+      display: none;
+      opacity: 0;
+      transform: translateY(10px) scale(0.99);
+      transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      min-height: 100%;
+    }
+
+    .screen-view.active {
+      display: block;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* ================= BARRA INFERIOR LIQUID GLASS BLUR ================= */
+    .liquid-navbar {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      height: 66px;
+      background: var(--liquid-bg);
+      backdrop-filter: blur(24px) saturate(190%);
+      -webkit-backdrop-filter: blur(24px) saturate(190%);
+      border: 1px solid var(--liquid-border);
+      border-radius: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 8px;
+      box-shadow: 
+        0 14px 35px rgba(22, 36, 61, 0.18),
+        0 2px 8px rgba(255, 255, 255, 0.2) inset;
+      z-index: 90;
+      transition: all 0.3s ease;
+    }
+
+    .nav-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      color: var(--ink-faint);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      position: relative;
+      padding: 6px 12px;
+      border-radius: 16px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      border: none;
+      background: transparent;
+    }
+
+    .nav-tab svg {
+      width: 21px;
+      height: 21px;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.2s ease;
+    }
+
+    .nav-tab:hover svg {
+      transform: scale(1.1);
+    }
+
+    .nav-tab.active {
+      color: var(--accent);
+    }
+
+    .nav-tab.active svg {
+      stroke: var(--accent);
+      transform: translateY(-2px) scale(1.15);
+    }
+
+    .nav-indicator-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+      position: absolute;
+      bottom: 2px;
+      opacity: 0;
+      transform: scale(0);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .nav-tab.active .nav-indicator-dot {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* Home Bar (iPhone Indicator) */
+    .home-indicator {
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 125px;
+      height: 4.5px;
+      background: var(--ink-soft);
+      opacity: 0.35;
+      border-radius: 9999px;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    /* ================= COMPONENTES MÓVILES REUTILIZABLES ================= */
+    .mobile-header {
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: var(--paper);
+      z-index: 40;
+      border-bottom: 1px solid var(--line-soft);
+      transition: background 0.3s ease;
+    }
+
+    .brand-title {
+      font-family: var(--font-serif);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .brand-title b {
+      color: var(--accent);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--paper-raised);
+      border: 1px solid var(--line);
+      color: var(--ink-soft);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .icon-btn:hover {
+      background: var(--paper-sunken);
+      color: var(--ink);
+    }
+
+    .avatar-pill {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      border: 2px solid var(--paper-raised);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .avatar-pill img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .online-indicator {
+      width: 8px;
+      height: 8px;
+      background: #10B981;
+      border-radius: 50%;
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      border: 1.5px solid var(--paper-raised);
+    }
+
+    .screen-content {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--paper-raised);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .card-desc {
+      font-size: 12.5px;
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-size: 10.5px;
+      font-weight: 700;
+      width: fit-content;
+    }
+
+    .badge-accent {
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      border: 1px solid rgba(31, 111, 92, 0.3);
+    }
+
+    .badge-seal {
+      background: var(--seal-soft);
+      color: var(--seal);
+      border: 1px solid rgba(169, 124, 52, 0.3);
+    }
+
+    .badge-danger {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border: 1px solid rgba(178, 58, 52, 0.3);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 16px;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      width: 100%;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #FFFFFF;
+      box-shadow: 0 4px 12px rgba(31, 111, 92, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dark);
+    }
+
+    .btn-secondary {
+      background: var(--paper-sunken);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .btn-secondary:hover {
+      background: var(--line-soft);
+    }
+
+    .btn-seal {
+      background: var(--seal);
+      color: #FFFFFF;
+    }
+
+    .btn-sm {
+      padding: 7px 12px;
+      font-size: 11.5px;
+      border-radius: 10px;
+      width: auto;
+    }
+
+    /* Inputs */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--ink-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .form-input, .form-textarea, .form-select {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--paper-sunken);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--ink);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+      background: var(--paper-raised);
+    }
+
+    .form-input:disabled {
+      background: var(--line-soft);
+      cursor: not-allowed;
+      color: var(--ink-faint);
+    }
+
+    /* ================= DRAG & DROP Y SUBIDAS ================= */
+    .dropzone-mobile {
+      border: 2px dashed var(--accent);
+      background: var(--accent-soft);
+      border-radius: 18px;
+      padding: 20px 14px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .dropzone-mobile.dragover {
+      transform: scale(1.02);
+      background: rgba(31, 111, 92, 0.25);
+    }
+
+    /* Switch Moodle */
+    .moodle-switch {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: var(--paper-sunken);
+      border: 1px solid var(--line-soft);
+      border-radius: 14px;
+      cursor: pointer;
+    }
+
+    .toggle-track {
+      width: 44px;
+      height: 24px;
+      background: var(--line);
+      border-radius: 9999px;
+      position: relative;
+      transition: background 0.25s ease;
+    }
+
+    .toggle-thumb {
+      width: 18px;
+      height: 18px;
+      background: #FFFFFF;
+      border-radius: 50%;
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .moodle-switch.active .toggle-track {
+      background: var(--accent);
+    }
+
+    .moodle-switch.active .toggle-thumb {
+      transform: translateX(20px);
+    }
+
+    /* ================= TOAST NOTIFICATION (HEURÍSTICA 1: ESTADO DEL SISTEMA) ================= */
+    .mobile-toast {
+      position: absolute;
+      top: 54px;
+      left: 18px;
+      right: 18px;
+      background: var(--paper-raised);
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      border-radius: 16px;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink);
+      z-index: 100;
+      transform: translateY(-80px);
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .mobile-toast.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .toast-success .toast-icon {
+      background: #10B981;
+      color: #FFFFFF;
+    }
+
+    .toast-error .toast-icon {
+      background: var(--danger);
+      color: #FFFFFF;
+    }
+
+    /* ================= MODAL BOTTOM SHEET ================= */
+    .bottom-sheet-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(4px);
+      z-index: 110;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .bottom-sheet-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .bottom-sheet {
+      width: 100%;
+      background: var(--paper-raised);
+      border-top-left-radius: 28px;
+      border-top-right-radius: 28px;
+      padding: 20px;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+      transform: translateY(100%);
+      transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+      max-height: 80%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .bottom-sheet-overlay.active .bottom-sheet {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      background: var(--line);
+      border-radius: 9999px;
+      margin: 0 auto 6px;
+    }
+
+    /* Píldoras de Cursos Moodle */
+    .course-card-moodle {
+      display: flex;
+      gap: 12px;
+      background: var(--paper-raised);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .course-card-moodle:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .course-thumb {
+      width: 72px;
+      height: 72px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--seal));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .course-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* SpeedGrader Screen */
+    .speedgrader-header {
+      background: #111827;
+      color: #F9FAFB;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #374151;
+    }
+
+    .student-navigator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .nav-arrow-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    /* Animaciones */
+    @keyframes pulseSoft {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="prototype-container">
+
+    <!-- ================= PANEL DE CONTROL Y HEURÍSTICAS EXTERNO ================= -->
+    <aside class="controls-panel">
+      <div class="badge-ficct">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        FICCT Mobile 2.0
+      </div>
+
+      <div>
+        <h1 class="panel-title">Simulador Móvil Académico</h1>
+        <p class="panel-subtitle">Explora la experiencia de usuario completa para smartphones con navegación Liquid Glass y heurísticas de Nielsen en cada interacción.</p>
+      </div>
+
+      <!-- Selector de Rol Activo -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>Rol Activo Simulado</span>
+          <span id="role-badge-text" style="color: #7BD6BA; font-size: 10px;">DOCENTE</span>
+        </div>
+        <div class="role-selector-grid">
+          <button class="role-btn active" onclick="switchRole('DOCENTE')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            Docente
+          </button>
+          <button class="role-btn" onclick="switchRole('ESTUDIANTE')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10M6 10h10"/></svg>
+            Estudiante
+          </button>
+          <button class="role-btn" onclick="switchRole('JURADO')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+            Jurado
+          </button>
+          <button class="role-btn" onclick="switchRole('ADMIN')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Admin
+          </button>
+        </div>
+      </div>
+
+      <!-- Navegación Rápida a Pantallas -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>Pantallas de la Aplicación</span>
+          <span style="font-size: 10px; color: #94A3B8;">10 Pantallas</span>
+        </div>
+        <div class="screen-pills-list">
+          <button class="screen-pill active" onclick="navigateTo('dashboard')">
+            <span>1. Panel Principal (Dashboard)</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('mis-areas')">
+            <span>2. Mis Áreas / Cursos Moodle</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('area-aula')">
+            <span>3. Aula Virtual (Módulos & Tareas)</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('tarea-entrega')">
+            <span>4. Tarea & Drag & Drop Moodle</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('speedgrader')">
+            <span>5. SpeedGrader (Calificación)</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('convocatorias')">
+            <span>6. Convocatorias & Ferias</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('convocatoria-detalle')">
+            <span>7. Detalle de Convocatoria</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('convocatoria-nueva')">
+            <span>8. Crear Convocatoria</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('perfil')">
+            <span>9. Perfil & Privacidad Moodle</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="screen-pill" onclick="navigateTo('documentos')">
+            <span>10. Documentos & Asistente IA</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Heurísticas de Nielsen Implementadas -->
+      <div class="heuristics-box">
+        <b>💡 Heurísticas de Nielsen en este Móvil:</b><br>
+        • <b>H1 Estado:</b> Feedback visual de carga, toast animado y badges en vivo.<br>
+        • <b>H3 Control:</b> Botón "Deshacer", cancelación de entregas y modal cerrado.<br>
+        • <b>H5 Prevención:</b> Restricción de tipos de archivo (.pdf/.docx), bloqueo de datos legales.<br>
+        • <b>H8 Minimalismo:</b> Vista Moodle sin ruido visual inicial, foco en módulos.<br>
+        • <b>H6 Reconocimiento:</b> Portadas fotográficas y chips de rol claros.
+      </div>
+
+      <!-- Opciones Rápidas -->
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="toggleMobileTheme()">
+          🌓 Cambiar Tema
+        </button>
+        <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="showToast('Simulación reiniciada correctamente', 'success')">
+          🔄 Reiniciar
+        </button>
+      </div>
+    </aside>
+
+    <!-- ================= MARCO DEL CELULAR (SMARTPHONE DISPOSITIVO) ================= -->
+    <main class="phone-wrapper">
+      <div class="phone-case">
+        <div class="phone-screen" id="mobile-app">
+
+          <!-- Barra de Estado con Dynamic Island -->
+          <div class="status-bar">
+            <span id="current-time">09:41</span>
+            <div class="dynamic-island" onclick="showToast('Área de Notificaciones Activa FICCT', 'success')">
+              <div class="camera-lens"></div>
+              <div class="sensor-dot"></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="7" width="16" height="10" rx="2" ry="2"/><line x1="22" y1="11" x2="22" y2="13"/></svg>
+            </div>
+          </div>
+
+          <!-- Toast Notification Container (Heurística 1) -->
+          <div class="mobile-toast" id="app-toast">
+            <div class="toast-icon">✓</div>
+            <span id="toast-message" style="flex: 1;">Operación realizada con éxito</span>
+          </div>
+
+          <!-- ================= VIEWPORT SCROLLEABLE DE PANTALLAS ================= -->
+          <div class="screen-viewport">
+
+            <!-- ----------------- PANTALLA 1: DASHBOARD PRINCIPAL ----------------- -->
+            <section class="screen-view active" id="view-dashboard">
+              <header class="mobile-header">
+                <div class="brand-title">
+                  <b>FICCT</b> <span>Móvil</span>
+                </div>
+                <div class="header-actions">
+                  <button class="icon-btn" onclick="toggleMobileTheme()" title="Cambiar Tema">🌓</button>
+                  <div class="avatar-pill" onclick="navigateTo('perfil')">
+                    <span id="header-avatar-initial">R</span>
+                    <span class="online-indicator"></span>
+                  </div>
+                </div>
+              </header>
+
+              <div class="screen-content">
+                <!-- Saludo y Rol -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div>
+                    <span class="badge badge-accent" id="user-role-badge">Docente Titular</span>
+                    <h2 style="font-size: 20px; font-weight: 800; color: var(--ink); margin-top: 4px;" id="welcome-username">
+                      Hola, Lic. Rolando
+                    </h2>
+                    <p style="font-size: 12px; color: var(--ink-soft);">Facultad de Cs. de la Computación</p>
+                  </div>
+                  <button class="btn btn-sm btn-secondary" onclick="navigateTo('perfil')">
+                    Mi Perfil
+                  </button>
+                </div>
+
+                <!-- Métricas Rápidas en Tarjeta -->
+                <div class="card" style="background: linear-gradient(135deg, var(--paper-raised), var(--paper-sunken)); border-left: 4px solid var(--accent);">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center;">
+                    <div>
+                      <b style="font-size: 20px; color: var(--accent); display: block;" id="stat-areas">4</b>
+                      <span style="font-size: 10px; color: var(--ink-faint); font-weight: 600;">Mis Cursos</span>
+                    </div>
+                    <div style="border-left: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft);">
+                      <b style="font-size: 20px; color: var(--seal); display: block;">12</b>
+                      <span style="font-size: 10px; color: var(--ink-faint); font-weight: 600;">Entregas</span>
+                    </div>
+                    <div>
+                      <b style="font-size: 20px; color: var(--danger); display: block;">2</b>
+                      <span style="font-size: 10px; color: var(--ink-faint); font-weight: 600;">Pendientes</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Accesos Rápidos Táctiles -->
+                <div>
+                  <h3 style="font-size: 13px; font-weight: 700; color: var(--ink-soft); margin-bottom: 10px; text-transform: uppercase;">
+                    Accesos Inmediatos
+                  </h3>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="card" style="padding: 12px; cursor: pointer;" onclick="navigateTo('mis-areas')">
+                      <div style="width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                      </div>
+                      <b style="font-size: 13px; color: var(--ink); display: block;">Mis Aulas Moodle</b>
+                      <span style="font-size: 11px; color: var(--ink-faint);">Módulos & Tareas</span>
+                    </div>
+
+                    <div class="card" style="padding: 12px; cursor: pointer;" onclick="navigateTo('speedgrader')">
+                      <div style="width: 32px; height: 32px; border-radius: 10px; background: var(--seal-soft); color: var(--seal); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                      </div>
+                      <b style="font-size: 13px; color: var(--ink); display: block;">SpeedGrader</b>
+                      <span style="font-size: 11px; color: var(--ink-faint);">Calificar en vivo</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tareas Próximas a Calificar o Entregar -->
+                <div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="font-size: 13px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase;">
+                      Actividad Reciente
+                    </h3>
+                    <span style="font-size: 11px; color: var(--accent); font-weight: 600; cursor: pointer;" onclick="navigateTo('mis-areas')">Ver todo</span>
+                  </div>
+
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="card" style="padding: 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="navigateTo('tarea-entrega')">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: var(--paper-sunken); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 16px;">
+                          📄
+                        </div>
+                        <div>
+                          <b style="font-size: 13px; color: var(--ink); display: block;">Entrega de Avance Cap. 1</b>
+                          <span style="font-size: 11px; color: var(--ink-faint);">Taller de Grado I • Vence hoy 23:59</span>
+                        </div>
+                      </div>
+                      <span class="badge badge-seal">Pendiente</span>
+                    </div>
+
+                    <div class="card" style="padding: 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="navigateTo('speedgrader')">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: var(--paper-sunken); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 16px;">
+                          🎓
+                        </div>
+                        <div>
+                          <b style="font-size: 13px; color: var(--ink); display: block;">SpeedGrader: Tesis IA</b>
+                          <span style="font-size: 11px; color: var(--ink-faint);">Carlos Méndez • Listo para calificar</span>
+                        </div>
+                      </div>
+                      <span class="badge badge-accent">Calificar</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 2: MIS ÁREAS / CURSOS MOODLE ----------------- -->
+            <section class="screen-view" id="view-mis-areas">
+              <header class="mobile-header">
+                <button class="icon-btn" onclick="navigateTo('dashboard')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div class="brand-title">Mis <b>Áreas</b> Moodle</div>
+                <button class="icon-btn" onclick="navigateTo('perfil')" title="Privacidad">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </button>
+              </header>
+
+              <div class="screen-content">
+                <!-- Filtros por Rol Moodle -->
+                <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;">
+                  <button class="btn btn-sm btn-primary" onclick="showToast('Filtrando todos los cursos', 'success')">Todos (4)</button>
+                  <button class="btn btn-sm btn-secondary" onclick="showToast('Filtrando materias como Docente', 'success')">Docente</button>
+                  <button class="btn btn-sm btn-secondary" onclick="showToast('Filtrando materias como Jurado', 'success')">Jurado</button>
+                  <button class="btn btn-sm btn-secondary" onclick="showToast('Filtrando materias como Estudiante', 'success')">Estudiante</button>
+                </div>
+
+                <!-- Lista de Cursos -->
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                  <!-- Curso 1 -->
+                  <div class="course-card-moodle" onclick="navigateTo('area-aula')">
+                    <div class="course-thumb">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                    </div>
+                    <div style="flex: 1;">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <span class="badge badge-accent">Docente Encargado</span>
+                        <span style="font-size: 11px; color: var(--ink-faint);">2026-I</span>
+                      </div>
+                      <b style="font-size: 14px; color: var(--ink); margin-top: 4px; display: block;">Taller de Grado I - G1</b>
+                      <p style="font-size: 11.5px; color: var(--ink-soft); margin-top: 2px;">Metodología de la investigación científica y formulación de tesis.</p>
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                        <span style="font-size: 11px; color: var(--accent); font-weight: 700;">4 Módulos • 6 Tareas</span>
+                        <span style="font-size: 11px; color: var(--ink-soft); font-weight: 600;">Ingresar →</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Curso 2 -->
+                  <div class="course-card-moodle" onclick="navigateTo('area-aula')">
+                    <div class="course-thumb" style="background: linear-gradient(135deg, #A97C34, #D9AE63);">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+                    </div>
+                    <div style="flex: 1;">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <span class="badge badge-seal">Jurado Calificador</span>
+                        <span style="font-size: 11px; color: var(--ink-faint);">Activo</span>
+                      </div>
+                      <b style="font-size: 14px; color: var(--ink); margin-top: 4px; display: block;">Feria de Ciencias & Software</b>
+                      <p style="font-size: 11.5px; color: var(--ink-soft); margin-top: 2px;">Tribunal evaluador de proyectos de investigación aplicada FICCT.</p>
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                        <span style="font-size: 11px; color: var(--seal); font-weight: 700;">8 Proyectos Asignados</span>
+                        <span style="font-size: 11px; color: var(--ink-soft); font-weight: 600;">Ingresar →</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Curso 3 -->
+                  <div class="course-card-moodle" onclick="navigateTo('area-aula')">
+                    <div class="course-thumb" style="background: linear-gradient(135deg, #10B981, #059669);">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/></svg>
+                    </div>
+                    <div style="flex: 1;">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <span class="badge badge-accent" style="background: rgba(16, 185, 129, 0.15); color: #10B981;">Estudiante Inscrito</span>
+                        <span style="font-size: 11px; color: var(--ink-faint);">2026</span>
+                      </div>
+                      <b style="font-size: 14px; color: var(--ink); margin-top: 4px; display: block;">Inteligencia Artificial Avanzada</b>
+                      <p style="font-size: 11.5px; color: var(--ink-soft); margin-top: 2px;">Redes Neuronales, LLMs y aplicaciones en ciberseguridad.</p>
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                        <span style="font-size: 11px; color: #10B981; font-weight: 700;">2 Entregas Activas</span>
+                        <span style="font-size: 11px; color: var(--ink-soft); font-weight: 600;">Ingresar →</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 3: AULA VIRTUAL (MÓDULOS & TAREAS) ----------------- -->
+            <section class="screen-view" id="view-area-aula">
+              <header class="mobile-header">
+                <button class="icon-btn" onclick="navigateTo('mis-areas')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div class="brand-title">Aula <b>Moodle</b></div>
+                <button class="icon-btn" onclick="openBottomSheet('sheet-nuevo-modulo')" title="Crear Módulo">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+              </header>
+
+              <div class="screen-content">
+                <!-- Portada del Curso -->
+                <div class="card" style="background: linear-gradient(135deg, var(--accent-dark), var(--accent)); color: #FFFFFF; padding: 18px;">
+                  <span class="badge" style="background: rgba(255, 255, 255, 0.2); color: #FFFFFF;">Semestre 2026-I</span>
+                  <h2 style="font-family: var(--font-serif); font-size: 18px; margin-top: 6px; font-weight: 700;">Taller de Grado I - G1</h2>
+                  <p style="font-size: 12px; opacity: 0.9; margin-top: 4px;">Docente: Lic. Rolando Martínez • FICCT UAGRM</p>
+                  <div style="display: flex; gap: 8px; margin-top: 12px;">
+                    <button class="btn btn-sm" style="background: #FFFFFF; color: var(--accent-dark);" onclick="openBottomSheet('sheet-nueva-tarea')">
+                      + Nueva Tarea
+                    </button>
+                    <button class="btn btn-sm" style="background: rgba(255, 255, 255, 0.15); color: #FFFFFF;" onclick="navigateTo('speedgrader')">
+                      SpeedGrader
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Acordeón Moodle Módulo 1 -->
+                <div class="card">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line-soft); pb-2; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 16px;">📁</span>
+                      <b style="font-size: 14px; color: var(--ink);">Módulo 1: Perfil de Proyecto</b>
+                    </div>
+                    <span class="badge badge-accent">Activo</span>
+                  </div>
+                  <p style="font-size: 12px; color: var(--ink-soft); margin-bottom: 12px;">Definición del problema, justificación y árbol de objetivos.</p>
+
+                  <!-- Tareas dentro del Módulo 1 -->
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="background: var(--paper-sunken); border: 1px solid var(--line-soft); border-radius: 12px; padding: 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="navigateTo('tarea-entrega')">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="color: var(--accent);">📝</span>
+                        <div>
+                          <b style="font-size: 12.5px; color: var(--ink); display: block;">Tarea: Planteamiento del Problema</b>
+                          <span style="font-size: 11px; color: var(--ink-faint);">Vence: 30 de Septiembre 23:59</span>
+                        </div>
+                      </div>
+                      <span style="font-size: 12px; color: var(--accent);">→</span>
+                    </div>
+
+                    <div style="background: var(--paper-sunken); border: 1px solid var(--line-soft); border-radius: 12px; padding: 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="navigateTo('tarea-entrega')">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="color: var(--seal);">📄</span>
+                        <div>
+                          <b style="font-size: 12.5px; color: var(--ink); display: block;">Recurso: Guía de Redacción IEEE</b>
+                          <span style="font-size: 11px; color: var(--ink-faint);">PDF • 2.4 MB</span>
+                        </div>
+                      </div>
+                      <span style="font-size: 12px; color: var(--seal);">📥</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Acordeón Módulo 2 -->
+                <div class="card">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line-soft); pb-2; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 16px;">📁</span>
+                      <b style="font-size: 14px; color: var(--ink);">Módulo 2: Marco Teórico & Estado del Arte</b>
+                    </div>
+                    <span class="badge" style="background: var(--paper-sunken); color: var(--ink-soft);">Semana 4-8</span>
+                  </div>
+                  <p style="font-size: 12px; color: var(--ink-soft);">Revisión sistemática de literatura científica con apoyo de IA.</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 4: TAREA & DRAG & DROP MOODLE ----------------- -->
+            <section class="screen-view" id="view-tarea-entrega">
+              <header class="mobile-header">
+                <button class="icon-btn" onclick="navigateTo('area-aula')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div class="brand-title">Entrega de <b>Tarea</b></div>
+                <button class="icon-btn" onclick="showToast('Ayuda sobre entrega Moodle', 'success')" title="Ayuda">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </button>
+              </header>
+
+              <div class="screen-content">
+                <div class="card">
+                  <span class="badge badge-accent">Módulo 1: Perfil de Proyecto</span>
+                  <h2 style="font-size: 17px; font-weight: 800; color: var(--ink); margin-top: 6px;">
+                    Tarea: Planteamiento del Problema
+                  </h2>
+                  <p style="font-size: 12px; color: var(--ink-soft); margin-top: 4px; line-height: 1.45;">
+                    Subir en formato PDF el árbol de problemas, formulación de la pregunta central de investigación y objetivos específicos.
+                  </p>
+
+                  <!-- Fechas Moodle Clave -->
+                  <div style="background: var(--paper-sunken); border-radius: 12px; padding: 10px; margin-top: 12px; font-size: 11.5px; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between;">
+                      <span style="color: var(--ink-faint);">Estado de entrega:</span>
+                      <b style="color: var(--seal);" id="entrega-status-text">Borrador no enviado</b>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                      <span style="color: var(--ink-faint);">Fecha límite:</span>
+                      <b style="color: var(--ink);">30 Sept 2026, 23:59</b>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                      <span style="color: var(--ink-faint);">Tiempo restante:</span>
+                      <b style="color: #10B981;">3 días 14 horas</b>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Zona Drag & Drop Táctil / Subida de Archivo -->
+                <div class="card">
+                  <h3 style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">
+                    Archivos de la Entrega (Moodle Style)
+                  </h3>
+                  <p style="font-size: 11.5px; color: var(--ink-faint); margin-bottom: 12px;">
+                    Tamaño máx: 10 MB • Formatos admitidos: PDF, DOCX, ZIP
+                  </p>
+
+                  <div class="dropzone-mobile" id="mobile-dropzone" onclick="simulateFileUpload()">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent);"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <div>
+                      <b style="font-size: 13px; color: var(--accent-dark); display: block;">Toca para adjuntar documento</b>
+                      <span style="font-size: 11px; color: var(--ink-soft);">o arrastra y suelta aquí tu archivo</span>
+                    </div>
+                  </div>
+
+                  <!-- Lista de Archivos Cargados (Borrador LocalStorage) -->
+                  <div id="archivos-entrega-list" style="margin-top: 12px; display: none;">
+                    <div style="background: var(--accent-soft); border: 1px solid rgba(31, 111, 92, 0.3); border-radius: 12px; padding: 10px; display: flex; align-items: center; justify-content: space-between;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span>📄</span>
+                        <div>
+                          <b style="font-size: 12px; color: var(--accent-dark);" id="archivo-nombre-display">Avance_Capitulo_1_vfinal.pdf</b>
+                          <span style="font-size: 10px; color: var(--ink-faint); display: block;">2.1 MB • Guardado en borrador</span>
+                        </div>
+                      </div>
+                      <div style="display: flex; gap: 6px;">
+                        <button class="icon-btn" style="width: 28px; height: 28px;" onclick="openBottomSheet('sheet-renombrar-archivo')" title="Renombrar">✏️</button>
+                        <button class="icon-btn" style="width: 28px; height: 28px; color: var(--danger);" onclick="removeUploadedFile()" title="Eliminar">🗑️</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Aviso de Persistencia Local (Heurística 3 y 5) -->
+                  <div style="margin-top: 12px; font-size: 11px; color: var(--ink-faint); display: flex; align-items: center; gap: 6px;">
+                    <span>💾</span>
+                    <span>El borrador se preserva en tu dispositivo hasta que confirmes la entrega.</span>
+                  </div>
+
+                  <div style="margin-top: 16px;">
+                    <button class="btn btn-primary" id="btn-confirmar-entrega" onclick="confirmarEntregaTarea()" disabled>
+                      Guardar y Enviar Entrega Definitiva
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 5: SPEEDGRADER (CALIFICACIÓN MÓVIL) ----------------- -->
+            <section class="screen-view" id="view-speedgrader">
+              <div class="speedgrader-header">
+                <button class="nav-arrow-btn" onclick="navigateTo('dashboard')">✕</button>
+                <div class="student-navigator">
+                  <button class="nav-arrow-btn" onclick="prevStudent()">◀</button>
+                  <span id="sg-student-index">Alumno 1 de 4</span>
+                  <button class="nav-arrow-btn" onclick="nextStudent()">▶</button>
+                </div>
+                <span class="badge badge-accent" style="background: rgba(73, 179, 148, 0.25); color: #7BD6BA;">Docente</span>
+              </div>
+
+              <div class="screen-content">
+                <!-- Info Alumno & Archivo -->
+                <div class="card">
+                  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <div class="avatar-pill" style="width: 40px; height: 40px; font-size: 15px;" id="sg-avatar">CM</div>
+                    <div>
+                      <b style="font-size: 14px; color: var(--ink); display: block;" id="sg-nombre">Carlos Méndez Roca</b>
+                      <span style="font-size: 11.5px; color: var(--ink-faint);" id="sg-email">cmendez@uagrm.edu.bo</span>
+                    </div>
+                  </div>
+
+                  <div style="background: var(--paper-sunken); border: 1px solid var(--line-soft); border-radius: 12px; padding: 10px; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span>📑</span>
+                      <div>
+                        <b style="font-size: 12px; color: var(--ink);" id="sg-archivo-name">Propuesta_Investigacion_IA.pdf</b>
+                        <span style="font-size: 10.5px; color: #10B981; display: block;">Entregado a tiempo • 28 Sept</span>
+                      </div>
+                    </div>
+                    <button class="btn btn-sm btn-secondary" onclick="showToast('Abriendo visor interactivo de documento PDF...', 'success')">
+                      Ver PDF
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Formulario de Calificación -->
+                <div class="card">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="font-size: 14px; font-weight: 700; color: var(--ink);">Calificación & Feedback</h3>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <input type="number" id="sg-nota-input" min="0" max="100" value="88" style="width: 60px; text-align: center; font-weight: 800; font-size: 16px; padding: 6px; border-radius: 10px; border: 1px solid var(--accent); background: var(--paper-sunken); color: var(--accent);">
+                      <b style="font-size: 14px; color: var(--ink-soft);">/ 100</b>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Comentarios de Retroalimentación:</label>
+                    <textarea class="form-textarea" rows="3" id="sg-feedback-input" placeholder="Escribe observaciones para el estudiante...">Excelente formulación del problema y marco teórico sólido. Revisar la delimitación geográfica en la pág. 4.</textarea>
+                  </div>
+
+                  <div style="margin-top: 14px; display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onclick="guardarCalificacionSpeedGrader()">
+                      Guardar y Siguiente
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 6: CONVOCATORIAS & FERIAS ----------------- -->
+            <section class="screen-view" id="view-convocatorias">
+              <header class="mobile-header">
+                <div class="brand-title">Convocatorias & <b>Ferias</b></div>
+                <button class="icon-btn" onclick="navigateTo('convocatoria-nueva')" title="Crear Convocatoria">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+              </header>
+
+              <div class="screen-content">
+                <!-- Buscador de Convocatorias -->
+                <div class="form-group">
+                  <input type="text" class="form-input" placeholder="🔍 Buscar feria, hackathon o investigación...">
+                </div>
+
+                <!-- Tarjeta Convocatoria 1 -->
+                <div class="card" onclick="navigateTo('convocatoria-detalle')">
+                  <div style="height: 120px; border-radius: 14px; background: linear-gradient(135deg, var(--accent), var(--seal)); margin-bottom: 12px; display: flex; align-items: flex-end; padding: 12px; color: #FFFFFF; position: relative;">
+                    <span class="badge" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: #FFFFFF;">FERIA CIENTÍFICA</span>
+                    <b style="font-size: 15px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">ExpoCiencia FICCT 2026</b>
+                  </div>
+                  <p style="font-size: 12px; color: var(--ink-soft); line-height: 1.4;">
+                    Presentación de proyectos innovadores de grado y semestrales ante el jurado calificador de la facultad.
+                  </p>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; pt-2; border-top: 1px solid var(--line-soft); font-size: 11.5px;">
+                    <span style="color: var(--ink-faint);">Cierre: 15 Octubre</span>
+                    <span style="color: var(--accent); font-weight: 700;">Ver Requisitos →</span>
+                  </div>
+                </div>
+
+                <!-- Tarjeta Convocatoria 2 -->
+                <div class="card" onclick="navigateTo('convocatoria-detalle')">
+                  <div style="height: 120px; border-radius: 14px; background: linear-gradient(135deg, #4F46E5, #06B6D4); margin-bottom: 12px; display: flex; align-items: flex-end; padding: 12px; color: #FFFFFF; position: relative;">
+                    <span class="badge" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: #FFFFFF;">HACKATHON</span>
+                    <b style="font-size: 15px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Hackathon de Ciberseguridad & IA</b>
+                  </div>
+                  <p style="font-size: 12px; color: var(--ink-soft); line-height: 1.4;">
+                    48 horas de desarrollo intensivo para resolver desafíos de seguridad informática en Santa Cruz.
+                  </p>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; pt-2; border-top: 1px solid var(--line-soft); font-size: 11.5px;">
+                    <span style="color: var(--ink-faint);">Cierre: 22 Octubre</span>
+                    <span style="color: var(--accent); font-weight: 700;">Ver Requisitos →</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 7: DETALLE DE CONVOCATORIA ----------------- -->
+            <section class="screen-view" id="view-convocatoria-detalle">
+              <header class="mobile-header">
+                <button class="icon-btn" onclick="navigateTo('convocatorias')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div class="brand-title">Detalle <b>Feria</b></div>
+                <button class="icon-btn" onclick="showToast('Enlace de convocatoria copiado', 'success')" title="Compartir">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                </button>
+              </header>
+
+              <div class="screen-content">
+                <div class="card">
+                  <span class="badge badge-accent">FERIA ANUAL</span>
+                  <h2 style="font-size: 18px; font-weight: 800; color: var(--ink); margin-top: 6px;">ExpoCiencia FICCT 2026</h2>
+                  <p style="font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.45;">
+                    Evento oficial de divulgación científica y tecnológica de la FICCT. Abierto para estudiantes regulares con proyectos de software, redes o sistemas embebidos.
+                  </p>
+
+                  <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 8px;">
+                    <b style="font-size: 13px; color: var(--ink);">Docentes & Jurados Asignados:</b>
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft);">
+                      <div class="avatar-pill" style="width: 28px; height: 28px; font-size: 11px;">RM</div>
+                      <span>Lic. Rolando Martínez (Docente Coordinador)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft);">
+                      <div class="avatar-pill" style="width: 28px; height: 28px; font-size: 11px; background: var(--seal);">JC</div>
+                      <span>Ing. Julio Cabrera (Jurado Evaluador)</span>
+                    </div>
+                  </div>
+
+                  <!-- Requisitos con Checklist interactivo -->
+                  <div style="margin-top: 14px;">
+                    <b style="font-size: 13px; color: var(--ink); display: block; margin-bottom: 6px;">Requisitos de Inscripción:</b>
+                    <ul style="font-size: 12px; color: var(--ink-soft); list-style: none; display: flex; flex-direction: column; gap: 4px;">
+                      <li>✓ Ser estudiante activo de la Facultad FICCT.</li>
+                      <li>✓ Documento de propuesta en formato IEEE PDF.</li>
+                      <li>✓ Equipo de 1 a 3 integrantes.</li>
+                    </ul>
+                  </div>
+
+                  <div style="margin-top: 18px;">
+                    <button class="btn btn-primary" onclick="showToast('¡Solicitud de inscripción enviada con éxito!', 'success')">
+                      Solicitar Inscripción a la Feria
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 8: CREAR CONVOCATORIA ----------------- -->
+            <section class="screen-view" id="view-convocatoria-nueva">
+              <header class="mobile-header">
+                <button class="icon-btn" onclick="navigateTo('convocatorias')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div class="brand-title">Nueva <b>Convocatoria</b></div>
+                <div style="width: 36px;"></div>
+              </header>
+
+              <div class="screen-content">
+                <div class="card">
+                  <form onsubmit="event.preventDefault(); showToast('Convocatoria creada y publicada en el portal', 'success'); navigateTo('convocatorias');">
+                    <div class="form-group" style="margin-bottom: 12px;">
+                      <label class="form-label">Título del Evento:</label>
+                      <input type="text" class="form-input" required placeholder="Ej. Concurso de Algoritmia 2026">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 12px;">
+                      <label class="form-label">Tipo de Convocatoria:</label>
+                      <select class="form-select">
+                        <option value="FERIA">Feria Científica</option>
+                        <option value="HACKATHON">Hackathon</option>
+                        <option value="CONCURSO">Concurso</option>
+                        <option value="INVESTIGACION">Investigación de Grado</option>
+                      </select>
+                    </div>
+
+                    <!-- Portada de la Convocatoria (Subida Local o URL) -->
+                    <div class="form-group" style="margin-bottom: 12px;">
+                      <label class="form-label">Imagen de Portada (Local o URL):</label>
+                      <div class="dropzone-mobile" style="padding: 14px;" onclick="showToast('Imagen cargada y previsualizada en el recuadro', 'success')">
+                        <span>📸 Seleccionar foto de portada</span>
+                      </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 12px;">
+                      <label class="form-label">Descripción Detallada:</label>
+                      <textarea class="form-textarea" rows="3" placeholder="Objetivos y alcance del evento..."></textarea>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 16px;">
+                      <label class="form-label">Asignar Docentes / Jurados Encargados:</label>
+                      <input type="text" class="form-input" placeholder="Buscar por nombre o correo (ej. Rolando)">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                      Crear Convocatoria
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 9: PERFIL ACADÉMICO & PRIVACIDAD MOODLE ----------------- -->
+            <section class="screen-view" id="view-perfil">
+              <header class="mobile-header">
+                <button class="icon-btn" onclick="navigateTo('dashboard')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div class="brand-title">Mi <b>Perfil</b></div>
+                <button class="icon-btn" onclick="guardarPerfilMóvil()" title="Guardar Cambios">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                </button>
+              </header>
+
+              <div class="screen-content">
+                <!-- Tarjeta de Foto y Avatar -->
+                <div class="card" style="text-align: center; display: flex; flex-direction: column; align-items: center;">
+                  <div style="position: relative; margin-bottom: 10px;">
+                    <div class="avatar-pill" style="width: 84px; height: 84px; font-size: 32px;" id="profile-avatar-big">
+                      R
+                    </div>
+                    <button class="icon-btn" style="position: absolute; bottom: 0; right: -4px; width: 28px; height: 28px; background: var(--accent); color: #FFFFFF;" onclick="showToast('Foto actualizada desde galería móvil', 'success')" title="Cambiar foto">
+                      📷
+                    </button>
+                  </div>
+
+                  <b style="font-size: 16px; color: var(--ink);" id="profile-name">Lic. Rolando Martínez</b>
+                  <span style="font-size: 12px; color: var(--ink-faint);" id="profile-email">rmartinez@uagrm.edu.bo</span>
+                  <span class="badge badge-accent" style="margin-top: 6px;" id="profile-role-badge">Docente Investigador</span>
+                </div>
+
+                <!-- Control de Privacidad Moodle -->
+                <div class="card">
+                  <h3 style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 4px;">
+                    Privacidad de Cursos (Moodle)
+                  </h3>
+                  <p style="font-size: 11.5px; color: var(--ink-soft); margin-bottom: 12px;">
+                    Al igual que en Moodle, puedes ocultar tu participación en materias y cursos a otros participantes.
+                  </p>
+
+                  <div class="moodle-switch" id="privacy-switch" onclick="toggleMoodlePrivacy()">
+                    <div>
+                      <b style="font-size: 12.5px; color: var(--ink); display: block;" id="privacy-switch-title">Cursos Visibles</b>
+                      <span style="font-size: 11px; color: var(--ink-faint);" id="privacy-switch-desc">Visible para todos los integrantes</span>
+                    </div>
+                    <div class="toggle-track">
+                      <div class="toggle-thumb"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Datos Personales Editables (Solo Foto y Descripción) -->
+                <div class="card">
+                  <h3 style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 10px;">
+                    Biografía / Presentación Personal
+                  </h3>
+                  <div class="form-group">
+                    <label class="form-label">
+                      <span>Acerca de mí:</span>
+                      <span style="font-size: 10px; color: var(--ink-faint);">Máx. 500 caracteres</span>
+                    </label>
+                    <textarea class="form-textarea" rows="3" id="profile-bio" placeholder="Líneas de investigación, especialidad docente o proyectos en curso...">Docente titular de Taller de Grado y Metodología Científica en la FICCT. Áreas de interés: Algoritmos de optimización, Machine Learning y Educación Superior.</textarea>
+                  </div>
+                </div>
+
+                <!-- Datos Legales Institucionales Bloqueados (Heurística 5) -->
+                <div class="card" style="background: var(--paper-sunken); border: 1px dashed var(--line);">
+                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                    <span>🔒</span>
+                    <b style="font-size: 13px; color: var(--ink);">Datos Legales Verificados (Bloqueados)</b>
+                  </div>
+                  <p style="font-size: 11px; color: var(--ink-faint); margin-bottom: 12px;">
+                    Nombre completo, correo institucional y rol están registrados por la dirección académica y no pueden ser alterados.
+                  </p>
+
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="form-group">
+                      <label class="form-label">Nombre Completo:</label>
+                      <input type="text" class="form-input" disabled value="Rolando Martínez">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Correo Institucional:</label>
+                      <input type="email" class="form-input" disabled value="rmartinez@uagrm.edu.bo">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ----------------- PANTALLA 10: DOCUMENTOS & ASISTENTE IA ----------------- -->
+            <section class="screen-view" id="view-documentos">
+              <header class="mobile-header">
+                <button class="icon-btn" onclick="navigateTo('dashboard')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div class="brand-title">Docs & <b>IA</b></div>
+                <button class="icon-btn" onclick="showToast('Nuevo documento de investigación creado', 'success')" title="Nuevo Doc">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+              </header>
+
+              <div class="screen-content">
+                <div class="card" style="background: linear-gradient(135deg, rgba(31, 111, 92, 0.15), rgba(169, 124, 52, 0.15)); border: 1px solid var(--accent-soft);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span style="font-size: 18px;">✨</span>
+                    <b style="font-size: 14px; color: var(--ink);">Asistente de Redacción IA FICCT</b>
+                  </div>
+                  <p style="font-size: 12px; color: var(--ink-soft); line-height: 1.4;">
+                    Genera borradores para estado del arte, formula objetivos SMART y estructura tu marco metodológico en tiempo real.
+                  </p>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div class="card" style="cursor: pointer;" onclick="showToast('Abriendo editor colaborativo...', 'success')">
+                    <b style="font-size: 13.5px; color: var(--ink); display: block;">Tesis_Grado_Deteccion_Anomalias.docx</b>
+                    <span style="font-size: 11px; color: var(--ink-faint);">Editado hace 2 horas por Carlos Méndez</span>
+                  </div>
+
+                  <div class="card" style="cursor: pointer;" onclick="showToast('Abriendo editor colaborativo...', 'success')">
+                    <b style="font-size: 13.5px; color: var(--ink); display: block;">Paper_Conferencia_IA_Medica.pdf</b>
+                    <span style="font-size: 11px; color: var(--ink-faint);">Colaborativo con 3 investigadores</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+          </div> <!-- Fin screen-viewport -->
+
+          <!-- ================= NAVBAR INFERIOR LIQUID GLASS BLUR ================= -->
+          <nav class="liquid-navbar">
+            <button class="nav-tab active" id="tab-dashboard" onclick="navigateTo('dashboard')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span>Inicio</span>
+              <div class="nav-indicator-dot"></div>
+            </button>
+
+            <button class="nav-tab" id="tab-mis-areas" onclick="navigateTo('mis-areas')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+              <span>Cursos</span>
+              <div class="nav-indicator-dot"></div>
+            </button>
+
+            <button class="nav-tab" id="tab-convocatorias" onclick="navigateTo('convocatorias')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <span>Ferias</span>
+              <div class="nav-indicator-dot"></div>
+            </button>
+
+            <button class="nav-tab" id="tab-documentos" onclick="navigateTo('documentos')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Docs</span>
+              <div class="nav-indicator-dot"></div>
+            </button>
+
+            <button class="nav-tab" id="tab-perfil" onclick="navigateTo('perfil')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Perfil</span>
+              <div class="nav-indicator-dot"></div>
+            </button>
+          </nav>
+
+          <!-- Home Indicator (Barra de Gestos Inferior) -->
+          <div class="home-indicator"></div>
+
+          <!-- ================= MODALES BOTTOM SHEET ================= -->
+          <!-- Modal: Nuevo Módulo Moodle -->
+          <div class="bottom-sheet-overlay" id="sheet-nuevo-modulo" onclick="if(event.target === this) closeBottomSheet('sheet-nuevo-modulo')">
+            <div class="bottom-sheet">
+              <div class="sheet-handle"></div>
+              <h3 style="font-size: 16px; font-weight: 800; color: var(--ink);">Crear Nuevo Módulo Moodle</h3>
+              <div class="form-group">
+                <label class="form-label">Nombre del Módulo:</label>
+                <input type="text" class="form-input" id="nuevo-modulo-titulo" placeholder="Ej. Módulo 3: Pruebas y Resultados">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Descripción del Módulo:</label>
+                <textarea class="form-textarea" rows="2" placeholder="Objetivos y metodología del módulo..."></textarea>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <button class="btn btn-secondary" onclick="closeBottomSheet('sheet-nuevo-modulo')">Cancelar</button>
+                <button class="btn btn-primary" onclick="crearModuloMoodle()">Crear Módulo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal: Nueva Tarea Moodle -->
+          <div class="bottom-sheet-overlay" id="sheet-nueva-tarea" onclick="if(event.target === this) closeBottomSheet('sheet-nueva-tarea')">
+            <div class="bottom-sheet">
+              <div class="sheet-handle"></div>
+              <h3 style="font-size: 16px; font-weight: 800; color: var(--ink);">Crear Tarea con Fechas Moodle</h3>
+              <div class="form-group">
+                <label class="form-label">Título de la Tarea:</label>
+                <input type="text" class="form-input" placeholder="Ej. Entrega Final del Marco Metodológico">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Fecha Límite de Entrega:</label>
+                <input type="date" class="form-input" value="2026-10-15">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Formatos Permitidos:</label>
+                <select class="form-select">
+                  <option value="PDF">Solo PDF (.pdf)</option>
+                  <option value="DOCX">Documento Word (.docx, .doc)</option>
+                  <option value="ZIP">Archivo Comprimido (.zip)</option>
+                </select>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <button class="btn btn-secondary" onclick="closeBottomSheet('sheet-nueva-tarea')">Cancelar</button>
+                <button class="btn btn-primary" onclick="crearTareaMoodle()">Publicar Tarea</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal: Renombrar Archivo "Guardar como..." (Moodle) -->
+          <div class="bottom-sheet-overlay" id="sheet-renombrar-archivo" onclick="if(event.target === this) closeBottomSheet('sheet-renombrar-archivo')">
+            <div class="bottom-sheet">
+              <div class="sheet-handle"></div>
+              <h3 style="font-size: 16px; font-weight: 800; color: var(--ink);">Guardar Archivo Como (Moodle)</h3>
+              <p style="font-size: 12px; color: var(--ink-soft);">Edita el nombre con el que el docente verá tu entrega en el aula.</p>
+              <div class="form-group">
+                <label class="form-label">Nombre del documento:</label>
+                <input type="text" class="form-input" id="input-renombrar" value="Avance_Capitulo_1_vfinal.pdf">
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <button class="btn btn-secondary" onclick="closeBottomSheet('sheet-renombrar-archivo')">Cancelar</button>
+                <button class="btn btn-primary" onclick="guardarRenombradoArchivo()">Guardar Nombre</button>
+              </div>
+            </div>
+          </div>
+
+        </div> <!-- Fin phone-screen -->
+      </div> <!-- Fin phone-case -->
+    </main>
+
+  </div> <!-- Fin prototype-container -->
+
+  <!-- ================= LÓGICA DE INTERACCIÓN VANILLA JS ================= -->
+  <script>
+    // Estado Global Simulado
+    const state = {
+      role: 'DOCENTE',
+      user: {
+        nombre: 'Rolando Martínez',
+        email: 'rmartinez@uagrm.edu.bo',
+        initial: 'R',
+        bio: 'Docente titular de Taller de Grado y Metodología Científica en la FICCT.',
+        ocultarCursos: false
+      },
+      currentScreen: 'dashboard',
+      studentsSpeedGrader: [
+        { nombre: 'Carlos Méndez Roca', email: 'cmendez@uagrm.edu.bo', initial: 'CM', archivo: 'Propuesta_Investigacion_IA.pdf', nota: 88 },
+        { nombre: 'Ana Valenzuela Paz', email: 'avalenzuela@uagrm.edu.bo', initial: 'AV', archivo: 'Sistema_Blockchain_Voto.pdf', nota: 95 },
+        { nombre: 'David Gutiérrez', email: 'dgutierrez@uagrm.edu.bo', initial: 'DG', archivo: 'Ciberseguridad_Bancaria.pdf', nota: 76 },
+        { nombre: 'Laura Torrico', email: 'ltorrico@uagrm.edu.bo', initial: 'LT', archivo: 'Vision_Artificial_Agricola.pdf', nota: 90 }
+      ],
+      currentStudentIdx: 0,
+      hasUploadedFile: false
+    };
+
+    // Actualizar reloj de la barra de estado
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const timeElem = document.getElementById('current-time');
+      if (timeElem) timeElem.innerText = `${hours}:${minutes}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Navegación entre Pantallas
+    function navigateTo(screenId) {
+      state.currentScreen = screenId;
+
+      // Ocultar todas las pantallas
+      document.querySelectorAll('.screen-view').forEach(view => {
+        view.classList.remove('active');
+      });
+
+      // Mostrar la pantalla deseada
+      const targetView = document.getElementById(`view-${screenId}`);
+      if (targetView) {
+        targetView.classList.add('active');
+        // Scrollear al inicio
+        const viewport = document.querySelector('.screen-viewport');
+        if (viewport) viewport.scrollTop = 0;
+      }
+
+      // Actualizar Navbar Liquid Glass
+      document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+      const activeTab = document.getElementById(`tab-${screenId}`);
+      if (activeTab) {
+        activeTab.classList.add('active');
+      }
+
+      // Actualizar píldoras del panel lateral externo
+      document.querySelectorAll('.screen-pill').forEach(pill => pill.classList.remove('active'));
+      const pillBtn = Array.from(document.querySelectorAll('.screen-pill')).find(p => p.getAttribute('onclick')?.includes(screenId));
+      if (pillBtn) pillBtn.classList.add('active');
+    }
+
+    // Cambio de Rol Dinámico
+    function switchRole(newRole) {
+      state.role = newRole;
+
+      // Actualizar botones de rol en panel de control
+      document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+      const activeRoleBtn = Array.from(document.querySelectorAll('.role-btn')).find(b => b.innerText.includes(newRole.charAt(0) + newRole.slice(1).toLowerCase()));
+      if (activeRoleBtn) activeRoleBtn.classList.add('active');
+
+      const roleBadgeText = document.getElementById('role-badge-text');
+      if (roleBadgeText) roleBadgeText.innerText = newRole;
+
+      const userBadge = document.getElementById('user-role-badge');
+      const welcome = document.getElementById('welcome-username');
+      const profileBadge = document.getElementById('profile-role-badge');
+
+      if (newRole === 'DOCENTE') {
+        state.user.nombre = 'Lic. Rolando Martínez';
+        state.user.email = 'rmartinez@uagrm.edu.bo';
+        state.user.initial = 'R';
+        if (userBadge) { userBadge.innerText = 'Docente Titular'; userBadge.className = 'badge badge-accent'; }
+        if (welcome) welcome.innerText = 'Hola, Lic. Rolando';
+        if (profileBadge) profileBadge.innerText = 'Docente Investigador';
+      } else if (newRole === 'ESTUDIANTE') {
+        state.user.nombre = 'Carlos Méndez Roca';
+        state.user.email = 'cmendez@uagrm.edu.bo';
+        state.user.initial = 'C';
+        if (userBadge) { userBadge.innerText = 'Estudiante Regular'; userBadge.className = 'badge badge-accent'; }
+        if (welcome) welcome.innerText = 'Hola, Carlos';
+        if (profileBadge) profileBadge.innerText = 'Estudiante Investigador';
+      } else if (newRole === 'JURADO') {
+        state.user.nombre = 'Ing. Julio Cabrera';
+        state.user.email = 'jcabrera@uagrm.edu.bo';
+        state.user.initial = 'J';
+        if (userBadge) { userBadge.innerText = 'Jurado Calificador'; userBadge.className = 'badge badge-seal'; }
+        if (welcome) welcome.innerText = 'Hola, Ing. Cabrera';
+        if (profileBadge) profileBadge.innerText = 'Tribunal Calificador';
+      } else if (newRole === 'ADMIN') {
+        state.user.nombre = 'Admin FICCT';
+        state.user.email = 'admin@ficct.uagrm.edu.bo';
+        state.user.initial = 'A';
+        if (userBadge) { userBadge.innerText = 'Administrador'; userBadge.className = 'badge badge-danger'; }
+        if (welcome) welcome.innerText = 'Hola, Administrador';
+        if (profileBadge) profileBadge.innerText = 'Administrador del Sistema';
+      }
+
+      // Actualizar avatares
+      const headerAvatar = document.getElementById('header-avatar-initial');
+      const profileAvatar = document.getElementById('profile-avatar-big');
+      if (headerAvatar) headerAvatar.innerText = state.user.initial;
+      if (profileAvatar) profileAvatar.innerText = state.user.initial;
+
+      const profileName = document.getElementById('profile-name');
+      const profileEmail = document.getElementById('profile-email');
+      if (profileName) profileName.innerText = state.user.nombre;
+      if (profileEmail) profileEmail.innerText = state.user.email;
+
+      showToast(`Cambiado al perfil de ${newRole}`, 'success');
+    }
+
+    // Toast Notification (Heurística 1)
+    let toastTimeout;
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('app-toast');
+      const msgElem = document.getElementById('toast-message');
+      if (!toast || !msgElem) return;
+
+      clearTimeout(toastTimeout);
+      msgElem.innerText = message;
+      toast.className = `mobile-toast ${type === 'success' ? 'toast-success' : 'toast-error'} visible`;
+
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('visible');
+      }, 3500);
+    }
+
+    // Toggle de Tema Oscuro / Claro
+    function toggleMobileTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme') || 'light';
+      const next = current === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', next);
+      showToast(`Modo ${next === 'dark' ? 'Oscuro' : 'Claro'} activado`, 'success');
+    }
+
+    // Modales Bottom Sheet
+    function openBottomSheet(sheetId) {
+      const sheet = document.getElementById(sheetId);
+      if (sheet) sheet.classList.add('active');
+    }
+
+    function closeBottomSheet(sheetId) {
+      const sheet = document.getElementById(sheetId);
+      if (sheet) sheet.classList.remove('active');
+    }
+
+    // Simulación de Subida Drag & Drop
+    function simulateFileUpload() {
+      state.hasUploadedFile = true;
+      const list = document.getElementById('archivos-entrega-list');
+      const btn = document.getElementById('btn-confirmar-entrega');
+      const statusText = document.getElementById('entrega-status-text');
+
+      if (list) list.style.display = 'block';
+      if (btn) btn.removeAttribute('disabled');
+      if (statusText) statusText.innerText = 'Borrador cargado (Sin enviar)';
+
+      showToast('Archivo "Avance_Capitulo_1_vfinal.pdf" adjuntado', 'success');
+    }
+
+    function removeUploadedFile() {
+      state.hasUploadedFile = false;
+      const list = document.getElementById('archivos-entrega-list');
+      const btn = document.getElementById('btn-confirmar-entrega');
+      const statusText = document.getElementById('entrega-status-text');
+
+      if (list) list.style.display = 'none';
+      if (btn) btn.setAttribute('disabled', 'true');
+      if (statusText) statusText.innerText = 'Sin entregar';
+
+      showToast('Archivo eliminado del borrador', 'success');
+    }
+
+    function guardarRenombradoArchivo() {
+      const input = document.getElementById('input-renombrar');
+      const display = document.getElementById('archivo-nombre-display');
+      if (input && display && input.value.trim() !== '') {
+        display.innerText = input.value.trim();
+        closeBottomSheet('sheet-renombrar-archivo');
+        showToast('Nombre de entrega actualizado', 'success');
+      }
+    }
+
+    function confirmarEntregaTarea() {
+      const statusText = document.getElementById('entrega-status-text');
+      if (statusText) {
+        statusText.innerText = 'Entregado para calificar';
+        statusText.style.color = '#10B981';
+      }
+      showToast('¡Entrega enviada y registrada en el aula virtual!', 'success');
+      setTimeout(() => navigateTo('area-aula'), 1200);
+    }
+
+    // Navegación en SpeedGrader
+    function updateSpeedGraderView() {
+      const current = state.studentsSpeedGrader[state.currentStudentIdx];
+      document.getElementById('sg-student-index').innerText = `Alumno ${state.currentStudentIdx + 1} de ${state.studentsSpeedGrader.length}`;
+      document.getElementById('sg-avatar').innerText = current.initial;
+      document.getElementById('sg-nombre').innerText = current.nombre;
+      document.getElementById('sg-email').innerText = current.email;
+      document.getElementById('sg-archivo-name').innerText = current.archivo;
+      document.getElementById('sg-nota-input').value = current.nota;
+    }
+
+    function nextStudent() {
+      if (state.currentStudentIdx < state.studentsSpeedGrader.length - 1) {
+        state.currentStudentIdx++;
+        updateSpeedGraderView();
+      } else {
+        showToast('Has llegado al último estudiante', 'success');
+      }
+    }
+
+    function prevStudent() {
+      if (state.currentStudentIdx > 0) {
+        state.currentStudentIdx--;
+        updateSpeedGraderView();
+      }
+    }
+
+    function guardarCalificacionSpeedGrader() {
+      const nota = document.getElementById('sg-nota-input').value;
+      showToast(`Calificación (${nota}/100) guardada con éxito`, 'success');
+      nextStudent();
+    }
+
+    // Privacidad Moodle Switch
+    function toggleMoodlePrivacy() {
+      state.user.ocultarCursos = !state.user.ocultarCursos;
+      const sw = document.getElementById('privacy-switch');
+      const title = document.getElementById('privacy-switch-title');
+      const desc = document.getElementById('privacy-switch-desc');
+
+      if (state.user.ocultarCursos) {
+        sw.classList.add('active');
+        title.innerText = 'Cursos Ocultos';
+        desc.innerText = 'Solo visible para ti y administradores';
+        showToast('Privacidad Moodle: Cursos ocultos para terceros', 'success');
+      } else {
+        sw.classList.remove('active');
+        title.innerText = 'Cursos Visibles';
+        desc.innerText = 'Visible para todos los integrantes';
+        showToast('Privacidad Moodle: Cursos visibles en la comunidad', 'success');
+      }
+    }
+
+    function guardarPerfilMóvil() {
+      showToast('Perfil académico actualizado con éxito', 'success');
+      setTimeout(() => navigateTo('dashboard'), 900);
+    }
+
+    function crearModuloMoodle() {
+      const input = document.getElementById('nuevo-modulo-titulo');
+      if (input && input.value.trim() !== '') {
+        closeBottomSheet('sheet-nuevo-modulo');
+        showToast(`Módulo "${input.value.trim()}" creado en el aula`, 'success');
+        input.value = '';
+      }
+    }
+
+    function crearTareaMoodle() {
+      closeBottomSheet('sheet-nueva-tarea');
+      showToast('Nueva tarea publicada con fechas Moodle', 'success');
+    }
+  </script>
+</body>
+</html>

@@ -7,6 +7,9 @@ export interface User {
   email: string;
   rol: "ADMIN" | "DOCENTE" | "JURADO" | "ESTUDIANTE";
   estado: "ACTIVO" | "SUSPENDIDO";
+  fotoPerfil?: string;
+  descripcion?: string;
+  ocultarCursos?: boolean;
   createdAt?: string;
 }
 
@@ -21,6 +24,9 @@ export interface AuthResponse {
   email: string;
   rol: "ADMIN" | "DOCENTE" | "JURADO" | "ESTUDIANTE";
   estado: "ACTIVO" | "SUSPENDIDO";
+  fotoPerfil?: string;
+  descripcion?: string;
+  ocultarCursos?: boolean;
 }
 
 export interface RequisitoDTO {
@@ -163,6 +169,22 @@ export const authAPI = {
       headers: {
         ...getAuthHeader(),
       },
+    });
+    return handleResponse<User>(res);
+  },
+
+  async updateProfile(data: {
+    fotoPerfil?: string;
+    descripcion?: string;
+    ocultarCursos?: boolean;
+  }): Promise<User> {
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(data),
     });
     return handleResponse<User>(res);
   },
@@ -885,6 +907,7 @@ export const api = {
   login: authAPI.login,
   register: authAPI.register,
   getProfile: authAPI.getProfile,
+  updateProfile: authAPI.updateProfile,
 
   // Admin Users
   getUsers: adminUsersAPI.getAll,

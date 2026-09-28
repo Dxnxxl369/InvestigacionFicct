@@ -1,0 +1,14 @@
+class AppConstants {
+  static const String appName = 'FICCT Móvil';
+  static const String appSubtitle = 'Investigación & Aulas Moodle';
+
+  // Base URL para conectar con Spring Boot
+  // En emulador Android: 10.0.2.2:8080
+  // En dispositivo físico o web: localhost / IP local
+  static const String apiBaseUrl = 'http://10.0.2.2:8080/api';
+  static const String apiBaseUrlWeb = 'http://localhost:8080/api';
+
+  static const String tokenKey = 'ficct_auth_token';
+  static const String userKey = 'ficct_auth_user';
+  static const String draftKeyPrefix = 'ficct_tarea_draft_';
+}

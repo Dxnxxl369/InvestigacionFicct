@@ -33,6 +33,7 @@ scrum-engine/
 
 # Ignored outside HTML and loose files as requested
 /*.html
+!/mobile.html
 /*.txt
 /*.ps1
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/context/ThemeContext";
+import { resolveFileUrl } from "@/lib/api";
 import {
   Home,
   FileText,
@@ -16,6 +17,11 @@ import {
   GraduationCap,
   Menu,
   X,
+  User as UserIcon,
+  ChevronLeft,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -26,7 +32,31 @@ export default function DashboardLayout({
   const { user, loading, logout, canViewModule, canEditModule } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+
+  // Cargar preferencia persistida del sidebar
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sidebar_collapsed");
+      if (saved !== null) {
+        setIsCollapsed(saved === "true");
+      }
+    } catch {
+      // Ignorar si localStorage no está disponible
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!loading) {
@@ -59,6 +89,74 @@ export default function DashboardLayout({
 
   const getInitial = (name?: string) => (name ? name.charAt(0).toUpperCase() : "U");
 
+  // Definición de ítems del menú de navegación
+  const navItems = [
+    {
+      href: "/",
+      label: "Portal público",
+      icon: Home,
+      isActive: pathname === "/",
+    },
+    {
+      href: "/dashboard",
+      label: "Panel Principal",
+      icon: LayoutDashboard,
+      isActive: pathname === "/dashboard",
+    },
+    ...(canViewModule("CONVOCATORIAS")
+      ? [
+          {
+            href: "/dashboard/convocatorias",
+            label: "Convocatorias y Ferias",
+            icon: FileText,
+            isActive: pathname === "/dashboard/convocatorias",
+          },
+        ]
+      : []),
+    ...(canEditModule("CONVOCATORIAS")
+      ? [
+          {
+            href: "/dashboard/convocatorias/nueva",
+            label: "Nueva convocatoria",
+            icon: PlusCircle,
+            isActive: pathname === "/dashboard/convocatorias/nueva",
+          },
+        ]
+      : []),
+    {
+      href: "/dashboard/documentos",
+      label: "Documentos & IA",
+      icon: FileEdit,
+      isActive: pathname === "/dashboard/documentos",
+      badge: "Colaborativo",
+      badgeColor: "bg-accent/20 text-accent-dark",
+    },
+    {
+      href: "/dashboard/mis-areas",
+      label: "Mis Áreas",
+      icon: GraduationCap,
+      isActive: pathname.startsWith("/dashboard/mis-areas"),
+      badge: "Moodle",
+      badgeColor: "bg-seal/20 text-seal-dark",
+    },
+    {
+      href: "/dashboard/perfil",
+      label: "Mi Perfil",
+      icon: UserIcon,
+      isActive: pathname === "/dashboard/perfil",
+    },
+    ...(canViewModule("USUARIOS")
+      ? [
+          {
+            href: "/dashboard/usuarios",
+            label: "Gestión de Usuarios",
+            icon: Users,
+            isActive: pathname === "/dashboard/usuarios",
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-paper transition-colors duration-300">
       {/* ================= BARRA SUPERIOR EN MÓVIL / TABLET (< 1024px) ================= */}
@@ -79,12 +177,20 @@ export default function DashboardLayout({
 
         <div className="flex items-center gap-2.5">
           <ThemeToggle />
-          <div className="relative">
-            <div className="w-8 h-8 rounded-full bg-accent text-white font-bold text-xs flex items-center justify-center">
-              {getInitial(user.nombre)}
+          <Link href="/dashboard/perfil" title="Mi Perfil" className="relative block">
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-accent text-white font-bold text-xs flex items-center justify-center border border-line/40">
+              {user.fotoPerfil ? (
+                <img
+                  src={resolveFileUrl(user.fotoPerfil)}
+                  alt={user.nombre}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{getInitial(user.nombre)}</span>
+              )}
             </div>
             <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border-2 border-paper-raised status-dot-ping" />
-          </div>
+          </Link>
           <button
             onClick={logout}
             title="Cerrar sesión"
@@ -117,110 +223,47 @@ export default function DashboardLayout({
             </div>
 
             <nav className="flex-1 space-y-1 overflow-y-auto">
-              <Link
-                href="/"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-ink-soft hover:bg-paper-sunken transition-colors"
-              >
-                <Home className="w-4 h-4 text-ink-faint" />
-                <span>Portal público</span>
-              </Link>
-
-              <Link
-                href="/dashboard"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                  pathname === "/dashboard"
-                    ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                    : "text-ink-soft hover:bg-paper-sunken"
-                }`}
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                <span>Panel Principal</span>
-              </Link>
-
-              {canViewModule("CONVOCATORIAS") && (
-                <Link
-                  href="/dashboard/convocatorias"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                    pathname === "/dashboard/convocatorias"
-                      ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                      : "text-ink-soft hover:bg-paper-sunken"
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Convocatorias y Ferias</span>
-                </Link>
-              )}
-
-              {canEditModule("CONVOCATORIAS") && (
-                <Link
-                  href="/dashboard/convocatorias/nueva"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                    pathname === "/dashboard/convocatorias/nueva"
-                      ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                      : "text-ink-soft hover:bg-paper-sunken"
-                  }`}
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Nueva convocatoria</span>
-                </Link>
-              )}
-
-              <Link
-                href="/dashboard/documentos"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                  pathname === "/dashboard/documentos"
-                    ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                    : "text-ink-soft hover:bg-paper-sunken"
-                }`}
-              >
-                <FileEdit className="w-4 h-4" />
-                <span className="flex-1">Documentos &amp; IA</span>
-                <span className="text-[10px] bg-accent/20 text-accent-dark px-1.5 py-0.5 rounded font-bold">
-                  Colaborativo
-                </span>
-              </Link>
-
-              <Link
-                href="/dashboard/mis-areas"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                  pathname.startsWith("/dashboard/mis-areas")
-                    ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                    : "text-ink-soft hover:bg-paper-sunken"
-                }`}
-              >
-                <GraduationCap className="w-4 h-4" />
-                <span className="flex-1">Mis Áreas</span>
-                <span className="text-[10px] bg-seal/20 text-seal-dark px-1.5 py-0.5 rounded font-bold">
-                  Moodle
-                </span>
-              </Link>
-
-              {canViewModule("USUARIOS") && (
-                <Link
-                  href="/dashboard/usuarios"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                    pathname === "/dashboard/usuarios"
-                      ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                      : "text-ink-soft hover:bg-paper-sunken"
-                  }`}
-                >
-                  <Users className="w-4 h-4" />
-                  <span>Gestión de Usuarios</span>
-                </Link>
-              )}
+              {navItems.map((item) => {
+                const IconComponent = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                      item.isActive
+                        ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
+                        : "text-ink-soft hover:bg-paper-sunken"
+                    }`}
+                  >
+                    <IconComponent className="w-4 h-4" />
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
             </nav>
 
             <div className="mt-auto pt-4 border-t border-line-soft flex items-center justify-between">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-accent text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                  {getInitial(user.nombre)}
+              <Link
+                href="/dashboard/perfil"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 min-w-0 hover:opacity-85 transition-opacity"
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-accent text-white font-bold text-xs flex items-center justify-center flex-shrink-0 border border-line/40">
+                  {user.fotoPerfil ? (
+                    <img
+                      src={resolveFileUrl(user.fotoPerfil)}
+                      alt={user.nombre}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{getInitial(user.nombre)}</span>
+                  )}
                 </div>
                 <div className="text-xs min-w-0">
                   <b className="block text-ink font-semibold truncate">
@@ -230,7 +273,7 @@ export default function DashboardLayout({
                     {user.rol.toLowerCase()}
                   </span>
                 </div>
-              </div>
+              </Link>
               <button
                 onClick={logout}
                 title="Cerrar sesión"
@@ -243,138 +286,205 @@ export default function DashboardLayout({
         </div>
       )}
 
-      {/* ================= SIDEBAR DE ESCRITORIO (>= 1024px) ================= */}
-      <aside className="hidden lg:flex w-64 flex-shrink-0 bg-paper-raised border-r border-line p-5 sticky top-0 h-screen flex-col transition-colors">
-        <div className="pb-4 mb-4 border-b border-line-soft flex items-center justify-between">
-          <Link href="/" className="font-serif text-lg tracking-tight block">
-            <b className="font-bold text-ink hover:text-accent transition-colors">FICCT</b>
-            <span className="block text-xs font-sans text-ink-faint mt-0.5">
-              Gestión de Investigación
-            </span>
-          </Link>
-          <ThemeToggle />
+      {/* ================= SIDEBAR DE ESCRITORIO (>= 1024px) - COLAPSABLE / DESPLEGABLE ================= */}
+      <aside
+        className={`hidden lg:flex flex-shrink-0 bg-paper-raised border-r border-line sticky top-0 h-screen flex-col transition-all duration-300 ease-in-out z-20 ${
+          isCollapsed ? "w-[76px] p-3" : "w-64 p-5"
+        }`}
+      >
+        {/* Cabecera del Sidebar con botón de colapso */}
+        <div
+          className={`pb-4 mb-4 border-b border-line-soft flex items-center ${
+            isCollapsed ? "flex-col gap-3 justify-center" : "justify-between"
+          }`}
+        >
+          {isCollapsed ? (
+            <>
+              {/* Modo Colapsado: Ícono / Letra de Marca */}
+              <Link
+                href="/"
+                title="FICCT Investigación"
+                className="w-10 h-10 rounded-xl bg-accent-soft text-accent-dark flex items-center justify-center font-bold text-base hover:scale-105 transition-transform"
+              >
+                F
+              </Link>
+
+              {/* Botón para Desplegar */}
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                title="Desplegar menú lateral"
+                className="p-2 rounded-xl text-ink-soft hover:text-ink hover:bg-paper-sunken border border-line-soft transition-colors"
+                aria-label="Desplegar menú lateral"
+              >
+                <PanelLeftOpen className="w-4 h-4 text-accent" />
+              </button>
+
+              <ThemeToggle />
+            </>
+          ) : (
+            <>
+              {/* Modo Expandido: Título Completo */}
+              <Link href="/" className="font-serif text-lg tracking-tight block">
+                <b className="font-bold text-ink hover:text-accent transition-colors">FICCT</b>
+                <span className="block text-xs font-sans text-ink-faint mt-0.5">
+                  Gestión de Investigación
+                </span>
+              </Link>
+
+              <div className="flex items-center gap-1.5">
+                <ThemeToggle />
+                {/* Botón para Colapsar */}
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  title="Colapsar menú lateral"
+                  className="p-1.5 rounded-lg text-ink-faint hover:text-ink hover:bg-paper-sunken border border-line-soft transition-colors"
+                  aria-label="Colapsar menú lateral"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-ink-soft hover:bg-paper-sunken transition-colors"
-          >
-            <Home className="w-4 h-4 text-ink-faint" />
-            <span>Portal público</span>
-          </Link>
+        {/* Lista de Navegación */}
+        <nav className="flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden">
+          {navItems.map((item) => {
+            const IconComponent = item.icon;
 
-          <Link
-            href="/dashboard"
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
-              pathname === "/dashboard"
-                ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                : "text-ink-soft hover:bg-paper-sunken"
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Panel Principal</span>
-          </Link>
+            if (isCollapsed) {
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.label}
+                  className={`flex items-center justify-center w-full h-11 rounded-xl transition-all relative group ${
+                    item.isActive
+                      ? "bg-accent-soft text-accent-dark shadow-xs"
+                      : "text-ink-soft hover:bg-paper-sunken hover:text-ink"
+                  }`}
+                >
+                  <IconComponent className="w-5 h-5 flex-shrink-0" />
+                  {/* Badge en miniatura (punto) si aplica */}
+                  {item.badge && (
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent" />
+                  )}
 
-          {canViewModule("CONVOCATORIAS") && (
-            <Link
-              href="/dashboard/convocatorias"
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
-                pathname === "/dashboard/convocatorias"
-                  ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                  : "text-ink-soft hover:bg-paper-sunken"
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>Convocatorias y Ferias</span>
-            </Link>
-          )}
+                  {/* Tooltip flotante en hover para modo colapsado */}
+                  <span className="pointer-events-none absolute left-full ml-3 z-50 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1 text-xs font-medium text-paper opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            }
 
-          {canEditModule("CONVOCATORIAS") && (
-            <Link
-              href="/dashboard/convocatorias/nueva"
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
-                pathname === "/dashboard/convocatorias/nueva"
-                  ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                  : "text-ink-soft hover:bg-paper-sunken"
-              }`}
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Nueva convocatoria</span>
-            </Link>
-          )}
-
-          <Link
-            href="/dashboard/documentos"
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
-              pathname === "/dashboard/documentos"
-                ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                : "text-ink-soft hover:bg-paper-sunken"
-            }`}
-          >
-            <FileEdit className="w-4 h-4" />
-            <span className="flex-1">Documentos &amp; IA</span>
-            <span className="text-[10px] bg-accent/20 text-accent-dark px-1.5 py-0.5 rounded font-bold">
-              Colaborativo
-            </span>
-          </Link>
-
-          <Link
-            href="/dashboard/mis-areas"
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
-              pathname.startsWith("/dashboard/mis-areas")
-                ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                : "text-ink-soft hover:bg-paper-sunken"
-            }`}
-          >
-            <GraduationCap className="w-4 h-4" />
-            <span className="flex-1">Mis Áreas</span>
-            <span className="text-[10px] bg-seal/20 text-seal-dark px-1.5 py-0.5 rounded font-bold">
-              Moodle
-            </span>
-          </Link>
-
-          {canViewModule("USUARIOS") && (
-            <Link
-              href="/dashboard/usuarios"
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
-                pathname === "/dashboard/usuarios"
-                  ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                  : "text-ink-soft hover:bg-paper-sunken"
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Gestión de Usuarios</span>
-            </Link>
-          )}
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
+                  item.isActive
+                    ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
+                    : "text-ink-soft hover:bg-paper-sunken"
+                }`}
+              >
+                <IconComponent className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1 truncate">{item.label}</span>
+                {item.badge && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${item.badgeColor}`}>
+                    {item.badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Footer Usuario Desktop */}
-        <div className="mt-auto pt-4 border-t border-line-soft flex items-center justify-between">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-accent text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                {getInitial(user.nombre)}
-              </div>
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-paper-raised status-dot-ping" />
-            </div>
-            <div className="text-xs min-w-0">
-              <b className="block text-ink font-semibold truncate">
-                {user.nombre} {user.apellido}
-              </b>
-              <span className="text-ink-faint capitalize text-[11px] block">
-                {user.rol.toLowerCase()}
-              </span>
-            </div>
-          </div>
+        <div
+          className={`mt-auto pt-4 border-t border-line-soft ${
+            isCollapsed ? "flex flex-col items-center gap-3" : "flex items-center justify-between"
+          }`}
+        >
+          {isCollapsed ? (
+            <>
+              {/* Avatar colapsado que enlaza a Mi Perfil con tooltip */}
+              <Link
+                href="/dashboard/perfil"
+                title={`Mi Perfil (${user.nombre} ${user.apellido})`}
+                className="relative group block"
+              >
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-accent text-white font-bold text-sm flex items-center justify-center border-2 border-line hover:border-accent transition-colors shadow-xs">
+                  {user.fotoPerfil ? (
+                    <img
+                      src={resolveFileUrl(user.fotoPerfil)}
+                      alt={user.nombre}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{getInitial(user.nombre)}</span>
+                  )}
+                </div>
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-paper-raised status-dot-ping" />
 
-          <button
-            onClick={logout}
-            title="Cerrar sesión"
-            className="p-2 rounded-lg text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all ml-1"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+                {/* Tooltip flotante */}
+                <span className="pointer-events-none absolute left-full ml-3 z-50 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1 text-xs font-medium text-paper opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                  Mi Perfil: {user.nombre}
+                </span>
+              </Link>
+
+              {/* Botón cerrar sesión colapsado */}
+              <button
+                onClick={logout}
+                title="Cerrar sesión"
+                className="p-2 rounded-xl text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Tarjeta de usuario expandida que enlaza a Mi Perfil */}
+              <Link
+                href="/dashboard/perfil"
+                title="Ver mi perfil"
+                className="flex items-center gap-2.5 min-w-0 hover:opacity-85 transition-opacity"
+              >
+                <div className="relative flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-accent text-white font-bold text-xs flex items-center justify-center border border-line/40">
+                    {user.fotoPerfil ? (
+                      <img
+                        src={resolveFileUrl(user.fotoPerfil)}
+                        alt={user.nombre}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span>{getInitial(user.nombre)}</span>
+                    )}
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-paper-raised status-dot-ping" />
+                </div>
+                <div className="text-xs min-w-0">
+                  <b className="block text-ink font-semibold truncate hover:text-accent transition-colors">
+                    {user.nombre} {user.apellido}
+                  </b>
+                  <span className="text-ink-faint capitalize text-[11px] block">
+                    {user.rol.toLowerCase()}
+                  </span>
+                </div>
+              </Link>
+
+              <button
+                onClick={logout}
+                title="Cerrar sesión"
+                className="p-2 rounded-lg text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all ml-1 flex-shrink-0"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </aside>
 
@@ -406,6 +516,16 @@ export default function DashboardLayout({
         </Link>
 
         <Link
+          href="/dashboard/mis-areas"
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[10.5px] font-semibold transition-all ${
+            pathname.startsWith("/dashboard/mis-areas") ? "text-accent scale-105" : "text-ink-faint hover:text-ink"
+          }`}
+        >
+          <GraduationCap className="w-4 h-4" />
+          <span>Áreas</span>
+        </Link>
+
+        <Link
           href="/dashboard/documentos"
           className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[10.5px] font-semibold transition-all ${
             pathname === "/dashboard/documentos" ? "text-accent scale-105" : "text-ink-faint hover:text-ink"
@@ -416,36 +536,14 @@ export default function DashboardLayout({
         </Link>
 
         <Link
-          href="/dashboard/cursos"
+          href="/dashboard/perfil"
           className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[10.5px] font-semibold transition-all ${
-            pathname.startsWith("/dashboard/cursos") ? "text-accent scale-105" : "text-ink-faint hover:text-ink"
+            pathname === "/dashboard/perfil" ? "text-accent scale-105" : "text-ink-faint hover:text-ink"
           }`}
         >
-          <GraduationCap className="w-4 h-4" />
-          <span>Aulas</span>
+          <UserIcon className="w-4 h-4" />
+          <span>Perfil</span>
         </Link>
-
-        <Link
-          href="/dashboard/convocatorias"
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[10.5px] font-semibold transition-all ${
-            pathname.startsWith("/dashboard/convocatorias") ? "text-accent scale-105" : "text-ink-faint hover:text-ink"
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Ferias</span>
-        </Link>
-
-        {canViewModule("USUARIOS") && (
-          <Link
-            href="/dashboard/usuarios"
-            className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[10.5px] font-semibold transition-all ${
-              pathname === "/dashboard/usuarios" ? "text-accent scale-105" : "text-ink-faint hover:text-ink"
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Usuarios</span>
-          </Link>
-        )}
       </nav>
     </div>
   );

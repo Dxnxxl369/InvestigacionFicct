@@ -14,6 +14,9 @@ public class UserDTO {
     private String email;
     private Rol rol;
     private EstadoUsuario estado;
+    private String fotoPerfil;
+    private String descripcion;
+    private Boolean ocultarCursos;
     private LocalDateTime createdAt;
 
     public UserDTO() {
@@ -26,6 +29,9 @@ public class UserDTO {
         this.email = user.getEmail();
         this.rol = user.getRol();
         this.estado = user.getEstado();
+        this.fotoPerfil = user.getFotoPerfil();
+        this.descripcion = user.getDescripcion();
+        this.ocultarCursos = user.getOcultarCursos();
         this.createdAt = user.getCreatedAt();
     }
 
@@ -75,6 +81,30 @@ public class UserDTO {
 
     public void setEstado(EstadoUsuario estado) {
         this.estado = estado;
+    }
+
+    public String getFotoPerfil() {
+        return fotoPerfil;
+    }
+
+    public void setFotoPerfil(String fotoPerfil) {
+        this.fotoPerfil = fotoPerfil;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
+    }
+
+    public Boolean getOcultarCursos() {
+        return ocultarCursos != null ? ocultarCursos : false;
+    }
+
+    public void setOcultarCursos(Boolean ocultarCursos) {
+        this.ocultarCursos = ocultarCursos;
     }
 
     public LocalDateTime getCreatedAt() {

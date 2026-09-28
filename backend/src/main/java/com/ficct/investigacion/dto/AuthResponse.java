@@ -13,6 +13,8 @@ public class AuthResponse {
     private String email;
     private Rol rol;
     private EstadoUsuario estado;
+    private String fotoPerfil;
+    private String descripcion;
 
     public AuthResponse() {
     }
@@ -25,6 +27,18 @@ public class AuthResponse {
         this.email = email;
         this.rol = rol;
         this.estado = estado;
+    }
+
+    public AuthResponse(String token, Long id, String nombre, String apellido, String email, Rol rol, EstadoUsuario estado, String fotoPerfil, String descripcion) {
+        this.token = token;
+        this.id = id;
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.email = email;
+        this.rol = rol;
+        this.estado = estado;
+        this.fotoPerfil = fotoPerfil;
+        this.descripcion = descripcion;
     }
 
     public String getToken() {
@@ -89,5 +103,21 @@ public class AuthResponse {
 
     public void setEstado(EstadoUsuario estado) {
         this.estado = estado;
+    }
+
+    public String getFotoPerfil() {
+        return fotoPerfil;
+    }
+
+    public void setFotoPerfil(String fotoPerfil) {
+        this.fotoPerfil = fotoPerfil;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
     }
 }

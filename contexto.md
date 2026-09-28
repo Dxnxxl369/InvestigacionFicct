@@ -104,13 +104,47 @@ El sistema inicializa automáticamente la base de datos con los siguientes perfi
 
 ---
 
-## 5. Hoja de Ruta para el Sprint 2
+## 5. Nuevas Funcionalidades Entregadas (Inicio de Sprint 2)
 
-Con el Sprint 1 completado con éxito y validado técnica y funcionalmente, se identifican las siguientes prioridades y módulos sugeridos para el **Sprint 2**:
+### A. Sidebar Colapsable y Desplegable Dinámico (Web Dashboard)
+- **Modos de Visualización:**
+  - **Modo Expandido (`w-64`):** Logotipo completo de la facultad, títulos de módulos, badges distintivos (*"Colaborativo"*, *"Moodle"*) y tarjeta de usuario completa.
+  - **Modo Colapsado (`w-[76px]`):** Iconos centrados ergonómicos con tooltips flotantes instantáneos en `hover`, indicador de notificaciones y avatar compacto con enlace directo al perfil.
+- **Control Lateral:** Botón toggle interactivo con iconos `PanelLeftClose` y `PanelLeftOpen`.
+- **Persistencia:** Almacenamiento del estado en `localStorage` (`sidebar_collapsed`), preservando la preferencia del usuario entre sesiones y rutas.
+
+### B. Módulo de Perfil Académico & Privacidad Moodle (`/dashboard/perfil`)
+- **Datos Personales Editables:**
+  - **Foto de Perfil:** Carga directa de imágenes locales (`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif` hasta 5 MB) conectada al endpoint de subida, con previsualización en tiempo real y soporte para URLs externas.
+  - **Biografía / Presentación Personal:** Campo de texto de hasta 500 caracteres con contador en vivo para líneas de investigación y especialidad académica.
+- **Datos Legales e Institucionales Protegidos (Solo Lectura):**
+  - Nombre completo, correo electrónico institucional, rol y estado de cuenta bloqueados estrictamente con candado visual (`Lock`) y validación en backend (`PerfilUpdateRequest`).
+- **Control de Privacidad de Cursos (Estilo Moodle):**
+  - Interruptor `ocultarCursos`: permite a docentes y estudiantes ocultar su participación en materias ante terceros, haciéndolos visibles únicamente para sí mismos y administradores.
+- **Listado de Cursos del Usuario:**
+  - Detección inteligente del rol específico en cada asignatura (Docente Encargado, Jurado Evaluador, Estudiante Inscrito o Coordinador).
+  - Buscador textual y filtros rápidos por rol.
+
+### C. Plataforma Móvil & Ecosistema Flutter (`mobile/` y `mobile.html`)
+- **Prototipo Interactivo en Tiempo Real (`mobile.html`):**
+  - Marco realista de smartphone con Dynamic Island, reloj en vivo, barra de estado y gestos.
+  - **Barra de Navegación Inferior Flotante (Liquid Glass Blur):** Diseñada con desenfoque gaussiano de 24px (`BackdropFilter`) y translucidez dinámica.
+  - **10 Pantallas Replicadas:** Dashboard, Mis Áreas Moodle, Aula Virtual, Tarea Drag & Drop, SpeedGrader, Convocatorias, Detalle de Feria, Nueva Convocatoria, Perfil Académico y Documentos IA.
+  - **Heurísticas de Nielsen:** Cumplimiento explícito en cada pantalla con panel de control interactivo para conmutar roles en 1 clic.
+- **Aplicación Nativa Flutter (`mobile/`):**
+  - Proyecto completo en Dart/Flutter con arquitectura limpia (`config`, `models`, `services`, `widgets`, `screens`).
+  - Servicios HTTP y persistencia en `SharedPreferences` para borradores de tareas offline.
+  - Verificado con `flutter analyze` (0 errores) y `flutter test` (100% aprobado).
+
+---
+
+## 6. Hoja de Ruta Continua para el Sprint 2
+
+Con los cimientos móviles y de gestión de perfiles listos, se identifican las siguientes prioridades funcionales:
 
 1. **Matriz de Rúbricas de Evaluación Multicriterio:**
    - Creación de rúbricas analíticas estructuradas (Criterios, Niveles de Desempeño y Ponderación porcentual o numérica).
-   - Integración directa en la consola SpeedGrader para evaluación por rúbrica con un solo clic.
+   - Integración directa en la consola SpeedGrader web y móvil para evaluación por rúbrica con un solo clic.
 
 2. **Gestión Avanzada de Equipos y Co-evaluación:**
    - Formación formal de grupos con límite de cupos (`cuposMinEquipo`, `cuposMaxEquipo`).

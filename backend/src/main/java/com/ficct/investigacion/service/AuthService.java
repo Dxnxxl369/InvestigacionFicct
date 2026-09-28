@@ -3,6 +3,7 @@ package com.ficct.investigacion.service;
 import com.ficct.investigacion.config.JwtService;
 import com.ficct.investigacion.dto.AuthRequest;
 import com.ficct.investigacion.dto.AuthResponse;
+import com.ficct.investigacion.dto.PerfilUpdateRequest;
 import com.ficct.investigacion.dto.RegisterRequest;
 import com.ficct.investigacion.dto.UserDTO;
 import com.ficct.investigacion.model.EstadoUsuario;
@@ -64,7 +65,9 @@ public class AuthService {
                 savedUser.getApellido(),
                 savedUser.getEmail(),
                 savedUser.getRol(),
-                savedUser.getEstado()
+                savedUser.getEstado(),
+                savedUser.getFotoPerfil(),
+                savedUser.getDescripcion()
         );
     }
 
@@ -95,7 +98,9 @@ public class AuthService {
                 user.getApellido(),
                 user.getEmail(),
                 user.getRol(),
-                user.getEstado()
+                user.getEstado(),
+                user.getFotoPerfil(),
+                user.getDescripcion()
         );
     }
 
@@ -103,5 +108,25 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con correo: " + email));
         return new UserDTO(user);
+    }
+
+    @Transactional
+    public UserDTO updateProfile(String email, PerfilUpdateRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con correo: " + email));
+
+        if (request != null) {
+            if (request.getFotoPerfil() != null) {
+                user.setFotoPerfil(request.getFotoPerfil().trim());
+            }
+            if (request.getDescripcion() != null) {
+                user.setDescripcion(request.getDescripcion().trim());
+            }
+            if (request.getOcultarCursos() != null) {
+                user.setOcultarCursos(request.getOcultarCursos());
+            }
+        }
+        User updated = userRepository.save(user);
+        return new UserDTO(updated);
     }
 }
