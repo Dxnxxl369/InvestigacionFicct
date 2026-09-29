@@ -901,6 +901,195 @@ export function getMediaUrl(url?: string): string {
   return `${origin}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
+export const resolveFileUrl = getMediaUrl;
+
+// ==========================================
+// 12. GRUPOS Y SELECCIÓN DE EQUIPOS (Moodle Style)
+// ==========================================
+
+export interface MiembroGrupoDTO {
+  participanteId: number;
+  usuarioId: number;
+  nombreCompleto: string;
+  email: string;
+  fotoPerfil?: string;
+  fechaAsignacion?: string;
+}
+
+export interface GrupoDTO {
+  id: number;
+  convocatoriaId: number;
+  actividadGrupoId?: number;
+  nombre: string;
+  descripcion?: string;
+  capacidadMaxima: number;
+  cantidadMiembros: number;
+  completo: boolean;
+  miembros: MiembroGrupoDTO[];
+}
+
+export interface CrearGrupoRequest {
+  nombre: string;
+  descripcion?: string;
+  capacidadMaxima?: number;
+  actividadGrupoId?: number;
+}
+
+export interface GenerarLoteGruposRequest {
+  prefijo?: string;
+  cantidad?: number;
+  capacidadMaxima?: number;
+  actividadGrupoId?: number;
+}
+
+export interface GruposAreaResponse {
+  grupos: GrupoDTO[];
+  estudiantesSinEquipo: ConvocatoriaParticipanteDTO[];
+  totalEstudiantes: number;
+  totalConEquipo: number;
+  totalSinEquipo: number;
+}
+
+export interface ActividadGrupoDTO {
+  id: number;
+  convocatoriaId: number;
+  moduloId?: number;
+  titulo: string;
+  descripcion?: string;
+  fechaApertura?: string;
+  fechaCierre?: string;
+  capacidadPorGrupo: number;
+  permitirCambio: boolean;
+  mostrarMiembros: boolean;
+  habilitada: boolean;
+  abierta: boolean;
+  cerrada: boolean;
+  grupoSeleccionadoId?: number;
+  grupoSeleccionadoNombre?: string;
+  grupos: GrupoDTO[];
+}
+
+export interface CrearActividadGrupoRequest {
+  convocatoriaId?: number;
+  moduloId?: number;
+  titulo: string;
+  descripcion?: string;
+  fechaApertura?: string;
+  fechaCierre?: string;
+  capacidadPorGrupo?: number;
+  permitirCambio?: boolean;
+  mostrarMiembros?: boolean;
+  generarGrupos?: boolean;
+  cantidadGrupos?: number;
+  prefijoGrupos?: string;
+}
+
+export interface ElegirGrupoRequest {
+  grupoId: number;
+}
+
+export const gruposAPI = {
+  async getGrupos(convocatoriaId: number): Promise<GruposAreaResponse> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<GruposAreaResponse>(res);
+  },
+
+  async crearGrupo(convocatoriaId: number, data: CrearGrupoRequest): Promise<GrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<GrupoDTO>(res);
+  },
+
+  async generarLote(convocatoriaId: number, data: GenerarLoteGruposRequest): Promise<GrupoDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/generar-lote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<GrupoDTO[]>(res);
+  },
+
+  async actualizarGrupo(convocatoriaId: number, grupoId: number, data: CrearGrupoRequest): Promise<GrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/${grupoId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<GrupoDTO>(res);
+  },
+
+  async eliminarGrupo(convocatoriaId: number, grupoId: number): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/${grupoId}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ message: string }>(res);
+  },
+
+  async asignarMiembro(convocatoriaId: number, grupoId: number, participanteId: number): Promise<GrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/${grupoId}/miembros/${participanteId}`, {
+      method: "POST",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<GrupoDTO>(res);
+  },
+
+  async removerMiembro(convocatoriaId: number, grupoId: number, participanteId: number): Promise<GrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/${grupoId}/miembros/${participanteId}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<GrupoDTO>(res);
+  },
+};
+
+export const actividadesGrupoAPI = {
+  async getActividades(convocatoriaId: number): Promise<ActividadGrupoDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ActividadGrupoDTO[]>(res);
+  },
+
+  async getDetalle(convocatoriaId: number, actividadId: number): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+
+  async crearActividad(convocatoriaId: number, data: CrearActividadGrupoRequest): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+
+  async elegirGrupo(convocatoriaId: number, actividadId: number, grupoId: number): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}/elegir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ grupoId }),
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+
+  async anularEleccion(convocatoriaId: number, actividadId: number): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}/elegir`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+};
+
 // Unified api object
 export const api = {
   // Auth
@@ -977,6 +1166,22 @@ export const api = {
   entregarTarea: tareasAPI.submitEntrega,
   getEntregasTarea: tareasAPI.getEntregas,
   calificarEntrega: tareasAPI.calificar,
+
+  // Grupos & Equipos (Moodle Style)
+  getGruposArea: gruposAPI.getGrupos,
+  crearGrupo: gruposAPI.crearGrupo,
+  generarLoteGrupos: gruposAPI.generarLote,
+  actualizarGrupo: gruposAPI.actualizarGrupo,
+  eliminarGrupo: gruposAPI.eliminarGrupo,
+  asignarMiembroGrupo: gruposAPI.asignarMiembro,
+  removerMiembroGrupo: gruposAPI.removerMiembro,
+
+  // Actividades de Selección de Grupo (Moodle Style)
+  getActividadesGrupo: actividadesGrupoAPI.getActividades,
+  getDetalleActividadGrupo: actividadesGrupoAPI.getDetalle,
+  crearActividadGrupo: actividadesGrupoAPI.crearActividad,
+  elegirGrupoActividad: actividadesGrupoAPI.elegirGrupo,
+  anularEleccionGrupoActividad: actividadesGrupoAPI.anularEleccion,
 };
 
 export default api;

@@ -12,6 +12,10 @@ import java.util.Optional;
 @Repository
 public interface ConvocatoriaParticipanteRepository extends JpaRepository<ConvocatoriaParticipante, Long> {
 
+    List<ConvocatoriaParticipante> findByConvocatoriaId(Long convocatoriaId);
+
+    List<ConvocatoriaParticipante> findByGrupoId(Long grupoId);
+
     List<ConvocatoriaParticipante> findByConvocatoriaIdOrderByFechaAsignacionAsc(Long convocatoriaId);
 
     List<ConvocatoriaParticipante> findByConvocatoriaIdAndEstadoInscripcionOrderByFechaAsignacionAsc(

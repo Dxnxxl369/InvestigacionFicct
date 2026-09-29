@@ -49,6 +49,10 @@ public class ConvocatoriaParticipante {
     @JoinColumn(name = "asignado_por_id")
     private User asignadoPor;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "grupo_id")
+    private Grupo grupo;
+
     public ConvocatoriaParticipante() {
     }
 
@@ -192,5 +196,16 @@ public class ConvocatoriaParticipante {
 
     public void setAsignadoPor(User asignadoPor) {
         this.asignadoPor = asignadoPor;
+    }
+
+    public Grupo getGrupo() {
+        return grupo;
+    }
+
+    public void setGrupo(Grupo grupo) {
+        this.grupo = grupo;
+        if (grupo != null) {
+            this.nombreEquipo = grupo.getNombre();
+        }
     }
 }

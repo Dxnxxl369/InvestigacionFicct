@@ -22,6 +22,7 @@ public class ConvocatoriaParticipanteDTO {
     private LocalDateTime fechaAsignacion;
     private String motivoRechazo;
     private String asignadoPorNombre;
+    private Long grupoId;
 
     public ConvocatoriaParticipanteDTO() {
     }
@@ -44,6 +45,9 @@ public class ConvocatoriaParticipanteDTO {
         this.motivoRechazo = cp.getMotivoRechazo();
         if (cp.getAsignadoPor() != null) {
             this.asignadoPorNombre = cp.getAsignadoPor().getNombre() + " " + cp.getAsignadoPor().getApellidos();
+        }
+        if (cp.getGrupo() != null) {
+            this.grupoId = cp.getGrupo().getId();
         }
     }
 
@@ -157,5 +161,13 @@ public class ConvocatoriaParticipanteDTO {
 
     public void setAsignadoPorNombre(String asignadoPorNombre) {
         this.asignadoPorNombre = asignadoPorNombre;
+    }
+
+    public Long getGrupoId() {
+        return grupoId;
+    }
+
+    public void setGrupoId(Long grupoId) {
+        this.grupoId = grupoId;
     }
 }

@@ -7,6 +7,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
@@ -21,6 +22,8 @@ public class DataSeeder implements CommandLineRunner {
     private final TareaRepository tareaRepository;
     private final EntregaTareaRepository entregaTareaRepository;
     private final ModuloRepository moduloRepository;
+    private final GrupoRepository grupoRepository;
+    private final ActividadGrupoRepository actividadGrupoRepository;
 
     public DataSeeder(UserRepository userRepository,
                       ConvocatoriaRepository convocatoriaRepository,
@@ -31,7 +34,9 @@ public class DataSeeder implements CommandLineRunner {
                       ConvocatoriaParticipanteRepository participanteRepository,
                       TareaRepository tareaRepository,
                       EntregaTareaRepository entregaTareaRepository,
-                      ModuloRepository moduloRepository) {
+                      ModuloRepository moduloRepository,
+                      GrupoRepository grupoRepository,
+                      ActividadGrupoRepository actividadGrupoRepository) {
         this.userRepository = userRepository;
         this.convocatoriaRepository = convocatoriaRepository;
         this.rolPermisoRepository = rolPermisoRepository;
@@ -42,6 +47,8 @@ public class DataSeeder implements CommandLineRunner {
         this.tareaRepository = tareaRepository;
         this.entregaTareaRepository = entregaTareaRepository;
         this.moduloRepository = moduloRepository;
+        this.grupoRepository = grupoRepository;
+        this.actividadGrupoRepository = actividadGrupoRepository;
     }
 
     @Override
@@ -380,6 +387,41 @@ public class DataSeeder implements CommandLineRunner {
                 );
                 tarea2.setModulo(mod2);
                 tareaRepository.save(tarea2);
+
+                // Sembrar Actividad de Selección de Grupo (Moodle Style como image.png)
+                if (actividadGrupoRepository.count() == 0) {
+                    ActividadGrupo actGrupo = new ActividadGrupo(
+                            feria,
+                            mod1,
+                            "Seleccionar grupo para 1er examen parcial",
+                            "Seleccionar número de grupo según se les asignó en la hoja que presentaron en clases.",
+                            java.time.LocalDateTime.now().minusDays(3),
+                            java.time.LocalDateTime.now().plusDays(14),
+                            5,
+                            true,
+                            true,
+                            true,
+                            docente
+                    );
+                    actGrupo = actividadGrupoRepository.save(actGrupo);
+
+                    List<Grupo> gruposMoodle = new java.util.ArrayList<>();
+                    for (int i = 1; i <= 10; i++) {
+                        Grupo g = new Grupo(feria, actGrupo, "Gr1erPar " + i, "Grupo de trabajo #" + i, 5, docente);
+                        gruposMoodle.add(g);
+                    }
+                    gruposMoodle = grupoRepository.saveAll(gruposMoodle);
+
+                    // Asignar a Daniel Quispe a Gr1erPar 1 como ejemplo inicial
+                    if (daniel != null && !gruposMoodle.isEmpty()) {
+                        ConvocatoriaParticipante partDaniel = participanteRepository
+                                .findByConvocatoriaIdAndUsuarioId(feria.getId(), daniel.getId()).orElse(null);
+                        if (partDaniel != null) {
+                            partDaniel.setGrupo(gruposMoodle.get(0));
+                            participanteRepository.save(partDaniel);
+                        }
+                    }
+                }
             }
 
             if (hackathon != null) {

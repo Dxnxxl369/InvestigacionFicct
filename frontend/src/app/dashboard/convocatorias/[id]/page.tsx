@@ -20,6 +20,14 @@ import {
   getMediaUrl,
   ModuloDTO,
   ModuloRequest,
+  GrupoDTO,
+  MiembroGrupoDTO,
+  GruposAreaResponse,
+  CrearGrupoRequest,
+  GenerarLoteGruposRequest,
+  ActividadGrupoDTO,
+  CrearActividadGrupoRequest,
+  ElegirGrupoRequest,
 } from "@/lib/api";
 import {
   Calendar,
@@ -60,6 +68,15 @@ import {
   Download,
   AlertTriangle,
   RefreshCw,
+  Eye,
+  EyeOff,
+  UserCheck,
+  UserMinus,
+  Sparkles,
+  ListPlus,
+  HelpCircle,
+  Info,
+  CheckCircle,
 } from "lucide-react";
 
 // Convertir base64 dataURL a File para restaurar borradores
@@ -87,6 +104,26 @@ function formatBytes(bytes: number, decimals = 2): string {
   const sizes = ["Bytes", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+}
+
+// Formatear fechas con estilo natural y completo Moodle (e.g. "lunes, 29 de septiembre de 2026, 00:00")
+function formatMoodleDate(dateStr?: string | null): string {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const opciones: Intl.DateTimeFormatOptions = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    };
+    return d.toLocaleDateString("es-ES", opciones);
+  } catch {
+    return dateStr;
+  }
 }
 
 // Analizar extensiones permitidas tipo ".pdf, .docx, .zip"
@@ -192,7 +229,48 @@ export default function AreaMoodlePage() {
   const [cargandoEntregasTarea, setCargandoEntregasTarea] = useState(false);
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<"tareas" | "participantes" | "info">("tareas");
+  const [activeTab, setActiveTab] = useState<"tareas" | "grupos" | "participantes" | "info">("tareas");
+
+  // Grupos y Actividades de Selección Moodle
+  const [gruposArea, setGruposArea] = useState<GrupoDTO[]>([]);
+  const [estudiantesSinEquipo, setEstudiantesSinEquipo] = useState<ConvocatoriaParticipanteDTO[]>([]);
+  const [totalEstudiantesArea, setTotalEstudiantesArea] = useState<number>(0);
+  const [totalConEquipoArea, setTotalConEquipoArea] = useState<number>(0);
+  const [totalSinEquipoArea, setTotalSinEquipoArea] = useState<number>(0);
+  const [actividadesGrupo, setActividadesGrupo] = useState<ActividadGrupoDTO[]>([]);
+  const [actividadActiva, setActividadActiva] = useState<ActividadGrupoDTO | null>(null);
+  const [cargandoGrupos, setCargandoGrupos] = useState<boolean>(false);
+
+  // Selección de Grupo estilo Moodle (image.png)
+  const [selectedGrupoRadioId, setSelectedGrupoRadioId] = useState<number | null>(null);
+  const [ocultarMiembros, setOcultarMiembros] = useState<boolean>(false);
+  const [procesandoEleccion, setProcesandoEleccion] = useState<boolean>(false);
+
+  // Modales y formularios de grupos para Admin / Docente
+  const [showCrearGrupoModal, setShowCrearGrupoModal] = useState<boolean>(false);
+  const [nuevoGrupoNombre, setNuevoGrupoNombre] = useState<string>("");
+  const [nuevoGrupoDesc, setNuevoGrupoDesc] = useState<string>("");
+  const [nuevoGrupoCapacidad, setNuevoGrupoCapacidad] = useState<number>(5);
+  const [creandoGrupo, setCreandoGrupo] = useState<boolean>(false);
+
+  const [showGenerarLoteModal, setShowGenerarLoteModal] = useState<boolean>(false);
+  const [lotePrefijo, setLotePrefijo] = useState<string>("Gr1erPar ");
+  const [loteCantidad, setLoteCantidad] = useState<number>(10);
+  const [loteCapacidad, setLoteCapacidad] = useState<number>(5);
+  const [generandoLote, setGenerandoLote] = useState<boolean>(false);
+
+  const [showCrearActividadModal, setShowCrearActividadModal] = useState<boolean>(false);
+  const [nuevaActTitulo, setNuevaActTitulo] = useState<string>("Seleccionar grupo para 1er examen parcial");
+  const [nuevaActDesc, setNuevaActDesc] = useState<string>("Seleccionar número de grupo según se les asignó en la hoja que presentaron en clases.");
+  const [nuevaActApertura, setNuevaActApertura] = useState<string>("");
+  const [nuevaActCierre, setNuevaActCierre] = useState<string>("");
+  const [nuevaActCapacidad, setNuevaActCapacidad] = useState<number>(5);
+  const [nuevaActGenerarGrupos, setNuevaActGenerarGrupos] = useState<boolean>(true);
+  const [nuevaActCantidadGrupos, setNuevaActCantidadGrupos] = useState<number>(10);
+  const [nuevaActPrefijo, setNuevaActPrefijo] = useState<string>("Gr1erPar ");
+  const [creandoActividad, setCreandoActividad] = useState<boolean>(false);
+
+  const [asignandoParticipanteId, setAsignandoParticipanteId] = useState<number | null>(null);
 
   // Notificaciones / Alertas
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
@@ -306,8 +384,8 @@ export default function AreaMoodlePage() {
       }
       setConvocatoria(convData);
 
-      // 2. Cargar participantes, tareas y módulos en paralelo de forma tolerante
-      const [partsData, tareasData, modulosData] = await Promise.all([
+      // 2. Cargar participantes, tareas, módulos, grupos y actividades de grupo en paralelo
+      const [partsData, tareasData, modulosData, gruposData, actsGrupoData] = await Promise.all([
         api.getParticipantesConvocatoria(convocatoriaId).catch((err) => {
           console.warn("Aviso al cargar participantes:", err?.message || err);
           return [] as ConvocatoriaParticipanteDTO[];
@@ -320,11 +398,38 @@ export default function AreaMoodlePage() {
           console.warn("Aviso al cargar módulos:", err?.message || err);
           return [] as ModuloDTO[];
         }),
+        api.getGruposArea(convocatoriaId).catch((err) => {
+          console.warn("Aviso al cargar grupos:", err?.message || err);
+          return null as GruposAreaResponse | null;
+        }),
+        api.getActividadesGrupo(convocatoriaId).catch((err) => {
+          console.warn("Aviso al cargar actividades de grupo:", err?.message || err);
+          return [] as ActividadGrupoDTO[];
+        }),
       ]);
 
       setParticipantes(partsData || []);
       setTareas(tareasData || []);
       setModulos(modulosData || []);
+
+      if (gruposData) {
+        setGruposArea(gruposData.grupos || []);
+        setEstudiantesSinEquipo(gruposData.estudiantesSinEquipo || []);
+        setTotalEstudiantesArea(gruposData.totalEstudiantes || 0);
+        setTotalConEquipoArea(gruposData.totalConEquipo || 0);
+        setTotalSinEquipoArea(gruposData.totalSinEquipo || 0);
+      }
+
+      if (actsGrupoData) {
+        setActividadesGrupo(actsGrupoData || []);
+        if (actsGrupoData.length > 0) {
+          const act = actsGrupoData[0];
+          setActividadActiva(act);
+          if (act.grupoSeleccionadoId) {
+            setSelectedGrupoRadioId(act.grupoSeleccionadoId);
+          }
+        }
+      }
 
       // Si es estudiante, cargar sus documentos de investigación
       if (user?.rol === "ESTUDIANTE") {
@@ -606,6 +711,171 @@ export default function AreaMoodlePage() {
       setParticipantes(updated);
     } catch (err: any) {
       toast(err.message || "No se pudo declinar la solicitud", "error");
+    }
+  };
+
+  // ==========================================
+  // GESTIÓN DE GRUPOS & SELECCIÓN MOODLE
+  // ==========================================
+
+  // Elegir grupo en actividad Moodle
+  const handleGuardarEleccionGrupo = async (actividadId: number) => {
+    if (!selectedGrupoRadioId) {
+      toast("Por favor selecciona un grupo antes de guardar", "error");
+      return;
+    }
+    try {
+      setProcesandoEleccion(true);
+      const updatedAct = await api.elegirGrupoActividad(convocatoriaId, actividadId, selectedGrupoRadioId);
+      toast("¡Elección de grupo guardada exitosamente!", "success");
+      setActividadActiva(updatedAct);
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al guardar la elección de grupo", "error");
+    } finally {
+      setProcesandoEleccion(false);
+    }
+  };
+
+  // Anular elección de grupo en actividad Moodle
+  const handleAnularEleccionGrupo = async (actividadId: number) => {
+    if (!confirm("¿Deseas anular tu elección de grupo actual? Tu cupo quedará libre para otro estudiante.")) return;
+    try {
+      setProcesandoEleccion(true);
+      const updatedAct = await api.anularEleccionGrupoActividad(convocatoriaId, actividadId);
+      toast("Elección de grupo anulada exitosamente", "success");
+      setSelectedGrupoRadioId(null);
+      setActividadActiva(updatedAct);
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al anular la elección", "error");
+    } finally {
+      setProcesandoEleccion(false);
+    }
+  };
+
+  // Crear Grupo individual (Docente / Admin)
+  const handleCrearGrupo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevoGrupoNombre.trim()) {
+      toast("El nombre del grupo es obligatorio", "error");
+      return;
+    }
+    try {
+      setCreandoGrupo(true);
+      await api.crearGrupo(convocatoriaId, {
+        nombre: nuevoGrupoNombre.trim(),
+        descripcion: nuevoGrupoDesc.trim() || undefined,
+        capacidadMaxima: nuevoGrupoCapacidad > 0 ? nuevoGrupoCapacidad : undefined,
+        actividadGrupoId: actividadActiva?.id,
+      });
+      toast(`Grupo "${nuevoGrupoNombre.trim()}" creado exitosamente`, "success");
+      setShowCrearGrupoModal(false);
+      setNuevoGrupoNombre("");
+      setNuevoGrupoDesc("");
+      setNuevoGrupoCapacidad(5);
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al crear el grupo", "error");
+    } finally {
+      setCreandoGrupo(false);
+    }
+  };
+
+  // Generar Lote de Grupos (Docente / Admin)
+  const handleGenerarLoteGrupos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loteCantidad <= 0 || loteCantidad > 100) {
+      toast("La cantidad de grupos debe estar entre 1 y 100", "error");
+      return;
+    }
+    try {
+      setGenerandoLote(true);
+      await api.generarLoteGrupos(convocatoriaId, {
+        prefijo: lotePrefijo.trim() ? lotePrefijo : "Gr1erPar ",
+        cantidad: loteCantidad,
+        capacidadMaxima: loteCapacidad > 0 ? loteCapacidad : 5,
+        actividadGrupoId: actividadActiva?.id,
+      });
+      toast(`¡Se han generado ${loteCantidad} grupos exitosamente!`, "success");
+      setShowGenerarLoteModal(false);
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al generar lote de grupos", "error");
+    } finally {
+      setGenerandoLote(false);
+    }
+  };
+
+  // Eliminar Grupo (Docente / Admin)
+  const handleEliminarGrupo = async (grupoId: number, nombreGrupo: string) => {
+    if (!confirm(`¿Eliminar el grupo "${nombreGrupo}"? Los estudiantes asignados quedarán sin equipo.`)) return;
+    try {
+      await api.eliminarGrupo(convocatoriaId, grupoId);
+      toast(`Grupo "${nombreGrupo}" eliminado`, "success");
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al eliminar el grupo", "error");
+    }
+  };
+
+  // Asignar estudiante sin grupo a un grupo (Docente / Admin)
+  const handleAsignarEstudianteAGrupo = async (participanteId: number, grupoId: number, nombreEstudiante: string) => {
+    try {
+      setAsignandoParticipanteId(participanteId);
+      await api.asignarMiembroGrupo(convocatoriaId, grupoId, participanteId);
+      toast(`${nombreEstudiante} asignado al grupo`, "success");
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al asignar estudiante al grupo", "error");
+    } finally {
+      setAsignandoParticipanteId(null);
+    }
+  };
+
+  // Remover estudiante de un grupo (Docente / Admin)
+  const handleRemoverEstudianteDeGrupo = async (grupoId: number, participanteId: number, nombreEstudiante: string) => {
+    if (!confirm(`¿Retirar a ${nombreEstudiante} de este grupo?`)) return;
+    try {
+      await api.removerMiembroGrupo(convocatoriaId, grupoId, participanteId);
+      toast(`${nombreEstudiante} retirado del grupo`, "success");
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al remover del grupo", "error");
+    }
+  };
+
+  // Crear Actividad de Selección de Grupo (Docente / Admin)
+  const handleCrearActividadGrupo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevaActTitulo.trim()) {
+      toast("El título de la actividad es obligatorio", "error");
+      return;
+    }
+    try {
+      setCreandoActividad(true);
+      const req: CrearActividadGrupoRequest = {
+        convocatoriaId,
+        titulo: nuevaActTitulo.trim(),
+        descripcion: nuevaActDesc.trim() || undefined,
+        fechaApertura: nuevaActApertura ? new Date(nuevaActApertura).toISOString() : undefined,
+        fechaCierre: nuevaActCierre ? new Date(nuevaActCierre).toISOString() : undefined,
+        capacidadPorGrupo: nuevaActCapacidad > 0 ? nuevaActCapacidad : 5,
+        permitirCambio: true,
+        mostrarMiembros: true,
+        generarGrupos: nuevaActGenerarGrupos,
+        cantidadGrupos: nuevaActCantidadGrupos,
+        prefijoGrupos: nuevaActPrefijo.trim() || "Gr1erPar ",
+      };
+      const creada = await api.crearActividadGrupo(convocatoriaId, req);
+      toast(`Actividad "${creada.titulo}" creada exitosamente`, "success");
+      setShowCrearActividadModal(false);
+      setActividadActiva(creada);
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al crear actividad de selección", "error");
+    } finally {
+      setCreandoActividad(false);
     }
   };
 
@@ -1906,6 +2176,22 @@ export default function AreaMoodlePage() {
               </button>
 
               <button
+                onClick={() => setActiveTab("grupos")}
+                className={`py-3.5 border-b-2 flex items-center gap-2 transition-all ${
+                  activeTab === "grupos"
+                    ? "border-accent text-accent"
+                    : "border-transparent text-ink-faint hover:text-ink"
+                }`}
+              >
+                <Users className="w-4 h-4" /> Grupos &amp; Equipos ({gruposArea.length})
+                {totalSinEquipoArea > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
+                    {totalSinEquipoArea} sin equipo
+                  </span>
+                )}
+              </button>
+
+              <button
                 onClick={() => setActiveTab("participantes")}
                 className={`py-3.5 border-b-2 flex items-center gap-2 transition-all ${
                   activeTab === "participantes"
@@ -1961,6 +2247,55 @@ export default function AreaMoodlePage() {
               /* SUBVISTA 1.A: GRID DE MÓDULOS + TAREAS GENERALES     */
               /* ==================================================== */
               <div className="space-y-6">
+                {/* Banner de Actividad de Selección de Grupo (Moodle Choice) en el flujo del aula */}
+                {actividadesGrupo.length > 0 && (
+                  <div className="bg-paper border border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-purple-500/5 via-paper to-paper">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                            Actividad de Selección de Grupo
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                              actividadesGrupo[0].abierta
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                                : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20"
+                            }`}
+                          >
+                            {actividadesGrupo[0].abierta ? "Abierta" : "Cerrada"}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-ink font-serif">
+                          {actividadesGrupo[0].titulo}
+                        </h4>
+                        <p className="text-[11px] text-ink-soft">
+                          {actividadesGrupo[0].grupoSeleccionadoNombre ? (
+                            <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
+                              ✓ Estás registrado en: {actividadesGrupo[0].grupoSeleccionadoNombre}
+                            </span>
+                          ) : (
+                            <span>Cupos limitados por grupo. Cierra el {formatMoodleDate(actividadesGrupo[0].fechaCierre)}.</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setActividadActiva(actividadesGrupo[0]);
+                        setActiveTab("grupos");
+                      }}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs justify-center"
+                    >
+                      {actividadesGrupo[0].grupoSeleccionadoNombre ? "Ver Mi Elección" : "Seleccionar Grupo"} <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
                 {/* Cabecera de la sección Módulos */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-paper border border-line rounded-2xl p-4 sm:p-5 shadow-xs">
                   <div>
@@ -2580,6 +2915,667 @@ export default function AreaMoodlePage() {
                   </div>
                 );
               })()
+            )}
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* PESTAÑA: GRUPOS Y SELECCIÓN MOODLE                   */}
+        {/* ==================================================== */}
+        {activeTab === "grupos" && (
+          <div className="space-y-6">
+            {user?.rol === "ESTUDIANTE" && !esEstudianteInscrito && convocatoria.estado !== "FINALIZADA" ? (
+              <div className="bg-paper border border-line rounded-2xl p-12 text-center space-y-3 shadow-xs">
+                <Lock className="w-10 h-10 text-ink-faint mx-auto" />
+                <h3 className="text-base font-serif font-bold text-ink">
+                  Acceso a Grupos y Equipos Reservado
+                </h3>
+                <p className="text-xs text-ink-soft max-w-md mx-auto leading-relaxed">
+                  Para participar en la selección o asignación de grupos debes estar formalmente admitido por el docente en esta área.
+                </p>
+                {esEstudiantePendiente && (
+                  <div className="pt-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                      <Clock className="w-3.5 h-3.5" /> Tu postulación está siendo revisada por el docente
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Resumen de Métricas de Grupos */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-paper border border-line rounded-2xl p-4 space-y-1 shadow-2xs">
+                    <span className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider block">
+                      Total Grupos
+                    </span>
+                    <b className="text-xl font-bold text-ink">{gruposArea.length}</b>
+                    <span className="text-[10px] text-ink-soft block">Grupos configurados</span>
+                  </div>
+
+                  <div className="bg-paper border border-line rounded-2xl p-4 space-y-1 shadow-2xs">
+                    <span className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider block">
+                      Estudiantes en Aula
+                    </span>
+                    <b className="text-xl font-bold text-blue-600">{totalEstudiantesArea}</b>
+                    <span className="text-[10px] text-ink-soft block">Admitidos oficialmente</span>
+                  </div>
+
+                  <div className="bg-paper border border-line rounded-2xl p-4 space-y-1 shadow-2xs">
+                    <span className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider block">
+                      Con Equipo
+                    </span>
+                    <b className="text-xl font-bold text-emerald-600">{totalConEquipoArea}</b>
+                    <span className="text-[10px] text-ink-soft block">
+                      {totalEstudiantesArea > 0 ? `${Math.round((totalConEquipoArea / totalEstudiantesArea) * 100)}% asignados` : "0%"}
+                    </span>
+                  </div>
+
+                  <div className="bg-paper border border-line rounded-2xl p-4 space-y-1 shadow-2xs">
+                    <span className="text-[11px] font-semibold text-ink-faint uppercase tracking-wider block">
+                      Sin Equipo
+                    </span>
+                    <b className={`text-xl font-bold ${totalSinEquipoArea > 0 ? "text-amber-600" : "text-ink"}`}>
+                      {totalSinEquipoArea}
+                    </b>
+                    <span className="text-[10px] text-ink-soft block">
+                      {totalSinEquipoArea > 0 ? "Requieren asignación" : "Todos tienen grupo"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ========================================================= */}
+                {/* SECCIÓN 1: ACTIVIDAD DE SELECCIÓN DE GRUPO (MOODLE CHOICE) */}
+                {/* ========================================================= */}
+                {actividadActiva ? (
+                  <div className="bg-paper border border-line rounded-2xl p-6 sm:p-8 space-y-6 shadow-xs">
+                    {/* Encabezado Moodle con Icono Púrpura */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-line pb-5">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0 text-purple-600 dark:text-purple-400">
+                          <Users className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                              Actividad Moodle Choice
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                                actividadActiva.abierta
+                                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                                  : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20"
+                              }`}
+                            >
+                              {actividadActiva.abierta ? "Abierta para Registro" : "Actividad Cerrada"}
+                            </span>
+                          </div>
+                          <h2 className="text-xl sm:text-2xl font-bold font-serif text-ink">
+                            {actividadActiva.titulo}
+                          </h2>
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-ink-soft pt-1">
+                            <span className="flex items-center gap-1 font-medium">
+                              <Calendar className="w-3.5 h-3.5 text-ink-faint" />
+                              <b>Abierto:</b> {formatMoodleDate(actividadActiva.fechaApertura)}
+                            </span>
+                            <span className="flex items-center gap-1 font-medium">
+                              <Clock className="w-3.5 h-3.5 text-ink-faint" />
+                              <b>Cierra:</b> {formatMoodleDate(actividadActiva.fechaCierre)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Selector si hay múltiples actividades de grupo */}
+                      {actividadesGrupo.length > 1 && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-ink-faint">Actividad:</span>
+                          <select
+                            value={actividadActiva.id}
+                            onChange={(e) => {
+                              const found = actividadesGrupo.find((a) => a.id === Number(e.target.value));
+                              if (found) {
+                                setActividadActiva(found);
+                                setSelectedGrupoRadioId(found.grupoSeleccionadoId || null);
+                              }
+                            }}
+                            className="bg-paper-sunken border border-line rounded-xl px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-accent"
+                          >
+                            {actividadesGrupo.map((act) => (
+                              <option key={act.id} value={act.id}>
+                                {act.titulo}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Descripción / Instrucciones de la actividad */}
+                    {actividadActiva.descripcion && (
+                      <div className="bg-paper-sunken/60 border border-line rounded-xl p-4 text-xs text-ink-soft leading-relaxed">
+                        <p>{actividadActiva.descripcion}</p>
+                      </div>
+                    )}
+
+                    {/* Banner de Estado del Estudiante (Heurística de Nielsen: Visibilidad del Estado) */}
+                    {actividadActiva.cerrada ? (
+                      <div className="bg-rose-500/10 border border-rose-500/25 rounded-xl p-4 flex items-center gap-3 text-rose-700 dark:text-rose-300 text-xs font-medium">
+                        <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600" />
+                        <div>
+                          <span>
+                            Lamentablemente esta actividad cerró el <b>{formatMoodleDate(actividadActiva.fechaCierre)}</b> y ya no está disponible para cambios o nuevas elecciones.
+                          </span>
+                          {actividadActiva.grupoSeleccionadoNombre && (
+                            <span className="block mt-1 font-semibold">
+                              Quedaste formalmente registrado en: <u>{actividadActiva.grupoSeleccionadoNombre}</u>.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : actividadActiva.grupoSeleccionadoNombre ? (
+                      <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-4 flex items-center justify-between gap-3 text-emerald-800 dark:text-emerald-200 text-xs">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle className="w-5 h-5 shrink-0 text-emerald-600" />
+                          <div>
+                            <span className="font-normal text-ink-soft">Su elección confirmada:</span>{" "}
+                            <b className="text-sm font-bold text-ink">{actividadActiva.grupoSeleccionadoNombre}</b>
+                          </div>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white uppercase tracking-wider shadow-2xs">
+                          Registrado
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-center gap-3 text-blue-700 dark:text-blue-300 text-xs">
+                        <Info className="w-5 h-5 shrink-0 text-blue-600" />
+                        <span>
+                          Aún no ha seleccionado un grupo. Seleccione el grupo de su preferencia marcando la casilla correspondiente en la tabla y confirme con el botón <b>Guardar mi elección</b>.
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Tabla de Selección estilo Moodle (Fiel reproducción de image.png) */}
+                    <div className="border border-line rounded-2xl overflow-hidden shadow-2xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-paper-sunken/90 border-b border-line text-ink-faint font-semibold uppercase tracking-wider text-[11px]">
+                              <th className="py-3 px-4 text-center w-20">Elección</th>
+                              <th className="py-3 px-4">Grupo</th>
+                              <th className="py-3 px-4 text-center w-36">Miembros / Capacidad</th>
+                              <th className="py-3 px-4">
+                                <div className="flex items-center justify-between">
+                                  <span>Miembros del grupo</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOcultarMiembros(!ocultarMiembros)}
+                                    className="px-2.5 py-1 rounded-lg bg-paper border border-line text-[11px] font-semibold text-ink hover:bg-paper-sunken transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                  >
+                                    {ocultarMiembros ? <Eye className="w-3.5 h-3.5 text-accent" /> : <EyeOff className="w-3.5 h-3.5 text-ink-faint" />}
+                                    {ocultarMiembros ? "Mostrar miembros del grupo" : "Ocultar miembros del grupo"}
+                                  </button>
+                                </div>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-line">
+                            {(actividadActiva.grupos && actividadActiva.grupos.length > 0 ? actividadActiva.grupos : gruposArea).length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="py-8 text-center text-ink-soft">
+                                  No hay grupos configurados para esta actividad aún.
+                                </td>
+                              </tr>
+                            ) : (
+                              (actividadActiva.grupos && actividadActiva.grupos.length > 0 ? actividadActiva.grupos : gruposArea).map((g) => {
+                                const esMiEleccion = actividadActiva.grupoSeleccionadoId === g.id;
+                                const isRadioSelected = selectedGrupoRadioId === g.id;
+                                const maxCap = g.capacidadMaxima || actividadActiva.capacidadPorGrupo || 5;
+                                const pct = Math.min(100, Math.round((g.cantidadMiembros / maxCap) * 100));
+                                const isDisabled = (g.completo && !esMiEleccion) || actividadActiva.cerrada || (!esEstudianteInscrito && !puedeGestionarTareas);
+
+                                return (
+                                  <tr
+                                    key={g.id}
+                                    className={`transition-colors ${
+                                      isRadioSelected
+                                        ? "bg-accent/5 dark:bg-accent/10"
+                                        : "hover:bg-paper-sunken/40"
+                                    }`}
+                                  >
+                                    {/* Columna 1: Radio de Elección */}
+                                    <td className="py-3 px-4 text-center align-middle">
+                                      <input
+                                        type="radio"
+                                        id={`radio-grupo-${g.id}`}
+                                        name="moodle_choice_radio"
+                                        checked={isRadioSelected}
+                                        disabled={isDisabled}
+                                        onChange={() => setSelectedGrupoRadioId(g.id)}
+                                        className="w-4 h-4 text-purple-600 focus:ring-purple-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                                      />
+                                    </td>
+
+                                    {/* Columna 2: Nombre de Grupo y Badge de Completo */}
+                                    <td className="py-3 px-4 align-middle">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <label
+                                          htmlFor={`radio-grupo-${g.id}`}
+                                          className={`font-semibold text-ink cursor-pointer ${
+                                            isDisabled && !isRadioSelected ? "opacity-60 cursor-not-allowed" : ""
+                                          }`}
+                                        >
+                                          {g.nombre}
+                                        </label>
+
+                                        {g.completo && (
+                                          <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/25">
+                                            (Completo)
+                                          </span>
+                                        )}
+
+                                        {esMiEleccion && (
+                                          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
+                                            Tu elección
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+
+                                    {/* Columna 3: Miembros / Capacidad */}
+                                    <td className="py-3 px-4 text-center align-middle">
+                                      <span className="font-semibold text-ink block text-xs">
+                                        {g.cantidadMiembros} / {maxCap}
+                                      </span>
+                                      <div className="w-20 mx-auto bg-line-soft h-1.5 rounded-full overflow-hidden mt-1">
+                                        <div
+                                          className={`h-full rounded-full transition-all ${
+                                            g.completo
+                                              ? "bg-rose-500"
+                                              : pct > 75
+                                              ? "bg-amber-500"
+                                              : "bg-purple-600"
+                                          }`}
+                                          style={{ width: `${pct}%` }}
+                                        />
+                                      </div>
+                                    </td>
+
+                                    {/* Columna 4: Miembros del Grupo */}
+                                    <td className="py-3 px-4 align-middle">
+                                      {ocultarMiembros ? (
+                                        <span className="text-ink-faint italic text-xs">
+                                          Nombres ocultos por preferencia
+                                        </span>
+                                      ) : g.miembros && g.miembros.length > 0 ? (
+                                        <div className="space-y-1">
+                                          {g.miembros.map((m, idx) => (
+                                            <div
+                                              key={m.participanteId}
+                                              className="flex items-center justify-between text-xs py-0.5 group/m"
+                                            >
+                                              <span className="text-ink">
+                                                <b className="text-ink-faint mr-1">{idx + 1}.</b>
+                                                <span className="uppercase font-medium tracking-wide">
+                                                  {m.nombreCompleto}
+                                                </span>
+                                              </span>
+
+                                              {puedeGestionarTareas && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleRemoverEstudianteDeGrupo(
+                                                      g.id,
+                                                      m.participanteId,
+                                                      m.nombreCompleto
+                                                    )
+                                                  }
+                                                  className="text-ink-faint hover:text-rose-600 opacity-0 group-hover/m:opacity-100 transition-opacity p-0.5 ml-2 cursor-pointer"
+                                                  title="Retirar estudiante de este grupo"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <span className="text-ink-faint italic text-xs">
+                                          Sin miembros registrados
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Acciones de Elección (Exactamente como Moodle Choice) */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-line">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleGuardarEleccionGrupo(actividadActiva.id)}
+                          disabled={
+                            procesandoEleccion ||
+                            !selectedGrupoRadioId ||
+                            actividadActiva.cerrada ||
+                            (!esEstudianteInscrito && !puedeGestionarTareas)
+                          }
+                          className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {procesandoEleccion ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Save className="w-3.5 h-3.5" />
+                          )}
+                          Guardar mi elección
+                        </button>
+
+                        {actividadActiva.grupoSeleccionadoId && !actividadActiva.cerrada && (
+                          <button
+                            type="button"
+                            onClick={() => handleAnularEleccionGrupo(actividadActiva.id)}
+                            disabled={procesandoEleccion}
+                            className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                            Eliminar mi elección
+                          </button>
+                        )}
+                      </div>
+
+                      <span className="text-[11px] text-ink-faint">
+                        {actividadActiva.cerrada
+                          ? "El plazo límite ha finalizado."
+                          : "Puedes modificar tu selección mientras la actividad permanezca abierta."}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Si no hay actividad de selección Moodle configurada */
+                  <div className="bg-paper border border-line rounded-2xl p-8 text-center space-y-3 shadow-2xs">
+                    <Users className="w-10 h-10 text-ink-faint mx-auto" />
+                    <h3 className="text-base font-serif font-bold text-ink">
+                      Sin actividades de selección de grupo activas
+                    </h3>
+                    <p className="text-xs text-ink-soft max-w-md mx-auto leading-relaxed">
+                      {puedeGestionarTareas
+                        ? "Puedes crear una actividad de selección de grupo (Moodle Choice) para que los estudiantes se registren autónomamente, o asignar los grupos de forma manual a continuación."
+                        : "El docente aún no ha publicado una actividad de elección de grupo. Te informaremos cuando esté disponible para el registro."}
+                    </p>
+                    {puedeGestionarTareas && (
+                      <button
+                        onClick={() => setShowCrearActividadModal(true)}
+                        className="mt-2 px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold inline-flex items-center gap-2 cursor-pointer shadow-xs"
+                      >
+                        <PlusCircle className="w-4 h-4" /> Crear Actividad de Selección de Grupo
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* ========================================================= */}
+                {/* SECCIÓN 2: GESTIÓN DOCENTE Y ADMIN DE GRUPOS & EQUIPOS     */}
+                {/* ========================================================= */}
+                {puedeGestionarTareas && (
+                  <div className="bg-paper border border-line rounded-2xl p-6 sm:p-8 space-y-6 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-line pb-4">
+                      <div>
+                        <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
+                          <FolderKanban className="w-5 h-5 text-accent" /> Panel Docente: Orquestación de Equipos
+                        </h3>
+                        <p className="text-xs text-ink-soft">
+                          Administra cupos, genera lotes de grupos y asigna a los estudiantes admitidos.
+                        </p>
+                      </div>
+
+                      {/* Botones de acción Docente / Admin */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => setShowCrearGrupoModal(true)}
+                          className="px-3.5 py-2 bg-paper-sunken hover:bg-paper border border-line text-ink rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5 text-accent" /> + Crear Grupo
+                        </button>
+
+                        <button
+                          onClick={() => setShowGenerarLoteModal(true)}
+                          className="px-3.5 py-2 bg-paper-sunken hover:bg-paper border border-line text-ink rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Generar Lote (N Grupos)
+                        </button>
+
+                        <button
+                          onClick={() => setShowCrearActividadModal(true)}
+                          className="px-3.5 py-2 bg-ink hover:bg-black text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                        >
+                          <ListPlus className="w-3.5 h-3.5" /> + Actividad de Registro
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* BANDEJA: ESTUDIANTES SIN EQUIPO (E.G. DANIEL Y BRANDON AL INSCRIBIRSE) */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-amber-600" />
+                          <h4 className="text-xs font-bold uppercase text-ink tracking-wider">
+                            Estudiantes sin equipo ({estudiantesSinEquipo.length})
+                          </h4>
+                        </div>
+                        {estudiantesSinEquipo.length > 0 && (
+                          <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
+                            Pendientes de asignación
+                          </span>
+                        )}
+                      </div>
+
+                      {estudiantesSinEquipo.length === 0 ? (
+                        <div className="bg-paper-sunken/40 border border-line rounded-xl p-4 text-center text-xs text-ink-soft">
+                          ✓ Todos los estudiantes admitidos en esta área ya se encuentran asignados a un grupo de trabajo.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {estudiantesSinEquipo.map((est) => (
+                            <div
+                              key={est.id}
+                              className="bg-paper-sunken/50 border border-line rounded-xl p-3 flex flex-col justify-between gap-3 shadow-2xs"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold flex items-center justify-center text-xs shrink-0">
+                                  {est.nombre.charAt(0)}
+                                </div>
+                                <div className="overflow-hidden">
+                                  <b className="text-xs text-ink block truncate">
+                                    {est.nombre} {est.apellidos}
+                                  </b>
+                                  <span className="text-[11px] text-ink-faint block truncate">
+                                    {est.email}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Dropdown de asignación rápida a un grupo */}
+                              <div className="pt-2 border-t border-line-soft">
+                                <label className="text-[10px] font-semibold text-ink-faint block mb-1">
+                                  Asignar rápidamente a:
+                                </label>
+                                <select
+                                  disabled={asignandoParticipanteId === est.id}
+                                  onChange={(e) => {
+                                    const gid = Number(e.target.value);
+                                    if (gid) {
+                                      handleAsignarEstudianteAGrupo(
+                                        est.id,
+                                        gid,
+                                        `${est.nombre} ${est.apellidos}`
+                                      );
+                                    }
+                                  }}
+                                  value=""
+                                  className="w-full bg-paper border border-line rounded-lg px-2.5 py-1.5 text-xs text-ink focus:outline-none focus:border-accent cursor-pointer"
+                                >
+                                  <option value="">-- Seleccionar grupo destino --</option>
+                                  {gruposArea.map((g) => (
+                                    <option key={g.id} value={g.id} disabled={g.completo}>
+                                      {g.nombre} ({g.cantidadMiembros}/{g.capacidadMaxima || "∞"}{g.completo ? " - COMPLETO" : ""})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* DIRECTORIO DE TODOS LOS GRUPOS DEL ÁREA */}
+                    <div className="space-y-3 pt-4 border-t border-line">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase text-ink tracking-wider">
+                          Directorio de Grupos del Área ({gruposArea.length})
+                        </h4>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {gruposArea.map((g) => {
+                          const maxCap = g.capacidadMaxima || 5;
+                          const pct = Math.min(100, Math.round((g.cantidadMiembros / maxCap) * 100));
+
+                          return (
+                            <div
+                              key={g.id}
+                              className="bg-paper-sunken/40 border border-line rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-2xs hover:shadow-xs transition-shadow"
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <b className="text-sm font-semibold text-ink">{g.nombre}</b>
+                                  <div className="flex items-center gap-1.5">
+                                    <span
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                        g.completo
+                                          ? "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25"
+                                          : "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/25"
+                                      }`}
+                                    >
+                                      {g.cantidadMiembros} / {g.capacidadMaxima || "∞"} cupos
+                                    </span>
+                                    <button
+                                      onClick={() => handleEliminarGrupo(g.id, g.nombre)}
+                                      title="Eliminar grupo"
+                                      className="p-1 text-ink-faint hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {g.descripcion && (
+                                  <p className="text-[11px] text-ink-soft line-clamp-1">{g.descripcion}</p>
+                                )}
+
+                                {/* Barra de capacidad */}
+                                <div className="w-full bg-line-soft h-1.5 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      g.completo
+                                        ? "bg-rose-500"
+                                        : pct > 75
+                                        ? "bg-amber-500"
+                                        : "bg-purple-600"
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+
+                                {/* Lista de integrantes del grupo */}
+                                <div className="pt-2 border-t border-line-soft space-y-1">
+                                  <span className="text-[10px] font-semibold text-ink-faint uppercase block">
+                                    Integrantes ({g.miembros.length}):
+                                  </span>
+                                  {g.miembros.length === 0 ? (
+                                    <span className="text-[11px] text-ink-faint italic block">
+                                      Sin integrantes registrados
+                                    </span>
+                                  ) : (
+                                    <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                                      {g.miembros.map((m) => (
+                                        <div
+                                          key={m.participanteId}
+                                          className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-paper border border-line-soft text-ink"
+                                        >
+                                          <div className="truncate pr-1">
+                                            <span className="font-medium uppercase block truncate text-[11px]">
+                                              {m.nombreCompleto}
+                                            </span>
+                                            <span className="text-[9px] text-ink-faint block truncate">
+                                              {m.email}
+                                            </span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleRemoverEstudianteDeGrupo(
+                                                g.id,
+                                                m.participanteId,
+                                                m.nombreCompleto
+                                              )
+                                            }
+                                            className="text-ink-faint hover:text-rose-600 p-0.5 rounded cursor-pointer"
+                                            title="Retirar del grupo"
+                                          >
+                                            <XCircle className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Acción rápida: Añadir un estudiante sin equipo a este grupo */}
+                              {!g.completo && estudiantesSinEquipo.length > 0 && (
+                                <div className="pt-2 border-t border-line-soft">
+                                  <select
+                                    onChange={(e) => {
+                                      const pid = Number(e.target.value);
+                                      if (pid) {
+                                        const est = estudiantesSinEquipo.find((x) => x.id === pid);
+                                        if (est) {
+                                          handleAsignarEstudianteAGrupo(
+                                            est.id,
+                                            g.id,
+                                            `${est.nombre} ${est.apellidos}`
+                                          );
+                                        }
+                                      }
+                                    }}
+                                    value=""
+                                    className="w-full bg-paper border border-line rounded-lg px-2 py-1 text-[11px] text-ink focus:outline-none focus:border-accent cursor-pointer"
+                                  >
+                                    <option value="">+ Añadir estudiante sin equipo...</option>
+                                    {estudiantesSinEquipo.map((est) => (
+                                      <option key={est.id} value={est.id}>
+                                        {est.nombre} {est.apellidos}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -3708,6 +4704,313 @@ export default function AreaMoodlePage() {
                     className="px-4 py-1.5 rounded-xl bg-danger text-white font-semibold hover:bg-opacity-95 shadow-sm disabled:opacity-50"
                   >
                     {procesandoAdmision ? "Procesando..." : "Confirmar Rechazo"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* MODAL: CREAR GRUPO INDIVIDUAL (DOCENTE/ADMIN)        */}
+        {/* ==================================================== */}
+        {showCrearGrupoModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-paper border border-line rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-line pb-3">
+                <h3 className="font-serif text-base font-bold text-ink flex items-center gap-2">
+                  <PlusCircle className="w-5 h-5 text-accent" /> Crear Nuevo Grupo
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCrearGrupoModal(false)}
+                  className="text-ink-faint hover:text-ink text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleCrearGrupo} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-semibold text-ink block mb-1">Nombre del Grupo *</label>
+                  <input
+                    type="text"
+                    required
+                    value={nuevoGrupoNombre}
+                    onChange={(e) => setNuevoGrupoNombre(e.target.value)}
+                    placeholder="Ej. Gr1erPar 1 o Grupo Alfa"
+                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink block mb-1">Descripción (Opcional)</label>
+                  <textarea
+                    rows={2}
+                    value={nuevoGrupoDesc}
+                    onChange={(e) => setNuevoGrupoDesc(e.target.value)}
+                    placeholder="Ej. Grupo de laboratorio y defensa de proyectos..."
+                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink block mb-1">
+                    Capacidad Máxima de Integrantes
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={nuevoGrupoCapacidad}
+                    onChange={(e) => setNuevoGrupoCapacidad(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                  />
+                  <span className="text-[11px] text-ink-faint mt-1 block">
+                    Por defecto: 5 integrantes como en Moodle.
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
+                  <button
+                    type="button"
+                    onClick={() => setShowCrearGrupoModal(false)}
+                    className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creandoGrupo}
+                    className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {creandoGrupo ? "Creando..." : "Crear Grupo"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* MODAL: GENERAR LOTE DE GRUPOS (DOCENTE/ADMIN)        */}
+        {/* ==================================================== */}
+        {showGenerarLoteModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-paper border border-line rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-line pb-3">
+                <h3 className="font-serif text-base font-bold text-ink flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-600" /> Generar Lote de Grupos
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowGenerarLoteModal(false)}
+                  className="text-ink-faint hover:text-ink text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleGenerarLoteGrupos} className="space-y-4 text-xs">
+                <p className="text-ink-soft leading-relaxed">
+                  Crea automáticamente múltiples grupos secuenciales con un mismo prefijo y límite de integrantes (por ejemplo: <code>Gr1erPar 1</code> hasta <code>Gr1erPar 10</code>).
+                </p>
+
+                <div>
+                  <label className="font-semibold text-ink block mb-1">Prefijo de Nombre *</label>
+                  <input
+                    type="text"
+                    required
+                    value={lotePrefijo}
+                    onChange={(e) => setLotePrefijo(e.target.value)}
+                    placeholder="Ej. Gr1erPar  o Grupo "
+                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-ink block mb-1">Cantidad de Grupos *</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={100}
+                      value={loteCantidad}
+                      onChange={(e) => setLoteCantidad(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-ink block mb-1">Cupo por Grupo *</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={100}
+                      value={loteCapacidad}
+                      onChange={(e) => setLoteCapacidad(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
+                  <button
+                    type="button"
+                    onClick={() => setShowGenerarLoteModal(false)}
+                    className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={generandoLote}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {generandoLote ? "Generando Lote..." : `Generar ${loteCantidad} Grupos`}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* MODAL: CREAR ACTIVIDAD DE SELECCIÓN (MOODLE CHOICE)  */}
+        {/* ==================================================== */}
+        {showCrearActividadModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-line pb-3">
+                <h3 className="font-serif text-base font-bold text-ink flex items-center gap-2">
+                  <ListPlus className="w-5 h-5 text-accent" /> Nueva Actividad: Selección de Grupo (Moodle Choice)
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCrearActividadModal(false)}
+                  className="text-ink-faint hover:text-ink text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleCrearActividadGrupo} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-semibold text-ink block mb-1">Título de la Actividad *</label>
+                  <input
+                    type="text"
+                    required
+                    value={nuevaActTitulo}
+                    onChange={(e) => setNuevaActTitulo(e.target.value)}
+                    placeholder="Ej. Seleccionar grupo para 1er examen parcial"
+                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink block mb-1">Instrucciones para los Estudiantes</label>
+                  <textarea
+                    rows={3}
+                    value={nuevaActDesc}
+                    onChange={(e) => setNuevaActDesc(e.target.value)}
+                    placeholder="Ej. Seleccionar número de grupo según se les asignó en la hoja de clases..."
+                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-ink block mb-1">Fecha y Hora de Apertura</label>
+                    <input
+                      type="datetime-local"
+                      value={nuevaActApertura}
+                      onChange={(e) => setNuevaActApertura(e.target.value)}
+                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-ink block mb-1">Fecha y Hora de Cierre (Límite)</label>
+                    <input
+                      type="datetime-local"
+                      value={nuevaActCierre}
+                      onChange={(e) => setNuevaActCierre(e.target.value)}
+                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink block mb-1">Límite de Cupos por Grupo</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={nuevaActCapacidad}
+                    onChange={(e) => setNuevaActCapacidad(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                  />
+                </div>
+
+                {/* Generación automática de grupos iniciales */}
+                <div className="bg-paper-sunken/60 p-4 rounded-xl border border-line space-y-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={nuevaActGenerarGrupos}
+                      onChange={(e) => setNuevaActGenerarGrupos(e.target.checked)}
+                      className="w-4 h-4 text-accent rounded focus:ring-accent"
+                    />
+                    <b className="text-ink">Generar grupos automáticamente para esta actividad</b>
+                  </label>
+
+                  {nuevaActGenerarGrupos && (
+                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-line-soft">
+                      <div>
+                        <label className="text-[10px] font-semibold text-ink-faint block mb-1">
+                          Cantidad de Grupos
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={50}
+                          value={nuevaActCantidadGrupos}
+                          onChange={(e) => setNuevaActCantidadGrupos(Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:border-accent"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-ink-faint block mb-1">
+                          Prefijo
+                        </label>
+                        <input
+                          type="text"
+                          value={nuevaActPrefijo}
+                          onChange={(e) => setNuevaActPrefijo(e.target.value)}
+                          placeholder="Gr1erPar "
+                          className="w-full px-2.5 py-1.5 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:border-accent"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
+                  <button
+                    type="button"
+                    onClick={() => setShowCrearActividadModal(false)}
+                    className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creandoActividad}
+                    className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {creandoActividad ? "Guardando..." : "Publicar Actividad"}
                   </button>
                 </div>
               </form>
