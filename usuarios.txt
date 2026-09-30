@@ -1,0 +1,31 @@
+========================================================================================
+                      SISTEMA FICCT INVESTIGACIÓN - CREDENCIALES
+========================================================================================
+
+ROL          | NOMBRE                    | USUARIO (EMAIL)               | CONTRASEÑA
+-------------+---------------------------+-------------------------------+----------------
+ADMIN        | Administrador             | admin@uagrm.edu.bo            | admin369
+DOCENTE      | Rolando Martínez Canedo   | rmartinez@uagrm.edu.bo        | docente123
+JURADO       | Carlos Fernández          | cfernandez@uagrm.edu.bo       | jurado123
+ESTUDIANTE   | Daniel Quispe Choque      | daniel.quispe@uagrm.edu.bo    | estudiante123
+ESTUDIANTE   | Daniel Quispe (alias)     | dquispe@uagrm.edu.bo          | estudiante123
+ESTUDIANTE   | Brandon Vásquez           | brandon.vasquez@uagrm.edu.bo  | estudiante123
+ESTUDIANTE   | Estudiante Prueba         | estudiante@uagrm.edu.bo       | estudiante123
+ESTUDIANTE   | Nataly Rojas              | nataly@ficct.uagrm.edu.bo     | Alumno123!
+             |                           | (alias: nataly@ficct.edu.bo)  | 
+ESTUDIANTE   | Lucas Gutiérrez           | lucas@ficct.uagrm.edu.bo      | Alumno123!
+             |                           | (alias: lucas@ficct.edu.bo)   | 
+ESTUDIANTE   | Mateo Salazar             | mateo@ficct.uagrm.edu.bo      | Alumno123!
+             |                           | (alias: mateo@ficct.edu.bo)   | 
+ESTUDIANTE   | Camila Vargas             | camila@ficct.uagrm.edu.bo     | Alumno123!
+             |                           | (alias: camila@ficct.edu.bo)  | 
+ESTUDIANTE   | Sebastián Castro          | sebastian@ficct.uagrm.edu.bo  | Alumno123!
+             |                           | (alias: sebastian@ficct.edu.bo)| 
+
+----------------------------------------------------------------------------------------
+* Nota: Creados automáticamente en la base de datos mediante DataSeeder.
+* Los 5 nuevos estudiantes ingresan como alumnos individuales sin equipo.
+* Contraseña común para los 5 nuevos estudiantes: Alumno123!
+* Usuario de prueba en scripts E2E:
+  ESTUDIANTE / DOCENTE: carlos.mendoza@uagrm.edu.bo / password123
+========================================================================================

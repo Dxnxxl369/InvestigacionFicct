@@ -516,6 +516,10 @@ public class ConvocatoriaService {
         Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
                 .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + convocatoriaId));
 
+        String nombreEquipoFinal = (request != null && request.getNombreEquipo() != null && !request.getNombreEquipo().trim().isEmpty())
+                ? request.getNombreEquipo().trim()
+                : null;
+
         Optional<ConvocatoriaParticipante> existente = participanteRepository.findByConvocatoriaIdAndUsuarioId(convocatoriaId, estudiante.getId());
         if (existente.isPresent()) {
             ConvocatoriaParticipante cp = existente.get();
@@ -530,9 +534,7 @@ public class ConvocatoriaService {
             cp.setFechaSolicitud(LocalDateTime.now());
             cp.setFechaRespuesta(null);
             cp.setMotivoRechazo(null);
-            if (request != null && request.getNombreEquipo() != null && !request.getNombreEquipo().isBlank()) {
-                cp.setNombreEquipo(request.getNombreEquipo().trim());
-            }
+            cp.setNombreEquipo(nombreEquipoFinal);
             return new ConvocatoriaParticipanteDTO(participanteRepository.save(cp));
         }
 
@@ -541,7 +543,7 @@ public class ConvocatoriaService {
                 estudiante,
                 Rol.ESTUDIANTE,
                 EstadoInscripcion.PENDIENTE,
-                (request != null && request.getNombreEquipo() != null) ? request.getNombreEquipo().trim() : null,
+                nombreEquipoFinal,
                 estudiante
         );
 

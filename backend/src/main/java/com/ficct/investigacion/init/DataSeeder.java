@@ -150,6 +150,47 @@ public class DataSeeder implements CommandLineRunner {
             System.out.println(">> [DataSeeder] Estudiante creado: brandon.vasquez@uagrm.edu.bo / estudiante123");
         }
 
+        // 5 Estudiantes adicionales para pruebas y asignación de grupos
+        String passAlumnos = passwordEncoder.encode("Alumno123!");
+
+        if (!userRepository.existsByEmail("nataly@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Nataly", "Rojas", "nataly@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: nataly@ficct.uagrm.edu.bo / Alumno123!");
+        }
+        if (!userRepository.existsByEmail("lucas@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Lucas", "Gutiérrez", "lucas@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: lucas@ficct.uagrm.edu.bo / Alumno123!");
+        }
+        if (!userRepository.existsByEmail("mateo@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Mateo", "Salazar", "mateo@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: mateo@ficct.uagrm.edu.bo / Alumno123!");
+        }
+        if (!userRepository.existsByEmail("camila@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Camila", "Vargas", "camila@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: camila@ficct.uagrm.edu.bo / Alumno123!");
+        }
+        if (!userRepository.existsByEmail("sebastian@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Sebastián", "Castro", "sebastian@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: sebastian@ficct.uagrm.edu.bo / Alumno123!");
+        }
+
+        // Aliases cortos con @ficct.edu.bo para acceso fácil
+        if (!userRepository.existsByEmail("nataly@ficct.edu.bo")) {
+            userRepository.save(new User("Nataly", "Rojas", "nataly@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+        }
+        if (!userRepository.existsByEmail("lucas@ficct.edu.bo")) {
+            userRepository.save(new User("Lucas", "Gutiérrez", "lucas@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+        }
+        if (!userRepository.existsByEmail("mateo@ficct.edu.bo")) {
+            userRepository.save(new User("Mateo", "Salazar", "mateo@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+        }
+        if (!userRepository.existsByEmail("camila@ficct.edu.bo")) {
+            userRepository.save(new User("Camila", "Vargas", "camila@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+        }
+        if (!userRepository.existsByEmail("sebastian@ficct.edu.bo")) {
+            userRepository.save(new User("Sebastián", "Castro", "sebastian@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+        }
+
         // 2. Sembrar Convocatorias Iniciales
         if (convocatoriaRepository.count() == 0) {
             User creador = userRepository.findByEmail("admin@uagrm.edu.bo").orElse(daniel);
@@ -305,16 +346,16 @@ public class DataSeeder implements CommandLineRunner {
                 if (jurado != null) {
                     participanteRepository.save(new ConvocatoriaParticipante(feria, jurado, Rol.JURADO, EstadoInscripcion.ACEPTADO, null, admin));
                 }
-                // Inscribir Estudiantes Admitidos en la Feria
+                // Inscribir Estudiantes Admitidos en la Feria (individuales sin equipo por defecto)
                 if (daniel != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, daniel, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, "Equipo ByteWarriors", daniel));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, daniel, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, null, daniel));
                 }
                 if (brandon != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, brandon, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, "Equipo ByteWarriors", brandon));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, brandon, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, null, brandon));
                 }
                 // Sembrar solicitud pendiente de prueba para que docente/admin puedan probar admisión
                 if (estGen != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, estGen, Rol.ESTUDIANTE, EstadoInscripcion.PENDIENTE, "Grupo Sigma FICCT", estGen));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, estGen, Rol.ESTUDIANTE, EstadoInscripcion.PENDIENTE, null, estGen));
                 }
 
                 // Sembrar Módulos de Aprendizaje estilo LMS

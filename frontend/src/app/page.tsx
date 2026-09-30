@@ -451,7 +451,7 @@ export default function HomePage() {
                   type="text"
                   value={nombreEquipoInput}
                   onChange={(e) => setNombreEquipoInput(e.target.value)}
-                  placeholder="Ej: ByteWarriors (o déjalo vacío para postular individual)"
+                  placeholder="Dejar en blanco si te postulas de forma individual"
                   className="w-full px-3.5 py-2.5 text-xs bg-paper-raised text-ink border border-line rounded-xl focus:outline-none focus:border-accent"
                 />
                 <p className="text-[11px] text-ink-faint mt-1">

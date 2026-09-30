@@ -35,6 +35,7 @@ scrum-engine/
 /*.html
 !/mobile.html
 /*.txt
+!/usuarios.txt
 /*.ps1
 
 # OS and IDE Files

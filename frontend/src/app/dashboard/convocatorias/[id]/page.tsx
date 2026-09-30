@@ -4396,7 +4396,7 @@ export default function AreaMoodlePage() {
                     type="text"
                     value={nombreEquipo}
                     onChange={(e) => setNombreEquipo(e.target.value)}
-                    placeholder="Ej. ByteWarriors, InnovaTeam (dejar vacío si es individual)"
+                    placeholder="Dejar en blanco si te postulas de forma individual"
                     className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
                   />
                 </div>

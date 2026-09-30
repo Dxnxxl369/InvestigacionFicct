@@ -532,13 +532,13 @@ export default function ConvocatoriasListPage() {
                   <label className="block text-xs font-semibold text-ink mb-1">
                     Nombre del Equipo / Grupo (Opcional):
                   </label>
-                  <input
-                    type="text"
-                    value={nombreEquipo}
-                    onChange={(e) => setNombreEquipo(e.target.value)}
-                    placeholder="Ej: ByteWarriors, Innovadores FICCT..."
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-paper border border-line-soft focus:border-accent focus:outline-none"
-                  />
+                    <input
+                      type="text"
+                      value={nombreEquipo}
+                      onChange={(e) => setNombreEquipo(e.target.value)}
+                      placeholder="Dejar en blanco si te postulas de forma individual"
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-paper border border-line-soft focus:border-accent focus:outline-none"
+                    />
                   <span className="text-[10px] text-ink-faint block mt-1">
                     Si te postulas de manera individual, puedes dejarlo en blanco.
                   </span>
