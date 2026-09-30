@@ -340,19 +340,23 @@ export default function AreaMoodlePage() {
   const esDocenteEnEstaArea = Boolean(
     (user?.rol === "DOCENTE" && esCreador) ||
     participantes.some(
-      (p) => p.usuarioId === user?.id && p.rol === "DOCENTE" && p.estadoInscripcion === "ACEPTADO"
+      (p) => (p.usuarioId === user?.id || (user?.email && p.email?.toLowerCase() === user.email.toLowerCase())) && p.rol === "DOCENTE" && p.estadoInscripcion === "ACEPTADO"
     ) ||
     (user?.rol === "DOCENTE" && convocatoria?.docenteIds?.includes(user?.id || 0))
   );
   const esJuradoEnEstaArea = Boolean(
     participantes.some(
-      (p) => p.usuarioId === user?.id && p.rol === "JURADO" && p.estadoInscripcion === "ACEPTADO"
+      (p) => (p.usuarioId === user?.id || (user?.email && p.email?.toLowerCase() === user.email.toLowerCase())) && p.rol === "JURADO" && p.estadoInscripcion === "ACEPTADO"
     ) ||
     (user?.rol === "JURADO" && convocatoria?.juradoIds?.includes(user?.id || 0))
   );
-  const miParticipacion = participantes.find((p) => p.usuarioId === user?.id);
-  const esEstudianteInscrito = miParticipacion?.rol === "ESTUDIANTE" && miParticipacion?.estadoInscripcion === "ACEPTADO";
-  const esEstudiantePendiente = miParticipacion?.rol === "ESTUDIANTE" && miParticipacion?.estadoInscripcion === "PENDIENTE";
+  const miParticipacion = participantes.find(
+    (p) => p.usuarioId === user?.id || (user?.email && p.email?.toLowerCase() === user.email.toLowerCase())
+  );
+  const miEstadoInscripcion = miParticipacion?.estadoInscripcion || convocatoria?.miEstadoInscripcion;
+  const esEstudianteInscrito = (miParticipacion?.rol === "ESTUDIANTE" || user?.rol === "ESTUDIANTE") && miEstadoInscripcion === "ACEPTADO";
+  const esEstudiantePendiente = (miParticipacion?.rol === "ESTUDIANTE" || user?.rol === "ESTUDIANTE") && miEstadoInscripcion === "PENDIENTE";
+  const esEstudianteRechazado = (miParticipacion?.rol === "ESTUDIANTE" || user?.rol === "ESTUDIANTE") && miEstadoInscripcion === "RECHAZADO";
   const puedeGestionarTareas = esAdmin || esDocenteEnEstaArea;
   const puedeDesignarJurado = esAdmin || esDocenteEnEstaArea;
   const puedeAdmitirEstudiantes = esAdmin || esDocenteEnEstaArea;
@@ -642,12 +646,11 @@ export default function AreaMoodlePage() {
       await api.inscribirseConvocatoria(convocatoriaId, {
         nombreEquipo: nombreEquipo.trim() || undefined,
       });
-      toast("¡Inscripción confirmada! Ya eres parte activa de esta área.", "success");
+      toast("¡Solicitud enviada exitosamente! Tu postulación se encuentra en revisión por el docente encargado.", "success");
       setShowInscripcionModal(false);
       setNombreEquipo("");
 
-      const updated = await api.getParticipantesConvocatoria(convocatoriaId);
-      setParticipantes(updated);
+      await cargarDatos();
     } catch (err: any) {
       toast(err.message || "No se pudo completar la inscripción", "error");
     } finally {
@@ -673,8 +676,7 @@ export default function AreaMoodlePage() {
       setProcesandoAdmision(true);
       await api.admitirParticipante(convocatoriaId, participanteId);
       toast(`¡${nombreEstudiante} admitido exitosamente al aula!`, "success");
-      const updated = await api.getParticipantesConvocatoria(convocatoriaId);
-      setParticipantes(updated);
+      await cargarDatos();
     } catch (err: any) {
       toast(err.message || "No se pudo admitir al estudiante", "error");
     } finally {
@@ -692,8 +694,7 @@ export default function AreaMoodlePage() {
       toast(`Solicitud de ${selectedSolicitudForRechazo.nombre} rechazada`, "success");
       setSelectedSolicitudForRechazo(null);
       setMotivoRechazoInput("");
-      const updated = await api.getParticipantesConvocatoria(convocatoriaId);
-      setParticipantes(updated);
+      await cargarDatos();
     } catch (err: any) {
       toast(err.message || "No se pudo rechazar la solicitud", "error");
     } finally {
@@ -707,8 +708,7 @@ export default function AreaMoodlePage() {
     try {
       await api.declinarSolicitudConvocatoria(convocatoriaId);
       toast("Tu postulación ha sido cancelada exitosamente", "success");
-      const updated = await api.getParticipantesConvocatoria(convocatoriaId);
-      setParticipantes(updated);
+      await cargarDatos();
     } catch (err: any) {
       toast(err.message || "No se pudo declinar la solicitud", "error");
     }
@@ -2096,7 +2096,7 @@ export default function AreaMoodlePage() {
                   <>
                     {esEstudiantePendiente && (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/30 flex items-center gap-1.5">
+                        <span className="text-xs px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/30 flex items-center gap-1.5 shadow-xs">
                           <Clock className="w-3.5 h-3.5" /> Solicitud en Revisión
                         </span>
                         <button
@@ -2107,10 +2107,23 @@ export default function AreaMoodlePage() {
                         </button>
                       </div>
                     )}
-                    {!esEstudianteInscrito && !esEstudiantePendiente && (
+                    {esEstudianteRechazado && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 font-semibold border border-rose-500/30 flex items-center gap-1.5 shadow-xs">
+                          <XCircle className="w-3.5 h-3.5" /> Postulación Rechazada
+                        </span>
+                        <button
+                          onClick={() => setShowInscripcionModal(true)}
+                          className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" /> Volver a Postular
+                        </button>
+                      </div>
+                    )}
+                    {!esEstudianteInscrito && !esEstudiantePendiente && !esEstudianteRechazado && (
                       <button
                         onClick={() => setShowInscripcionModal(true)}
-                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5"
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <UserPlus className="w-4 h-4" /> Solicitar Inscripción al Área
                       </button>
@@ -2224,22 +2237,59 @@ export default function AreaMoodlePage() {
           <div className="space-y-6">
             {user?.rol === "ESTUDIANTE" && !esEstudianteInscrito && convocatoria.estado !== "FINALIZADA" ? (
               <div className="bg-paper border border-line rounded-2xl p-12 text-center space-y-3 shadow-xs">
-                <Lock className="w-10 h-10 text-ink-faint mx-auto" />
+                {esEstudianteRechazado ? (
+                  <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
+                ) : (
+                  <Lock className="w-10 h-10 text-ink-faint mx-auto" />
+                )}
                 <h3 className="text-base font-serif font-bold text-ink">
-                  Tareas reservadas para estudiantes admitidos
+                  {esEstudiantePendiente
+                    ? "Solicitud de admisión en revisión"
+                    : esEstudianteRechazado
+                    ? "Postulación no admitida"
+                    : "Tareas reservadas para estudiantes admitidos"}
                 </h3>
                 <p className="text-xs text-ink-soft max-w-md mx-auto leading-relaxed">
                   {esEstudiantePendiente
                     ? "Tu postulación a esta convocatoria se encuentra actualmente en revisión por el docente o administrador. Tan pronto como seas admitido, tendrás acceso a los módulos, tareas y evaluaciones."
+                    : esEstudianteRechazado
+                    ? miParticipacion?.motivoRechazo
+                      ? `Motivo indicado por el docente: "${miParticipacion.motivoRechazo}". Puedes enviar una nueva solicitud si has subsanado las observaciones.`
+                      : "Tu postulación a esta área no fue aprobada por el docente o administrador. Puedes enviar una nueva postulación si lo deseas."
                     : "Debes solicitar tu inscripción al área y esperar la admisión del docente encargado para acceder a los módulos y tareas del aula virtual."}
                 </p>
-                {!esEstudiantePendiente && (
-                  <button
-                    onClick={() => setShowInscripcionModal(true)}
-                    className="px-4 py-2 bg-accent text-white rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
-                  >
-                    <UserPlus className="w-4 h-4" /> Solicitar Inscripción al Área
-                  </button>
+                {esEstudiantePendiente && (
+                  <div className="pt-2 flex items-center justify-center gap-3">
+                    <span className="text-xs px-3.5 py-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/30 flex items-center gap-1.5 shadow-xs">
+                      <Clock className="w-4 h-4" /> En espera de respuesta del docente encargado
+                    </span>
+                    <button
+                      onClick={handleDeclinarSolicitudPropia}
+                      className="px-3.5 py-1.5 bg-danger-soft/20 text-danger hover:bg-danger-soft/40 rounded-xl text-xs font-semibold border border-danger/30 transition-all cursor-pointer"
+                    >
+                      Declinar Solicitud
+                    </button>
+                  </div>
+                )}
+                {esEstudianteRechazado && (
+                  <div className="pt-2 flex items-center justify-center">
+                    <button
+                      onClick={() => setShowInscripcionModal(true)}
+                      className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <UserPlus className="w-4 h-4" /> Volver a Postular
+                    </button>
+                  </div>
+                )}
+                {!esEstudiantePendiente && !esEstudianteRechazado && (
+                  <div className="pt-2 flex items-center justify-center">
+                    <button
+                      onClick={() => setShowInscripcionModal(true)}
+                      className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <UserPlus className="w-4 h-4" /> Solicitar Inscripción al Área
+                    </button>
+                  </div>
                 )}
               </div>
             ) : selectedModuloId === null ? (
@@ -3594,6 +3644,13 @@ export default function AreaMoodlePage() {
                 <p className="text-xs text-ink-soft max-w-md mx-auto leading-relaxed">
                   El directorio de estudiantes, equipos y participantes de esta área solo es visible para estudiantes formalmente admitidos, y se publicará de manera general una vez culminada la actividad.
                 </p>
+                {esEstudiantePendiente && (
+                  <div className="pt-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                      <Clock className="w-3.5 h-3.5" /> Tu postulación está en revisión por el docente encargado
+                    </span>
+                  </div>
+                )}
               </div>
             ) : (
               <>

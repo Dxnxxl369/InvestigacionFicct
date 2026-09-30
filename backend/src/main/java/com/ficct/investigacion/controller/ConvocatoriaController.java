@@ -54,9 +54,10 @@ public class ConvocatoriaController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getById(@PathVariable Long id) {
+    public ResponseEntity<?> getById(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            return ResponseEntity.ok(convocatoriaService.getById(id));
+            String email = userDetails != null ? userDetails.getUsername() : null;
+            return ResponseEntity.ok(convocatoriaService.obtenerPorIdConUsuario(id, email));
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("error", e.getMessage());

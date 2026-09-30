@@ -48,6 +48,9 @@ public class ActividadGrupoService {
         }
 
         if (usuario.getRol() == Rol.DOCENTE) {
+            if (convocatoria.getCreador() != null && convocatoria.getCreador().getId().equals(usuario.getId())) {
+                return;
+            }
             boolean esDocente = participanteRepository
                     .findByConvocatoriaIdAndUsuarioId(convocatoria.getId(), usuario.getId())
                     .map(p -> p.getRol() == Rol.DOCENTE && p.getEstadoInscripcion() == EstadoInscripcion.ACEPTADO)
