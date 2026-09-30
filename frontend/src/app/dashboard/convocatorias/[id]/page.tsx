@@ -427,11 +427,22 @@ export default function AreaMoodlePage() {
       if (actsGrupoData) {
         setActividadesGrupo(actsGrupoData || []);
         if (actsGrupoData.length > 0) {
-          const act = actsGrupoData[0];
-          setActividadActiva(act);
-          if (act.grupoSeleccionadoId) {
-            setSelectedGrupoRadioId(act.grupoSeleccionadoId);
-          }
+          setActividadActiva((prev) => {
+            if (prev) {
+              const updated = actsGrupoData.find((a) => a.id === prev.id);
+              if (updated) {
+                if (updated.grupoSeleccionadoId) {
+                  setSelectedGrupoRadioId(updated.grupoSeleccionadoId);
+                }
+                return updated;
+              }
+            }
+            const act = actsGrupoData[0];
+            if (act.grupoSeleccionadoId) {
+              setSelectedGrupoRadioId(act.grupoSeleccionadoId);
+            }
+            return act;
+          });
         }
       }
 
@@ -2322,52 +2333,60 @@ export default function AreaMoodlePage() {
               /* SUBVISTA 1.A: GRID DE MÓDULOS + TAREAS GENERALES     */
               /* ==================================================== */
               <div className="space-y-6">
-                {/* Banner de Actividad de Selección de Grupo (Moodle Choice) en el flujo del aula */}
+                {/* Banner de Actividades de Selección de Grupo (Moodle Choice) en el flujo del aula */}
                 {actividadesGrupo.length > 0 && (
-                  <div className="bg-paper border border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-purple-500/5 via-paper to-paper">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
-                            Actividad de Selección de Grupo
-                          </span>
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-                              actividadesGrupo[0].abierta
-                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
-                                : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20"
-                            }`}
-                          >
-                            {actividadesGrupo[0].abierta ? "Abierta" : "Cerrada"}
-                          </span>
+                  <div className="space-y-3">
+                    {actividadesGrupo.map((act) => (
+                      <div
+                        key={act.id}
+                        className="bg-paper border border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-purple-500/5 via-paper to-paper hover:border-purple-500/50 transition-all"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                                Actividad de Selección de Grupo
+                              </span>
+                              <span
+                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                                  act.abierta
+                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                                    : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20"
+                                }`}
+                              >
+                                {act.abierta ? "Abierta" : "Cerrada"}
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-bold text-ink font-serif">
+                              {act.titulo}
+                            </h4>
+                            <p className="text-[11px] text-ink-soft">
+                              {act.grupoSeleccionadoNombre ? (
+                                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
+                                  ✓ Estás registrado en: <u>{act.grupoSeleccionadoNombre}</u>
+                                </span>
+                              ) : (
+                                <span>Cupos limitados por grupo. Cierra el {formatMoodleDate(act.fechaCierre)}.</span>
+                              )}
+                            </p>
+                          </div>
                         </div>
-                        <h4 className="text-sm font-bold text-ink font-serif">
-                          {actividadesGrupo[0].titulo}
-                        </h4>
-                        <p className="text-[11px] text-ink-soft">
-                          {actividadesGrupo[0].grupoSeleccionadoNombre ? (
-                            <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
-                              ✓ Estás registrado en: {actividadesGrupo[0].grupoSeleccionadoNombre}
-                            </span>
-                          ) : (
-                            <span>Cupos limitados por grupo. Cierra el {formatMoodleDate(actividadesGrupo[0].fechaCierre)}.</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
 
-                    <button
-                      onClick={() => {
-                        setActividadActiva(actividadesGrupo[0]);
-                        setActiveTab("grupos");
-                      }}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs justify-center"
-                    >
-                      {actividadesGrupo[0].grupoSeleccionadoNombre ? "Ver Mi Elección" : "Seleccionar Grupo"} <ChevronRight className="w-4 h-4" />
-                    </button>
+                        <button
+                          onClick={() => {
+                            setActividadActiva(act);
+                            setSelectedGrupoRadioId(act.grupoSeleccionadoId || null);
+                            setActiveTab("grupos");
+                          }}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs justify-center"
+                        >
+                          {act.grupoSeleccionadoNombre ? "Ver / Modificar Elección" : "Seleccionar Grupo"} <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -2783,6 +2802,65 @@ export default function AreaMoodlePage() {
                       )}
                     </div>
 
+                    {/* Actividades de Selección de Grupo asociadas a este Módulo */}
+                    {actividadesGrupo.filter((a) => a.moduloId === moduloActual.id).length > 0 && (
+                      <div className="space-y-3">
+                        {actividadesGrupo
+                          .filter((a) => a.moduloId === moduloActual.id)
+                          .map((act) => (
+                            <div
+                              key={act.id}
+                              className="bg-paper border border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-purple-500/5 via-paper to-paper hover:border-purple-500/50 transition-all"
+                            >
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                                  <Users className="w-5 h-5" />
+                                </div>
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                                      Actividad de Selección de Grupo
+                                    </span>
+                                    <span
+                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                                        act.abierta
+                                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                                          : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20"
+                                      }`}
+                                    >
+                                      {act.abierta ? "Abierta" : "Cerrada"}
+                                    </span>
+                                  </div>
+                                  <h4 className="text-sm font-bold text-ink font-serif">
+                                    {act.titulo}
+                                  </h4>
+                                  <p className="text-[11px] text-ink-soft">
+                                    {act.grupoSeleccionadoNombre ? (
+                                      <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
+                                        ✓ Estás registrado en: <u>{act.grupoSeleccionadoNombre}</u>
+                                      </span>
+                                    ) : (
+                                      <span>Cupos limitados por grupo. Cierra el {formatMoodleDate(act.fechaCierre)}.</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => {
+                                  setActividadActiva(act);
+                                  setSelectedGrupoRadioId(act.grupoSeleccionadoId || null);
+                                  setActiveTab("grupos");
+                                }}
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs justify-center"
+                              >
+                                {act.grupoSeleccionadoNombre ? "Ver / Modificar Elección" : "Seleccionar Grupo"} <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
                     {/* Lista de Tareas en este Módulo */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -3058,6 +3136,85 @@ export default function AreaMoodlePage() {
                     </span>
                   </div>
                 </div>
+
+                {/* Selector destacado de Actividades de Elección de Grupo si hay múltiples */}
+                {actividadesGrupo.length > 1 && (
+                  <div className="bg-paper border border-line rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-purple-600 shrink-0" />
+                        <span className="text-xs font-bold text-ink uppercase tracking-wider">
+                          Actividades de Elección de Grupo Disponibles ({actividadesGrupo.length})
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-ink-faint">
+                        Haz clic en una actividad para gestionar tu equipo en ella
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      {actividadesGrupo.map((act) => {
+                        const isCurrent = actividadActiva?.id === act.id;
+                        return (
+                          <button
+                            key={act.id}
+                            onClick={() => {
+                              setActividadActiva(act);
+                              setSelectedGrupoRadioId(act.grupoSeleccionadoId || null);
+                            }}
+                            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                              isCurrent
+                                ? "bg-purple-500/10 border-purple-500/50 shadow-xs ring-2 ring-purple-500/20"
+                                : "bg-paper-sunken/40 hover:bg-paper-sunken border-line text-ink"
+                            }`}
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+                                    act.abierta
+                                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                      : "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                                  }`}
+                                >
+                                  {act.abierta ? "Abierta" : "Cerrada"}
+                                </span>
+                                <h4
+                                  className={`text-xs font-bold ${
+                                    isCurrent ? "text-purple-700 dark:text-purple-300 font-serif" : "text-ink"
+                                  }`}
+                                >
+                                  {act.titulo}
+                                </h4>
+                              </div>
+                              <p className="text-[11px] text-ink-soft">
+                                {act.grupoSeleccionadoNombre ? (
+                                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
+                                    ✓ Tu grupo: <u>{act.grupoSeleccionadoNombre}</u>
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-700 dark:text-amber-300">
+                                    Aún no has seleccionado grupo
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+
+                            <span
+                              className={`text-xs px-2.5 py-1 rounded-lg font-semibold shrink-0 ${
+                                isCurrent
+                                  ? "bg-purple-600 text-white shadow-2xs"
+                                  : "bg-paper border border-line text-ink-soft"
+                              }`}
+                            >
+                              {isCurrent ? "Activa" : "Abrir"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* ========================================================= */}
                 {/* SECCIÓN 1: ACTIVIDAD DE SELECCIÓN DE GRUPO (MOODLE CHOICE) */}
