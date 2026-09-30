@@ -85,6 +85,7 @@ public class TareaService {
         if (request.getModuloId() != null && request.getModuloId() > 0) {
             moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
         }
+        tarea.setEsGrupal(request.isEsGrupal());
 
         Tarea saved = tareaRepository.save(tarea);
         return toDTO(saved, user);
@@ -133,6 +134,7 @@ public class TareaService {
                 tarea.setModulo(null);
             }
         }
+        tarea.setEsGrupal(request.isEsGrupal());
 
         Tarea saved = tareaRepository.save(tarea);
         return toDTO(saved, user);
@@ -209,6 +211,82 @@ public class TareaService {
             doc = documentoRepository.findById(request.getDocumentoId()).orElse(null);
         }
 
+        Grupo grupoEstudiante = null;
+        Optional<ConvocatoriaParticipante> partOpt = participanteRepository
+                .findByConvocatoriaIdAndUsuarioId(tarea.getConvocatoria().getId(), estudiante.getId());
+
+        if (partOpt.isPresent()) {
+            ConvocatoriaParticipante part = partOpt.get();
+            if (request.getGrupoId() != null) {
+                if (part.getGrupos() != null) {
+                    grupoEstudiante = part.getGrupos().stream()
+                            .filter(g -> g.getId().equals(request.getGrupoId()))
+                            .findFirst().orElse(null);
+                }
+                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getId().equals(request.getGrupoId())) {
+                    grupoEstudiante = part.getGrupo();
+                }
+            }
+            if (grupoEstudiante == null) {
+                if (part.getGrupos() != null && !part.getGrupos().isEmpty()) {
+                    grupoEstudiante = part.getGrupos().stream()
+                            .filter(g -> g.getConvocatoria() != null && g.getConvocatoria().getId().equals(tarea.getConvocatoria().getId()))
+                            .findFirst()
+                            .orElse(part.getGrupos().get(0));
+                } else if (part.getGrupo() != null) {
+                    grupoEstudiante = part.getGrupo();
+                }
+            }
+        }
+
+        if (tarea.isEsGrupal() && grupoEstudiante == null) {
+            throw new IllegalStateException("Esta tarea es de carácter grupal. Debes pertenecer a un equipo o grupo de trabajo en esta área para realizar la entrega.");
+        }
+
+        if (tarea.isEsGrupal() && grupoEstudiante != null) {
+            List<ConvocatoriaParticipante> miembros = participanteRepository.findMiembrosPorGrupoId(grupoEstudiante.getId());
+            if (miembros == null || miembros.isEmpty()) {
+                miembros = List.of(partOpt.get());
+            }
+
+            EntregaTarea retorno = null;
+            for (ConvocatoriaParticipante m : miembros) {
+                User companero = m.getUsuario();
+                Optional<EntregaTarea> existente = entregaRepository.findByTareaAndEstudiante(tarea, companero);
+                EntregaTarea entrega;
+                if (existente.isPresent()) {
+                    entrega = existente.get();
+                    entrega.setDocumento(doc);
+                    if (request.getNombreArchivo() != null) entrega.setNombreArchivo(request.getNombreArchivo());
+                    if (request.getArchivoUrl() != null) entrega.setArchivoUrl(request.getArchivoUrl());
+                    entrega.setComentarioEstudiante(request.getComentarioEstudiante());
+                    entrega.setFechaEntrega(LocalDateTime.now());
+                    entrega.setEstado(EstadoEntrega.ENTREGADO);
+                    entrega.setEntregadoPor(estudiante);
+                    entrega.setGrupo(grupoEstudiante);
+                    entrega.setNombreEquipo(grupoEstudiante.getNombre());
+                } else {
+                    entrega = new EntregaTarea(
+                            tarea,
+                            companero,
+                            doc,
+                            request.getNombreArchivo(),
+                            request.getArchivoUrl(),
+                            request.getComentarioEstudiante()
+                    );
+                    entrega.setEntregadoPor(estudiante);
+                    entrega.setGrupo(grupoEstudiante);
+                    entrega.setNombreEquipo(grupoEstudiante.getNombre());
+                }
+                EntregaTarea guardada = entregaRepository.save(entrega);
+                if (companero.getId().equals(estudiante.getId())) {
+                    retorno = guardada;
+                }
+            }
+            return toEntregaDTO(retorno != null ? retorno : entregaRepository.findByTareaAndEstudiante(tarea, estudiante).orElseThrow(), estudiante);
+        }
+
+        // Entrega individual
         Optional<EntregaTarea> existente = entregaRepository.findByTareaAndEstudiante(tarea, estudiante);
         EntregaTarea entrega;
         if (existente.isPresent()) {
@@ -219,6 +297,11 @@ public class TareaService {
             entrega.setComentarioEstudiante(request.getComentarioEstudiante());
             entrega.setFechaEntrega(LocalDateTime.now());
             entrega.setEstado(EstadoEntrega.ENTREGADO);
+            entrega.setEntregadoPor(estudiante);
+            if (grupoEstudiante != null) {
+                entrega.setGrupo(grupoEstudiante);
+                entrega.setNombreEquipo(grupoEstudiante.getNombre());
+            }
         } else {
             entrega = new EntregaTarea(
                     tarea,
@@ -228,10 +311,15 @@ public class TareaService {
                     request.getArchivoUrl(),
                     request.getComentarioEstudiante()
             );
+            entrega.setEntregadoPor(estudiante);
+            if (grupoEstudiante != null) {
+                entrega.setGrupo(grupoEstudiante);
+                entrega.setNombreEquipo(grupoEstudiante.getNombre());
+            }
         }
 
         EntregaTarea saved = entregaRepository.save(entrega);
-        return toEntregaDTO(saved);
+        return toEntregaDTO(saved, estudiante);
     }
 
     @Transactional(readOnly = true)
@@ -245,7 +333,7 @@ public class TareaService {
         }
 
         List<EntregaTarea> entregas = entregaRepository.findByTareaOrderByFechaEntregaDesc(tarea);
-        return entregas.stream().map(this::toEntregaDTO).collect(Collectors.toList());
+        return entregas.stream().map(e -> toEntregaDTO(e, user)).collect(Collectors.toList());
     }
 
     public EntregaTareaDTO calificarEntrega(Long entregaId, CalificarEntregaRequest request, String userEmail) {
@@ -269,7 +357,23 @@ public class TareaService {
         entrega.setEstado(EstadoEntrega.CALIFICADO);
 
         EntregaTarea saved = entregaRepository.save(entrega);
-        return toEntregaDTO(saved);
+
+        // Si la tarea es grupal y tiene grupo asociado, propagar la calificación a los compañeros del equipo
+        if (entrega.getTarea().isEsGrupal() && entrega.getGrupo() != null) {
+            List<EntregaTarea> entregasGrupo = entregaRepository.findByTareaAndGrupo(entrega.getTarea(), entrega.getGrupo());
+            for (EntregaTarea eComp : entregasGrupo) {
+                if (!eComp.getId().equals(saved.getId())) {
+                    eComp.setCalificacion(request.getCalificacion());
+                    eComp.setRetroalimentacion(request.getRetroalimentacion());
+                    eComp.setFechaCalificacion(LocalDateTime.now());
+                    eComp.setCalificadoPor(evaluador);
+                    eComp.setEstado(EstadoEntrega.CALIFICADO);
+                    entregaRepository.save(eComp);
+                }
+            }
+        }
+
+        return toEntregaDTO(saved, evaluador);
     }
 
     private void validarExtensionArchivo(String nombreArchivo, String permitidos) {
@@ -332,15 +436,35 @@ public class TareaService {
             dto.setEstadoMoodle("ABIERTA");
         }
 
+        dto.setEsGrupal(tarea.isEsGrupal());
+
         if (currentUser.getRol() == Rol.ESTUDIANTE) {
-            entregaRepository.findByTareaAndEstudiante(tarea, currentUser)
-                    .ifPresent(e -> dto.setMiEntrega(toEntregaDTO(e)));
+            Optional<EntregaTarea> miEntOpt = entregaRepository.findByTareaAndEstudiante(tarea, currentUser);
+            if (miEntOpt.isPresent()) {
+                dto.setMiEntrega(toEntregaDTO(miEntOpt.get(), currentUser));
+            } else if (tarea.isEsGrupal()) {
+                // Fallback grupal: si el compañero del equipo entregó, mostrar la entrega al alumno
+                Optional<ConvocatoriaParticipante> partOpt = participanteRepository
+                        .findByConvocatoriaIdAndUsuarioId(tarea.getConvocatoria().getId(), currentUser.getId());
+                if (partOpt.isPresent()) {
+                    ConvocatoriaParticipante part = partOpt.get();
+                    Grupo miGrupo = (part.getGrupos() != null && !part.getGrupos().isEmpty()) ? part.getGrupos().get(0) : part.getGrupo();
+                    if (miGrupo != null) {
+                        Optional<EntregaTarea> entregaGrupo = entregaRepository.findFirstByTareaAndGrupo(tarea, miGrupo);
+                        entregaGrupo.ifPresent(e -> dto.setMiEntrega(toEntregaDTO(e, currentUser)));
+                    }
+                }
+            }
         }
 
         return dto;
     }
 
     private EntregaTareaDTO toEntregaDTO(EntregaTarea entrega) {
+        return toEntregaDTO(entrega, null);
+    }
+
+    private EntregaTareaDTO toEntregaDTO(EntregaTarea entrega, User currentUser) {
         EntregaTareaDTO dto = new EntregaTareaDTO();
         dto.setId(entrega.getId());
         dto.setTareaId(entrega.getTarea().getId());
@@ -365,6 +489,39 @@ public class TareaService {
 
         if (entrega.getCalificadoPor() != null) {
             dto.setCalificadoPorNombre(entrega.getCalificadoPor().getNombreCompleto());
+        }
+
+        dto.setEsGrupal(entrega.getTarea() != null && entrega.getTarea().isEsGrupal());
+
+        // Identificar quién envió físicamente la tarea
+        if (entrega.getEntregadoPor() != null) {
+            dto.setEntregadoPorId(entrega.getEntregadoPor().getId());
+            dto.setEntregadoPorNombre(entrega.getEntregadoPor().getNombreCompleto());
+            dto.setEntregadoPorEmail(entrega.getEntregadoPor().getEmail());
+            if (currentUser != null) {
+                dto.setEsMiEntregaPropia(entrega.getEntregadoPor().getId().equals(currentUser.getId()));
+            }
+        } else if (entrega.getEstudiante() != null) {
+            dto.setEntregadoPorId(entrega.getEstudiante().getId());
+            dto.setEntregadoPorNombre(entrega.getEstudiante().getNombreCompleto());
+            dto.setEntregadoPorEmail(entrega.getEstudiante().getEmail());
+            if (currentUser != null) {
+                dto.setEsMiEntregaPropia(entrega.getEstudiante().getId().equals(currentUser.getId()));
+            }
+        }
+
+        // Información de Grupo y compañeros
+        if (entrega.getGrupo() != null) {
+            dto.setGrupoId(entrega.getGrupo().getId());
+            dto.setGrupoNombre(entrega.getGrupo().getNombre());
+            List<ConvocatoriaParticipante> miembros = participanteRepository.findMiembrosPorGrupoId(entrega.getGrupo().getId());
+            if (miembros != null && !miembros.isEmpty()) {
+                dto.setCompanerosEquipo(miembros.stream()
+                        .map(m -> m.getUsuario().getNombreCompleto())
+                        .collect(Collectors.toList()));
+            }
+        } else if (entrega.getNombreEquipo() != null) {
+            dto.setGrupoNombre(entrega.getNombreEquipo());
         }
 
         return dto;

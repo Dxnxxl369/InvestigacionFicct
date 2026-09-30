@@ -692,6 +692,14 @@ export interface EntregaTareaDTO {
   retroalimentacion?: string;
   fechaCalificacion?: string;
   calificadoPorNombre?: string;
+  esGrupal?: boolean;
+  entregadoPorId?: number;
+  entregadoPorNombre?: string;
+  entregadoPorEmail?: string;
+  esMiEntregaPropia?: boolean;
+  grupoId?: number;
+  grupoNombre?: string;
+  companerosEquipo?: string[];
 }
 
 export interface TareaDTO {
@@ -711,6 +719,7 @@ export interface TareaDTO {
   tiposArchivosPermitidos: string;
   tamanoMaximoMb: number;
   puntajeMaximo: number;
+  esGrupal?: boolean;
   creadorId?: number;
   creadorNombre?: string;
   totalEntregas: number;
@@ -734,6 +743,7 @@ export interface TareaRequest {
   tiposArchivosPermitidos?: string;
   tamanoMaximoMb?: number;
   puntajeMaximo?: number;
+  esGrupal?: boolean;
 }
 
 export interface EntregaRequest {
@@ -741,6 +751,7 @@ export interface EntregaRequest {
   nombreArchivo?: string;
   archivoUrl?: string;
   comentarioEstudiante?: string;
+  grupoId?: number;
 }
 
 export interface CalificarEntregaRequest {

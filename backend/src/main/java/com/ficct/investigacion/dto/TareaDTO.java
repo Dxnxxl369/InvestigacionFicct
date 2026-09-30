@@ -25,6 +25,7 @@ public class TareaDTO {
     private EntregaTareaDTO miEntrega;
     private Long moduloId;
     private String moduloTitulo;
+    private boolean esGrupal;
 
     public TareaDTO() {
     }
@@ -195,5 +196,13 @@ public class TareaDTO {
 
     public void setModuloTitulo(String moduloTitulo) {
         this.moduloTitulo = moduloTitulo;
+    }
+
+    public boolean isEsGrupal() {
+        return esGrupal;
+    }
+
+    public void setEsGrupal(boolean esGrupal) {
+        this.esGrupal = esGrupal;
     }
 }

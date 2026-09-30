@@ -49,6 +49,9 @@ public class Tarea {
     @Column(name = "puntaje_maximo")
     private Double puntajeMaximo = 100.0;
 
+    @Column(name = "es_grupal", nullable = false)
+    private boolean esGrupal = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "creador_id")
     private User creador;
@@ -223,5 +226,13 @@ public class Tarea {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public boolean isEsGrupal() {
+        return esGrupal;
+    }
+
+    public void setEsGrupal(boolean esGrupal) {
+        this.esGrupal = esGrupal;
     }
 }

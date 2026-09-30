@@ -55,6 +55,17 @@ public class EntregaTarea {
     @JoinColumn(name = "calificado_por_id")
     private User calificadoPor;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "entregado_por_id")
+    private User entregadoPor;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "grupo_id")
+    private Grupo grupo;
+
+    @Column(name = "nombre_equipo", length = 300)
+    private String nombreEquipo;
+
     public EntregaTarea() {
     }
 
@@ -176,5 +187,29 @@ public class EntregaTarea {
 
     public void setCalificadoPor(User calificadoPor) {
         this.calificadoPor = calificadoPor;
+    }
+
+    public User getEntregadoPor() {
+        return entregadoPor;
+    }
+
+    public void setEntregadoPor(User entregadoPor) {
+        this.entregadoPor = entregadoPor;
+    }
+
+    public Grupo getGrupo() {
+        return grupo;
+    }
+
+    public void setGrupo(Grupo grupo) {
+        this.grupo = grupo;
+    }
+
+    public String getNombreEquipo() {
+        return nombreEquipo;
+    }
+
+    public void setNombreEquipo(String nombreEquipo) {
+        this.nombreEquipo = nombreEquipo;
     }
 }

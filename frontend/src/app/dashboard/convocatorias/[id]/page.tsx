@@ -297,6 +297,7 @@ export default function AreaMoodlePage() {
   const [archivosPermitidos, setArchivosPermitidos] = useState(".pdf, .docx, .zip");
   const [tamanoMb, setTamanoMb] = useState(15);
   const [puntajeMax, setPuntajeMax] = useState(100);
+  const [esGrupalTarea, setEsGrupalTarea] = useState(false);
   const [creandoTarea, setCreandoTarea] = useState(false);
   const [restoredDraftTarea, setRestoredDraftTarea] = useState(false);
 
@@ -517,6 +518,7 @@ export default function AreaMoodlePage() {
         if (draft.archivosPermitidos) setArchivosPermitidos(draft.archivosPermitidos);
         if (draft.tamanoMb) setTamanoMb(draft.tamanoMb);
         if (draft.puntajeMax) setPuntajeMax(draft.puntajeMax);
+        if (draft.esGrupalTarea !== undefined) setEsGrupalTarea(draft.esGrupalTarea);
         if (moduloIdDefault === undefined && draft.tareaModuloId !== undefined) {
           setTareaModuloId(draft.tareaModuloId);
         }
@@ -544,6 +546,7 @@ export default function AreaMoodlePage() {
     setArchivosPermitidos(".pdf, .docx, .zip");
     setTamanoMb(15);
     setPuntajeMax(100);
+    setEsGrupalTarea(false);
     toast("Borrador de tarea descartado", "info");
   };
 
@@ -564,6 +567,7 @@ export default function AreaMoodlePage() {
           archivosPermitidos,
           tamanoMb,
           puntajeMax,
+          esGrupalTarea,
           tareaModuloId,
           updatedAt: new Date().toISOString(),
         };
@@ -582,6 +586,7 @@ export default function AreaMoodlePage() {
     archivosPermitidos,
     tamanoMb,
     puntajeMax,
+    esGrupalTarea,
     tareaModuloId,
     convocatoriaId,
   ]);
@@ -608,6 +613,7 @@ export default function AreaMoodlePage() {
         tiposArchivosPermitidos: archivosPermitidos.trim() || ".pdf, .docx, .zip",
         tamanoMaximoMb: Number(tamanoMb) || 15,
         puntajeMaximo: Number(puntajeMax) || 100,
+        esGrupal: esGrupalTarea,
       };
 
       await api.createTareaConvocatoria(convocatoriaId, payload);
@@ -625,6 +631,7 @@ export default function AreaMoodlePage() {
       setFechaHabilitacion("");
       setFechaEntrega("");
       setFechaCorte("");
+      setEsGrupalTarea(false);
 
       const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
       setTareas(updatedTareas);
@@ -1471,11 +1478,17 @@ export default function AreaMoodlePage() {
       };
 
       const calificada = await api.calificarEntrega(ent.id, req);
-      toast("Calificación guardada y retroalimentación enviada al estudiante", "success");
+      toast("Calificación guardada y sincronizada correctamente", "success");
 
-      setEntregasTareaActual((prev) =>
-        prev.map((item) => (item.id === calificada.id ? calificada : item))
-      );
+      // Refrescar lista completa de entregas para actualizar a todos los compañeros del equipo en SpeedGrader
+      try {
+        const refreshedEntregas = await api.getEntregasTarea(activeTareaParaEntregas.id);
+        setEntregasTareaActual(refreshedEntregas);
+      } catch {
+        setEntregasTareaActual((prev) =>
+          prev.map((item) => (item.id === calificada.id ? calificada : item))
+        );
+      }
     } catch (err: any) {
       toast(err.message || "Error al calificar entrega", "error");
     } finally {
@@ -1623,6 +1636,11 @@ export default function AreaMoodlePage() {
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent/10 text-accent uppercase tracking-wider">
                     Consola de Evaluación SpeedGrader
                   </span>
+                  {activeTareaParaEntregas.esGrupal && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 uppercase tracking-wider flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" /> Tarea Grupal (Equipos)
+                    </span>
+                  )}
                   {activeTareaParaEntregas.moduloTitulo && (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-paper-sunken border border-line text-ink-soft">
                       {activeTareaParaEntregas.moduloTitulo}
@@ -1769,9 +1787,14 @@ export default function AreaMoodlePage() {
                               {est.nombre} {est.apellidos}
                             </span>
                             <span className="text-[10px] text-ink-faint block truncate">{est.email}</span>
-                            {est.nombreEquipo && (
+                            {(ent?.grupoNombre || est.nombreEquipo) && (
                               <span className="text-[10px] text-accent flex items-center gap-1 mt-0.5 truncate">
-                                <Tag className="w-2.5 h-2.5 shrink-0" /> {est.nombreEquipo}
+                                <Tag className="w-2.5 h-2.5 shrink-0" /> {ent?.grupoNombre || est.nombreEquipo}
+                              </span>
+                            )}
+                            {(ent?.esGrupal || activeTareaParaEntregas.esGrupal) && ent?.entregadoPorNombre && (
+                              <span className="text-[9px] text-ink-faint block truncate">
+                                Envío: {ent.entregadoPorNombre}
                               </span>
                             )}
                           </div>
@@ -1871,6 +1894,29 @@ export default function AreaMoodlePage() {
                   <div className="space-y-6">
                     {/* Tarjeta de Detalles del Envío */}
                     <div className="bg-paper-sunken/50 border border-line rounded-2xl p-5 space-y-4">
+                      {/* Banner de Entrega Grupal y Auditoría de Envío */}
+                      {(activeTareaParaEntregas.esGrupal || selectedEntregaObj.esGrupal) && (
+                        <div className="p-3.5 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2 text-xs">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                              <Users className="w-4 h-4" /> Entrega Grupal • Equipo {selectedEntregaObj.grupoNombre || selectedEstudianteObj.nombreEquipo || "Asignado"}
+                            </span>
+                            <span className="text-[11px] text-ink-soft">
+                              Subido físicamente por: <strong className="text-ink">{selectedEntregaObj.entregadoPorNombre || selectedEstudianteObj.nombre}</strong>
+                              {selectedEntregaObj.entregadoPorEmail && (
+                                <span className="text-ink-faint"> ({selectedEntregaObj.entregadoPorEmail})</span>
+                              )}
+                            </span>
+                          </div>
+                          {selectedEntregaObj.companerosEquipo && selectedEntregaObj.companerosEquipo.length > 0 && (
+                            <div className="text-[11px] text-ink-soft pt-1 border-t border-blue-500/15">
+                              <span className="font-semibold text-ink">Integrantes del Equipo: </span>
+                              {selectedEntregaObj.companerosEquipo.join(" • ")}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line pb-3">
                         <div className="space-y-0.5">
                           <span className="text-[10px] uppercase font-bold text-ink-faint">Fecha y Hora de Entrega</span>
@@ -1968,6 +2014,15 @@ export default function AreaMoodlePage() {
                       </div>
 
                       <form onSubmit={handleGuardarCalificacionSpeedGrader} className="space-y-4 text-xs">
+                        {(activeTareaParaEntregas.esGrupal || selectedEntregaObj.esGrupal) && (
+                          <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl text-[11px] text-accent font-medium flex items-center gap-2">
+                            <Users className="w-4 h-4 shrink-0" />
+                            <span>
+                              Evaluación en Equipo: La calificación y comentarios guardados se sincronizarán automáticamente para todos los integrantes de <strong>{selectedEntregaObj.grupoNombre || selectedEstudianteObj.nombreEquipo || "este equipo"}</strong>.
+                            </span>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <label className="font-bold text-ink block mb-1">
@@ -2576,6 +2631,11 @@ export default function AreaMoodlePage() {
                               <div className="space-y-1">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <h3 className="font-serif text-base font-bold text-ink">{t.titulo}</h3>
+                                  {t.esGrupal && (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 flex items-center gap-1">
+                                      <Users className="w-3 h-3" /> Grupal
+                                    </span>
+                                  )}
                                   <span
                                     className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                                       t.estadoMoodle === "ABIERTA"
@@ -2675,15 +2735,32 @@ export default function AreaMoodlePage() {
                             {/* Resumen entrega previa estudiante */}
                             {t.miEntrega && (
                               <div className="mt-2 bg-emerald-50/50 border border-emerald-200 rounded-xl p-3 text-xs space-y-1.5">
-                                <div className="flex items-center justify-between font-semibold text-emerald-800">
-                                  <span className="flex items-center gap-1">
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Trabajo Entregado el{" "}
-                                    {new Date(t.miEntrega.fechaEntrega).toLocaleString()}
+                                <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-emerald-800">
+                                  <span className="flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    {t.esGrupal || t.miEntrega.esGrupal ? (
+                                      <span>
+                                        {t.miEntrega.esMiEntregaPropia ? (
+                                          <>Trabajo Entregado por ti (Equipo <strong>{t.miEntrega.grupoNombre || "del grupo"}</strong>)</>
+                                        ) : (
+                                          <>Entregado por tu compañero <strong>{t.miEntrega.entregadoPorNombre}</strong> (Equipo <strong>{t.miEntrega.grupoNombre || "del grupo"}</strong>)</>
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span>Trabajo Entregado el {new Date(t.miEntrega.fechaEntrega).toLocaleString()}</span>
+                                    )}
                                   </span>
                                   <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase font-bold text-[10px]">
                                     {t.miEntrega.estado}
                                   </span>
                                 </div>
+
+                                {(t.esGrupal || t.miEntrega.esGrupal) && t.miEntrega.companerosEquipo && t.miEntrega.companerosEquipo.length > 0 && (
+                                  <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                    <Users className="w-3 h-3 shrink-0" />
+                                    <span>Integrantes: {t.miEntrega.companerosEquipo.join(", ")}</span>
+                                  </div>
+                                )}
 
                                 {t.miEntrega.nombreArchivo && (
                                   <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200/60 text-[11px] text-ink">
@@ -2900,6 +2977,11 @@ export default function AreaMoodlePage() {
                                 <div className="space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <h3 className="font-serif text-base sm:text-lg font-bold text-ink">{t.titulo}</h3>
+                                    {t.esGrupal && (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 flex items-center gap-1">
+                                        <Users className="w-3 h-3" /> Grupal
+                                      </span>
+                                    )}
                                     <span
                                       className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                                         t.estadoMoodle === "ABIERTA"
@@ -3017,15 +3099,32 @@ export default function AreaMoodlePage() {
                               {/* Resumen entrega previa estudiante */}
                               {t.miEntrega && (
                                 <div className="mt-2 bg-emerald-50/50 border border-emerald-200 rounded-xl p-3 text-xs space-y-1.5">
-                                  <div className="flex items-center justify-between font-semibold text-emerald-800">
-                                    <span className="flex items-center gap-1">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Trabajo Entregado el{" "}
-                                      {new Date(t.miEntrega.fechaEntrega).toLocaleString()}
+                                  <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-emerald-800">
+                                    <span className="flex items-center gap-1.5">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      {t.esGrupal || t.miEntrega.esGrupal ? (
+                                        <span>
+                                          {t.miEntrega.esMiEntregaPropia ? (
+                                            <>Trabajo Entregado por ti (Equipo <strong>{t.miEntrega.grupoNombre || "del grupo"}</strong>)</>
+                                          ) : (
+                                            <>Entregado por tu compañero <strong>{t.miEntrega.entregadoPorNombre}</strong> (Equipo <strong>{t.miEntrega.grupoNombre || "del grupo"}</strong>)</>
+                                          )}
+                                        </span>
+                                      ) : (
+                                        <span>Trabajo Entregado el {new Date(t.miEntrega.fechaEntrega).toLocaleString()}</span>
+                                      )}
                                     </span>
                                     <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase font-bold text-[10px]">
                                       {t.miEntrega.estado}
                                     </span>
                                   </div>
+
+                                  {(t.esGrupal || t.miEntrega.esGrupal) && t.miEntrega.companerosEquipo && t.miEntrega.companerosEquipo.length > 0 && (
+                                    <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                      <Users className="w-3 h-3 shrink-0" />
+                                      <span>Integrantes: {t.miEntrega.companerosEquipo.join(", ")}</span>
+                                    </div>
+                                  )}
 
                                   {t.miEntrega.nombreArchivo && (
                                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200/60 text-[11px] text-ink">
@@ -4427,6 +4526,28 @@ export default function AreaMoodlePage() {
                   </div>
                 </div>
 
+                {/* Modalidad de Entrega: Individual o Grupal */}
+                <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line flex items-center justify-between">
+                  <div className="pr-3">
+                    <label className="font-bold text-ink block text-xs flex items-center gap-1.5 cursor-pointer">
+                      <Users className="w-4 h-4 text-accent" />
+                      Entrega Grupal (por equipos)
+                    </label>
+                    <p className="text-[10px] text-ink-faint mt-0.5">
+                      Si se activa, el envío de cualquier integrante del equipo figurará como entregado para todos los compañeros, y al calificarlo se sincronizará la nota y comentarios a todo el grupo.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={esGrupalTarea}
+                      onChange={(e) => setEsGrupalTarea(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-paper-sunken peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-line"></div>
+                  </label>
+                </div>
+
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
                   <button
                     type="button"
@@ -4633,6 +4754,11 @@ export default function AreaMoodlePage() {
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2 text-[11px] pt-1">
+                  {selectedTareaForEntrega.esGrupal && (
+                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 font-bold flex items-center gap-1">
+                      <Users className="w-3 h-3" /> Entrega Grupal
+                    </span>
+                  )}
                   <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
                     Puntaje: {selectedTareaForEntrega.puntajeMaximo} pts
                   </span>
@@ -4651,15 +4777,32 @@ export default function AreaMoodlePage() {
               {/* Entrega Previa Registrada si existe */}
               {selectedTareaForEntrega.miEntrega && (
                 <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs space-y-2">
-                  <div className="flex items-center justify-between font-semibold text-emerald-800">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-emerald-800">
                     <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      Tienes una entrega registrada el {new Date(selectedTareaForEntrega.miEntrega.fechaEntrega).toLocaleString()}
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      {selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal ? (
+                        <span>
+                          {selectedTareaForEntrega.miEntrega.esMiEntregaPropia ? (
+                            <>Entregado previamente por ti (Equipo <strong>{selectedTareaForEntrega.miEntrega.grupoNombre || "del grupo"}</strong>)</>
+                          ) : (
+                            <>Entregado por tu compañero <strong>{selectedTareaForEntrega.miEntrega.entregadoPorNombre}</strong> (Equipo <strong>{selectedTareaForEntrega.miEntrega.grupoNombre || "del grupo"}</strong>)</>
+                          )}
+                        </span>
+                      ) : (
+                        <span>Entrega registrada el {new Date(selectedTareaForEntrega.miEntrega.fechaEntrega).toLocaleString()}</span>
+                      )}
                     </span>
                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold uppercase text-[10px]">
                       {selectedTareaForEntrega.miEntrega.estado}
                     </span>
                   </div>
+
+                  {(selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal) && selectedTareaForEntrega.miEntrega.companerosEquipo && selectedTareaForEntrega.miEntrega.companerosEquipo.length > 0 && (
+                    <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 shrink-0" />
+                      <span>Compañeros de equipo: {selectedTareaForEntrega.miEntrega.companerosEquipo.join(", ")}</span>
+                    </div>
+                  )}
 
                   {archivoEntregaPrevioUrl && (
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200 text-ink">
@@ -4678,7 +4821,9 @@ export default function AreaMoodlePage() {
                     </div>
                   )}
                   <p className="text-[10px] text-emerald-700">
-                    Puedes adjuntar un nuevo archivo a continuación para reemplazar tu entrega o actualizar comentarios.
+                    {selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal
+                      ? "Puedes adjuntar un nuevo archivo para actualizar la entrega de todo el equipo."
+                      : "Puedes adjuntar un nuevo archivo a continuación para reemplazar tu entrega o actualizar comentarios."}
                   </p>
                 </div>
               )}

@@ -33,6 +33,8 @@ public class TareaRequest {
 
     private Long moduloId;
 
+    private boolean esGrupal;
+
     public TareaRequest() {
     }
 
@@ -133,5 +135,13 @@ public class TareaRequest {
 
     public void setPuntajeMaximo(Double puntajeMaximo) {
         this.puntajeMaximo = puntajeMaximo;
+    }
+
+    public boolean isEsGrupal() {
+        return esGrupal;
+    }
+
+    public void setEsGrupal(boolean esGrupal) {
+        this.esGrupal = esGrupal;
     }
 }

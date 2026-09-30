@@ -10,7 +10,17 @@ public class EntregaRequest {
 
     private String comentarioEstudiante;
 
+    private Long grupoId; // Opcional: si la entrega es grupal y se especifica el grupo explícitamente
+
     public EntregaRequest() {
+    }
+
+    public Long getGrupoId() {
+        return grupoId;
+    }
+
+    public void setGrupoId(Long grupoId) {
+        this.grupoId = grupoId;
     }
 
     public Long getDocumentoId() {
