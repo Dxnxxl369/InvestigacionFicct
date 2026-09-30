@@ -445,11 +445,36 @@ export default function AreaMoodlePage() {
         }
       }
 
-      // Si puede designar, cargar catálogo de usuarios
-      if (esAdmin || user?.rol === "DOCENTE") {
+      // Si puede designar, cargar catálogo de usuarios según sus permisos
+      if (esAdmin) {
         try {
           const usersList = await api.getUsers();
           setAllUsers(usersList);
+        } catch {
+          // opcional
+        }
+      } else if (user?.rol === "DOCENTE") {
+        try {
+          const enc = await api.getEncargadosDisponibles();
+          const list: User[] = [
+            ...(enc.jurados || []).map((j: any) => ({
+              id: j.id,
+              nombre: j.nombre,
+              apellido: j.apellidos || j.apellido || "",
+              email: j.email,
+              rol: "JURADO" as const,
+              estado: "ACTIVO" as const,
+            })),
+            ...(enc.docentes || []).map((d: any) => ({
+              id: d.id,
+              nombre: d.nombre,
+              apellido: d.apellidos || d.apellido || "",
+              email: d.email,
+              rol: "DOCENTE" as const,
+              estado: "ACTIVO" as const,
+            })),
+          ];
+          setAllUsers(list);
         } catch {
           // opcional
         }
