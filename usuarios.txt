@@ -24,6 +24,8 @@ ESTUDIANTE   | Sebastián Castro          | sebastian@ficct.uagrm.edu.bo  | Alum
 
 ----------------------------------------------------------------------------------------
 * Nota: Creados automáticamente en la base de datos mediante DataSeeder.
+* Correo institucional oficial: Cada estudiante cuenta con un único correo oficial (@ficct.uagrm.edu.bo).
+* Atajo de login: Si escribes @ficct.edu.bo en el formulario de inicio de sesión, el sistema te autentica directamente en tu cuenta oficial única.
 * Los 5 nuevos estudiantes ingresan como alumnos individuales sin equipo.
 * Contraseña común para los 5 nuevos estudiantes: Alumno123!
 * Usuario de prueba en scripts E2E:

@@ -37,6 +37,7 @@ scrum-engine/
 /*.txt
 !/usuarios.txt
 /*.ps1
+/*.png
 
 # OS and IDE Files
 .DS_Store

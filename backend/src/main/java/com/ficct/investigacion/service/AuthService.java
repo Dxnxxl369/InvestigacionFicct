@@ -74,6 +74,21 @@ public class AuthService {
     public AuthResponse login(AuthRequest request) {
         String cleanEmail = request.getEmail().trim().toLowerCase();
 
+        // Normalización inteligente de alias o atajos al correo institucional formal
+        if (!userRepository.existsByEmail(cleanEmail)) {
+            if (cleanEmail.endsWith("@ficct.edu.bo")) {
+                String candidate = cleanEmail.replace("@ficct.edu.bo", "@ficct.uagrm.edu.bo");
+                if (userRepository.existsByEmail(candidate)) {
+                    cleanEmail = candidate;
+                }
+            } else if (cleanEmail.endsWith("@ficct")) {
+                String candidate = cleanEmail + ".uagrm.edu.bo";
+                if (userRepository.existsByEmail(candidate)) {
+                    cleanEmail = candidate;
+                }
+            }
+        }
+
         User user = userRepository.findByEmail(cleanEmail)
                 .orElseThrow(() -> new BadCredentialsException("Correo o contraseña incorrectos"));
 
@@ -83,7 +98,7 @@ public class AuthService {
 
         try {
             authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(cleanEmail, request.getPassword())
+                    new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
             );
         } catch (Exception e) {
             throw new BadCredentialsException("Correo o contraseña incorrectos");

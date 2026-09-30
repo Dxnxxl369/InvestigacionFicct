@@ -174,22 +174,6 @@ public class DataSeeder implements CommandLineRunner {
             System.out.println(">> [DataSeeder] Estudiante creado: sebastian@ficct.uagrm.edu.bo / Alumno123!");
         }
 
-        // Aliases cortos con @ficct.edu.bo para acceso fácil
-        if (!userRepository.existsByEmail("nataly@ficct.edu.bo")) {
-            userRepository.save(new User("Nataly", "Rojas", "nataly@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
-        }
-        if (!userRepository.existsByEmail("lucas@ficct.edu.bo")) {
-            userRepository.save(new User("Lucas", "Gutiérrez", "lucas@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
-        }
-        if (!userRepository.existsByEmail("mateo@ficct.edu.bo")) {
-            userRepository.save(new User("Mateo", "Salazar", "mateo@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
-        }
-        if (!userRepository.existsByEmail("camila@ficct.edu.bo")) {
-            userRepository.save(new User("Camila", "Vargas", "camila@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
-        }
-        if (!userRepository.existsByEmail("sebastian@ficct.edu.bo")) {
-            userRepository.save(new User("Sebastián", "Castro", "sebastian@ficct.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
-        }
 
         // 2. Sembrar Convocatorias Iniciales
         if (convocatoriaRepository.count() == 0) {
