@@ -4,6 +4,8 @@ import com.ficct.investigacion.model.ConvocatoriaParticipante;
 import com.ficct.investigacion.model.EstadoInscripcion;
 import com.ficct.investigacion.model.Rol;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -14,7 +16,13 @@ public interface ConvocatoriaParticipanteRepository extends JpaRepository<Convoc
 
     List<ConvocatoriaParticipante> findByConvocatoriaId(Long convocatoriaId);
 
+    @Query("SELECT DISTINCT cp FROM ConvocatoriaParticipante cp LEFT JOIN FETCH cp.grupos WHERE cp.convocatoria.id = :convocatoriaId")
+    List<ConvocatoriaParticipante> findByConvocatoriaIdConGrupos(@Param("convocatoriaId") Long convocatoriaId);
+
     List<ConvocatoriaParticipante> findByGrupoId(Long grupoId);
+
+    @Query("SELECT DISTINCT cp FROM ConvocatoriaParticipante cp JOIN cp.grupos g WHERE g.id = :grupoId")
+    List<ConvocatoriaParticipante> findMiembrosPorGrupoId(@Param("grupoId") Long grupoId);
 
     List<ConvocatoriaParticipante> findByConvocatoriaIdOrderByFechaAsignacionAsc(Long convocatoriaId);
 

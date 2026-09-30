@@ -165,23 +165,38 @@ public class ActividadGrupoService {
             throw new IllegalArgumentException("El grupo no pertenece a esta convocatoria.");
         }
 
-        // Si ya está en ese mismo grupo, no hace falta reasignar
-        if (participante.getGrupo() != null && participante.getGrupo().getId().equals(grupoId)) {
-            return convertirADTO(actividad, username);
+        // Buscar si el participante ya tiene un grupo asignado en ESTA actividad específica
+        Optional<Grupo> grupoActualEnEstaActividad = participante.getGrupos().stream()
+                .filter(g -> (g.getActividadGrupo() != null && g.getActividadGrupo().getId().equals(actividadId))
+                        || (actividad.getGrupos() != null && actividad.getGrupos().stream().anyMatch(ag -> ag.getId().equals(g.getId()))))
+                .findFirst();
+
+        if (grupoActualEnEstaActividad.isPresent()) {
+            Grupo actual = grupoActualEnEstaActividad.get();
+            if (actual.getId().equals(grupoId)) {
+                // Ya está en ese mismo grupo para esta actividad
+                return convertirADTO(actividad, username);
+            }
+            if (!actividad.isPermitirCambio()) {
+                throw new IllegalArgumentException("Esta actividad no permite cambiar de grupo una vez guardada tu elección.");
+            }
+            // Quitar del grupo anterior de esta actividad
+            participante.removerGrupo(actual.getId());
         }
 
-        // Si ya tiene grupo y la actividad no permite cambios
-        if (participante.getGrupo() != null && !actividad.isPermitirCambio()) {
-            throw new IllegalArgumentException("Esta actividad no permite cambiar de grupo una vez guardada tu elección.");
+        // Validar cupo del nuevo grupo
+        List<ConvocatoriaParticipante> miembrosNuevo = participanteRepository.findMiembrosPorGrupoId(grupo.getId());
+        boolean yaEsMiembro = miembrosNuevo.stream().anyMatch(m -> m.getId().equals(participante.getId()));
+
+        if (!yaEsMiembro && grupo.getCapacidadMaxima() != null && grupo.getCapacidadMaxima() > 0) {
+            if (miembrosNuevo.size() >= grupo.getCapacidadMaxima()) {
+                throw new IllegalArgumentException("El grupo '" + grupo.getNombre() + "' ya está completo (" +
+                        grupo.getCapacidadMaxima() + " miembros). Elige otro grupo disponible.");
+            }
         }
 
-        // Validar cupo
-        if (grupo.isCompleto()) {
-            throw new IllegalArgumentException("El grupo '" + grupo.getNombre() + "' ya está completo (" +
-                    grupo.getCapacidadMaxima() + " miembros). Elige otro grupo disponible.");
-        }
-
-        participante.setGrupo(grupo);
+        // Unir al nuevo grupo de esta actividad y recalcular equipos
+        participante.agregarGrupo(grupo);
         participanteRepository.save(participante);
 
         return convertirADTO(actividad, username);
@@ -207,9 +222,21 @@ public class ActividadGrupoService {
                 .findByConvocatoriaIdAndUsuarioId(convocatoriaId, usuario.getId())
                 .orElseThrow(() -> new IllegalArgumentException("No estás inscrito en esta convocatoria."));
 
-        participante.setGrupo(null);
-        participante.setNombreEquipo(null);
-        participanteRepository.save(participante);
+        // Buscar el grupo que tiene en esta actividad específica
+        Optional<Grupo> grupoEnEstaActividad = participante.getGrupos().stream()
+                .filter(g -> (g.getActividadGrupo() != null && g.getActividadGrupo().getId().equals(actividadId))
+                        || (actividad.getGrupos() != null && actividad.getGrupos().stream().anyMatch(ag -> ag.getId().equals(g.getId()))))
+                .findFirst();
+
+        if (grupoEnEstaActividad.isPresent()) {
+            participante.removerGrupo(grupoEnEstaActividad.get().getId());
+            participanteRepository.save(participante);
+        } else if (participante.getGrupo() != null &&
+                   (actividad.getGrupos() == null || actividad.getGrupos().isEmpty() ||
+                    actividad.getGrupos().stream().anyMatch(ag -> ag.getId().equals(participante.getGrupo().getId())))) {
+            participante.setGrupo(null);
+            participanteRepository.save(participante);
+        }
 
         return convertirADTO(actividad, username);
     }
@@ -233,9 +260,23 @@ public class ActividadGrupoService {
             if (uOpt.isPresent()) {
                 Optional<ConvocatoriaParticipante> partOpt = participanteRepository
                         .findByConvocatoriaIdAndUsuarioId(a.getConvocatoria().getId(), uOpt.get().getId());
-                if (partOpt.isPresent() && partOpt.get().getGrupo() != null) {
-                    grupoSeleccionadoId = partOpt.get().getGrupo().getId();
-                    grupoSeleccionadoNombre = partOpt.get().getGrupo().getNombre();
+                if (partOpt.isPresent()) {
+                    ConvocatoriaParticipante part = partOpt.get();
+                    // Buscar si tiene grupo asociado a esta actividad específica
+                    Optional<Grupo> gEnActividad = part.getGrupos().stream()
+                            .filter(g -> (g.getActividadGrupo() != null && g.getActividadGrupo().getId().equals(a.getId()))
+                                    || (a.getGrupos() != null && a.getGrupos().stream().anyMatch(ag -> ag.getId().equals(g.getId()))))
+                            .findFirst();
+
+                    if (gEnActividad.isPresent()) {
+                        grupoSeleccionadoId = gEnActividad.get().getId();
+                        grupoSeleccionadoNombre = gEnActividad.get().getNombre();
+                    } else if (part.getGrupo() != null &&
+                               a.getGrupos() != null &&
+                               a.getGrupos().stream().anyMatch(ag -> ag.getId().equals(part.getGrupo().getId()))) {
+                        grupoSeleccionadoId = part.getGrupo().getId();
+                        grupoSeleccionadoNombre = part.getGrupo().getNombre();
+                    }
                 }
             }
         }

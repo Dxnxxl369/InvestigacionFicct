@@ -5,6 +5,9 @@ import com.ficct.investigacion.model.EstadoInscripcion;
 import com.ficct.investigacion.model.Rol;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class ConvocatoriaParticipanteDTO {
 
@@ -23,6 +26,7 @@ public class ConvocatoriaParticipanteDTO {
     private String motivoRechazo;
     private String asignadoPorNombre;
     private Long grupoId;
+    private List<String> gruposNombres = new ArrayList<>();
 
     public ConvocatoriaParticipanteDTO() {
     }
@@ -48,6 +52,18 @@ public class ConvocatoriaParticipanteDTO {
         }
         if (cp.getGrupo() != null) {
             this.grupoId = cp.getGrupo().getId();
+        }
+        if (cp.getGrupos() != null && !cp.getGrupos().isEmpty()) {
+            this.gruposNombres = cp.getGrupos().stream()
+                    .map(g -> g.getNombre())
+                    .filter(n -> n != null && !n.trim().isEmpty())
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .collect(Collectors.toList());
+        } else if (cp.getGrupo() != null) {
+            this.gruposNombres = List.of(cp.getGrupo().getNombre());
+        } else {
+            this.gruposNombres = new ArrayList<>();
         }
     }
 
@@ -169,5 +185,13 @@ public class ConvocatoriaParticipanteDTO {
 
     public void setGrupoId(Long grupoId) {
         this.grupoId = grupoId;
+    }
+
+    public List<String> getGruposNombres() {
+        return gruposNombres;
+    }
+
+    public void setGruposNombres(List<String> gruposNombres) {
+        this.gruposNombres = gruposNombres;
     }
 }

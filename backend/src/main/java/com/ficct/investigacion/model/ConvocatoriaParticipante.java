@@ -2,6 +2,9 @@ package com.ficct.investigacion.model;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(
@@ -30,7 +33,7 @@ public class ConvocatoriaParticipante {
     @Column(name = "estado_inscripcion", nullable = false, length = 30)
     private EstadoInscripcion estadoInscripcion = EstadoInscripcion.PENDIENTE;
 
-    @Column(name = "nombre_equipo", length = 120)
+    @Column(name = "nombre_equipo", length = 300)
     private String nombreEquipo;
 
     @Column(name = "fecha_solicitud")
@@ -52,6 +55,14 @@ public class ConvocatoriaParticipante {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "grupo_id")
     private Grupo grupo;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "grupo_participantes",
+        joinColumns = @JoinColumn(name = "participante_id"),
+        inverseJoinColumns = @JoinColumn(name = "grupo_id")
+    )
+    private List<Grupo> grupos = new ArrayList<>();
 
     public ConvocatoriaParticipante() {
     }
@@ -205,7 +216,69 @@ public class ConvocatoriaParticipante {
     public void setGrupo(Grupo grupo) {
         this.grupo = grupo;
         if (grupo != null) {
-            this.nombreEquipo = grupo.getNombre();
+            if (this.grupos == null) {
+                this.grupos = new ArrayList<>();
+            }
+            if (this.grupos.stream().noneMatch(g -> g.getId().equals(grupo.getId()))) {
+                this.grupos.add(grupo);
+            }
+            actualizarNombreEquipoDesdeGrupos();
+        } else {
+            if (this.grupos != null) {
+                this.grupos.clear();
+            }
+            this.nombreEquipo = null;
+        }
+    }
+
+    public List<Grupo> getGrupos() {
+        if (this.grupos == null) {
+            this.grupos = new ArrayList<>();
+        }
+        return this.grupos;
+    }
+
+    public void setGrupos(List<Grupo> grupos) {
+        this.grupos = grupos != null ? grupos : new ArrayList<>();
+        actualizarNombreEquipoDesdeGrupos();
+    }
+
+    public void agregarGrupo(Grupo g) {
+        if (g == null) return;
+        if (this.grupos == null) {
+            this.grupos = new ArrayList<>();
+        }
+        if (this.grupos.stream().noneMatch(existing -> existing.getId().equals(g.getId()))) {
+            this.grupos.add(g);
+        }
+        this.grupo = g;
+        actualizarNombreEquipoDesdeGrupos();
+    }
+
+    public void removerGrupo(Long grupoId) {
+        if (grupoId == null || this.grupos == null) return;
+        this.grupos.removeIf(g -> g.getId().equals(grupoId));
+        if (this.grupo != null && this.grupo.getId().equals(grupoId)) {
+            this.grupo = this.grupos.isEmpty() ? null : this.grupos.get(this.grupos.size() - 1);
+        }
+        actualizarNombreEquipoDesdeGrupos();
+    }
+
+    public void actualizarNombreEquipoDesdeGrupos() {
+        if (this.grupos == null || this.grupos.isEmpty()) {
+            this.nombreEquipo = null;
+            this.grupo = null;
+        } else {
+            String nombres = this.grupos.stream()
+                    .map(Grupo::getNombre)
+                    .filter(n -> n != null && !n.trim().isEmpty())
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .collect(Collectors.joining(", "));
+            this.nombreEquipo = nombres.isEmpty() ? null : nombres;
+            if (this.grupo == null || this.grupos.stream().noneMatch(g -> g.getId().equals(this.grupo.getId()))) {
+                this.grupo = this.grupos.get(this.grupos.size() - 1);
+            }
         }
     }
 }

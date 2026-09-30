@@ -34,7 +34,7 @@ public class Grupo {
     @JoinColumn(name = "creado_por_id")
     private User creadoPor;
 
-    @OneToMany(mappedBy = "grupo")
+    @ManyToMany(mappedBy = "grupos", fetch = FetchType.LAZY)
     private List<ConvocatoriaParticipante> miembros = new ArrayList<>();
 
     @Column(name = "fecha_creacion", nullable = false, updatable = false)

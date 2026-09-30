@@ -3833,11 +3833,21 @@ export default function AreaMoodlePage() {
                           </td>
                           <td className="py-3 px-4">
                             {p.nombreEquipo ? (
-                              <span className="inline-flex items-center gap-1 text-ink font-medium">
-                                <Tag className="w-3 h-3 text-accent" /> {p.nombreEquipo}
-                              </span>
+                              <div className="flex flex-wrap gap-1.5 items-center">
+                                {(p.gruposNombres && p.gruposNombres.length > 0
+                                  ? p.gruposNombres
+                                  : p.nombreEquipo.split(",").map((s) => s.trim())
+                                ).map((grp, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 text-accent font-medium text-xs border border-accent/20"
+                                  >
+                                    <Tag className="w-3 h-3 text-accent shrink-0" /> {grp}
+                                  </span>
+                                ))}
+                              </div>
                             ) : (
-                              <span className="text-ink-faint italic">Individual</span>
+                              <span className="text-ink-faint italic text-sm">Individual</span>
                             )}
                           </td>
                           <td className="py-3 px-4 text-ink-soft">

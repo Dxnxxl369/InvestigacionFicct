@@ -70,6 +70,7 @@ public class GrupoService {
         List<ConvocatoriaParticipanteDTO> sinEquipoDTOs = todosParticipantes.stream()
                 .filter(p -> p.getEstadoInscripcion() == EstadoInscripcion.ACEPTADO &&
                              p.getRol() == Rol.ESTUDIANTE &&
+                             (p.getGrupos() == null || p.getGrupos().isEmpty()) &&
                              p.getGrupo() == null)
                 .map(this::convertirAParticipanteDTO)
                 .collect(Collectors.toList());
@@ -173,13 +174,16 @@ public class GrupoService {
         }
 
         // Desvincular miembros
-        List<ConvocatoriaParticipante> miembros = participanteRepository.findByConvocatoriaId(convocatoriaId).stream()
-                .filter(p -> p.getGrupo() != null && p.getGrupo().getId().equals(grupoId))
-                .collect(Collectors.toList());
+        List<ConvocatoriaParticipante> miembros = participanteRepository.findMiembrosPorGrupoId(grupoId);
+        if (miembros.isEmpty()) {
+            miembros = participanteRepository.findByConvocatoriaId(convocatoriaId).stream()
+                    .filter(p -> (p.getGrupos() != null && p.getGrupos().stream().anyMatch(g -> g.getId().equals(grupoId)))
+                            || (p.getGrupo() != null && p.getGrupo().getId().equals(grupoId)))
+                    .collect(Collectors.toList());
+        }
 
         for (ConvocatoriaParticipante m : miembros) {
-            m.setGrupo(null);
-            m.setNombreEquipo(null);
+            m.removerGrupo(grupoId);
             participanteRepository.save(m);
         }
 
@@ -210,12 +214,23 @@ public class GrupoService {
             throw new IllegalArgumentException("Solo estudiantes formalmente admitidos pueden unirse a grupos.");
         }
 
-        if (grupo.isCompleto() && (participante.getGrupo() == null || !participante.getGrupo().getId().equals(grupoId))) {
-            throw new IllegalArgumentException("El grupo '" + grupo.getNombre() + "' ya alcanzó su capacidad máxima de " +
-                    grupo.getCapacidadMaxima() + " integrantes.");
+        List<ConvocatoriaParticipante> miembrosActuales = participanteRepository.findMiembrosPorGrupoId(grupoId);
+        boolean yaEsMiembro = miembrosActuales.stream().anyMatch(m -> m.getId().equals(participante.getId()));
+
+        if (!yaEsMiembro && grupo.getCapacidadMaxima() != null && grupo.getCapacidadMaxima() > 0) {
+            if (miembrosActuales.size() >= grupo.getCapacidadMaxima()) {
+                throw new IllegalArgumentException("El grupo '" + grupo.getNombre() + "' ya alcanzó su capacidad máxima de " +
+                        grupo.getCapacidadMaxima() + " integrantes.");
+            }
         }
 
-        participante.setGrupo(grupo);
+        // Si el grupo pertenece a una actividad, remover de otro grupo de la misma actividad
+        if (grupo.getActividadGrupo() != null) {
+            Long actId = grupo.getActividadGrupo().getId();
+            participante.getGrupos().removeIf(g -> g.getActividadGrupo() != null && g.getActividadGrupo().getId().equals(actId));
+        }
+
+        participante.agregarGrupo(grupo);
         participanteRepository.save(participante);
 
         return convertirAGrupoDTO(grupoRepository.findById(grupoId).orElse(grupo));
@@ -233,19 +248,20 @@ public class GrupoService {
         ConvocatoriaParticipante participante = participanteRepository.findById(participanteId)
                 .orElseThrow(() -> new IllegalArgumentException("Participante no encontrado"));
 
-        if (participante.getGrupo() != null && participante.getGrupo().getId().equals(grupoId)) {
-            participante.setGrupo(null);
-            participante.setNombreEquipo(null);
-            participanteRepository.save(participante);
-        }
+        participante.removerGrupo(grupoId);
+        participanteRepository.save(participante);
 
         return convertirAGrupoDTO(grupoRepository.findById(grupoId).orElse(grupo));
     }
 
     public GrupoDTO convertirAGrupoDTO(Grupo g) {
-        List<ConvocatoriaParticipante> miembrosEntidad = participanteRepository.findByConvocatoriaId(g.getConvocatoria().getId()).stream()
-                .filter(p -> p.getGrupo() != null && p.getGrupo().getId().equals(g.getId()))
-                .collect(Collectors.toList());
+        List<ConvocatoriaParticipante> miembrosEntidad = participanteRepository.findMiembrosPorGrupoId(g.getId());
+        if (miembrosEntidad == null || miembrosEntidad.isEmpty()) {
+            miembrosEntidad = participanteRepository.findByConvocatoriaId(g.getConvocatoria().getId()).stream()
+                    .filter(p -> (p.getGrupos() != null && p.getGrupos().stream().anyMatch(gr -> gr.getId().equals(g.getId())))
+                            || (p.getGrupo() != null && p.getGrupo().getId().equals(g.getId())))
+                    .collect(Collectors.toList());
+        }
 
         List<MiembroGrupoDTO> miembrosDTO = miembrosEntidad.stream().map(p -> new MiembroGrupoDTO(
                 p.getId(),

@@ -87,6 +87,7 @@ export interface ConvocatoriaParticipanteDTO {
   rol: "ADMIN" | "DOCENTE" | "JURADO" | "ESTUDIANTE";
   estadoInscripcion: EstadoInscripcion;
   nombreEquipo?: string;
+  gruposNombres?: string[];
   fechaSolicitud?: string;
   fechaRespuesta?: string;
   fechaAsignacion: string;
