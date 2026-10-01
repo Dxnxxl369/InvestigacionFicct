@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/context/AuthContext";
@@ -106,11 +106,29 @@ function formatBytes(bytes: number, decimals = 2): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
+// Función infalible para parsear fechas ISO (con o sin Z / offset) respetando el reloj de pared sin desfase horario
+function parseIsoDateWithoutShift(dateStr: string): Date {
+  if (!dateStr) return new Date();
+  const m = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) {
+    const [_, year, month, day, hours, minutes, seconds] = m;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hours),
+      Number(minutes),
+      seconds ? Number(seconds) : 0
+    );
+  }
+  return new Date(dateStr);
+}
+
 // Formatear fechas con estilo natural y completo Moodle (e.g. "lunes, 29 de septiembre de 2026, 00:00")
 function formatMoodleDate(dateStr?: string | null): string {
   if (!dateStr) return "-";
   try {
-    const d = new Date(dateStr);
+    const d = parseIsoDateWithoutShift(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     const opciones: Intl.DateTimeFormatOptions = {
       weekday: "long",
@@ -129,7 +147,7 @@ function formatMoodleDate(dateStr?: string | null): string {
 function formatMoodleDateShort(dateStr?: string | null): string {
   if (!dateStr) return "-";
   try {
-    const d = new Date(dateStr);
+    const d = parseIsoDateWithoutShift(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString("es-ES", {
       day: "numeric",
@@ -142,11 +160,16 @@ function formatMoodleDateShort(dateStr?: string | null): string {
   }
 }
 
-// Formateo de fecha ISO a YYYY-MM-DDTHH:mm para inputs datetime-local
+// Formateo de fecha ISO a YYYY-MM-DDTHH:mm para inputs datetime-local sin alterar zona horaria
 function formatForDateTimeLocal(dateStr?: string | null): string {
   if (!dateStr) return "";
   try {
-    const d = new Date(dateStr);
+    const str = dateStr.trim();
+    const m = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (m) {
+      return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
+    }
+    const d = new Date(str);
     if (isNaN(d.getTime())) return "";
     const pad = (n: number) => String(n).padStart(2, "0");
     const year = d.getFullYear();
@@ -160,6 +183,16 @@ function formatForDateTimeLocal(dateStr?: string | null): string {
   }
 }
 
+// Envío de fecha local a backend sin conversión UTC para evitar desfase de 4 horas
+function formatDateTimeForBackend(dateTimeLocalStr?: string | null): string | undefined {
+  if (!dateTimeLocalStr || !dateTimeLocalStr.trim()) return undefined;
+  const str = dateTimeLocalStr.trim();
+  if (str.length === 16) {
+    return `${str}:00`;
+  }
+  return str;
+}
+
 // Cálculo de tiempo restante / entrega previa estilo Moodle (image.png)
 function calcularTiempoRestanteMoodle(
   fechaLimiteStr?: string | null,
@@ -168,10 +201,10 @@ function calcularTiempoRestanteMoodle(
   if (!fechaLimiteStr) {
     return { texto: "Sin fecha límite asignada", temprano: false, retraso: false };
   }
-  const fechaLimite = new Date(fechaLimiteStr).getTime();
+  const fechaLimite = parseIsoDateWithoutShift(fechaLimiteStr).getTime();
 
   if (fechaEntregaStr) {
-    const fechaEntrega = new Date(fechaEntregaStr).getTime();
+    const fechaEntrega = parseIsoDateWithoutShift(fechaEntregaStr).getTime();
     const diffMs = fechaLimite - fechaEntrega;
     const diffMin = Math.round(Math.abs(diffMs) / (1000 * 60));
     const dias = Math.floor(diffMin / (60 * 24));
@@ -279,8 +312,57 @@ function renderArchivoIcon(filename: string, className = "w-6 h-6") {
 export default function AreaMoodlePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const convocatoriaId = Number(params?.id);
+
+  // Sincronización fluida de parámetros de URL para persistir la vista ante recargas (F5)
+  const updateUrlParams = useCallback(
+    (newParams: {
+      tab?: string | null;
+      modulo?: number | null;
+      tarea?: number | null;
+      entregas?: number | null;
+    }) => {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+
+      if ("tab" in newParams) {
+        if (newParams.tab && newParams.tab !== "tareas") {
+          url.searchParams.set("tab", newParams.tab);
+        } else {
+          url.searchParams.delete("tab");
+        }
+      }
+
+      if ("modulo" in newParams) {
+        if (newParams.modulo) {
+          url.searchParams.set("modulo", String(newParams.modulo));
+        } else {
+          url.searchParams.delete("modulo");
+        }
+      }
+
+      if ("tarea" in newParams) {
+        if (newParams.tarea) {
+          url.searchParams.set("tarea", String(newParams.tarea));
+        } else {
+          url.searchParams.delete("tarea");
+        }
+      }
+
+      if ("entregas" in newParams) {
+        if (newParams.entregas) {
+          url.searchParams.set("entregas", String(newParams.entregas));
+        } else {
+          url.searchParams.delete("entregas");
+        }
+      }
+
+      window.history.replaceState(null, "", url.toString());
+    },
+    []
+  );
 
   // Estados de datos
   const [convocatoria, setConvocatoria] = useState<ConvocatoriaDTO | null>(null);
@@ -304,7 +386,6 @@ export default function AreaMoodlePage() {
   const [guardandoModulo, setGuardandoModulo] = useState(false);
   const [isDraggingModuloImg, setIsDraggingModuloImg] = useState(false);
   const [errorModuloImg, setErrorModuloImg] = useState<string | null>(null);
-  const [restoredDraftModulo, setRestoredDraftModulo] = useState(false);
   const fileInputModuloImgRef = useRef<HTMLInputElement>(null);
 
   // Módulo seleccionado al crear tarea
@@ -322,6 +403,14 @@ export default function AreaMoodlePage() {
 
   // Tabs
   const [activeTab, setActiveTab] = useState<"tareas" | "grupos" | "participantes" | "info">("tareas");
+
+  const handleCambiarTab = useCallback(
+    (tab: "tareas" | "grupos" | "participantes" | "info") => {
+      setActiveTab(tab);
+      updateUrlParams({ tab });
+    },
+    [updateUrlParams]
+  );
 
   // Grupos y Actividades de Selección Moodle
   const [gruposArea, setGruposArea] = useState<GrupoDTO[]>([]);
@@ -391,7 +480,6 @@ export default function AreaMoodlePage() {
   const [puntajeMax, setPuntajeMax] = useState(100);
   const [esGrupalTarea, setEsGrupalTarea] = useState(false);
   const [creandoTarea, setCreandoTarea] = useState(false);
-  const [restoredDraftTarea, setRestoredDraftTarea] = useState(false);
 
   // Estados para Edición de Tarea y Preservación de Entregas
   const [tareaEditing, setTareaEditing] = useState<TareaDTO | null>(null);
@@ -419,8 +507,6 @@ export default function AreaMoodlePage() {
   const [isDraggingEntrega, setIsDraggingEntrega] = useState(false);
   const [errorValidacionArchivo, setErrorValidacionArchivo] = useState<string | null>(null);
   const [editandoNombreArchivo, setEditandoNombreArchivo] = useState(false);
-  const [restoredDraftEntrega, setRestoredDraftEntrega] = useState(false);
-  const [lastDraftSavedEntrega, setLastDraftSavedEntrega] = useState<string | null>(null);
   const fileInputEntregaRef = useRef<HTMLInputElement>(null);
 
   // Formulario de Calificación Docente
@@ -512,10 +598,53 @@ export default function AreaMoodlePage() {
 
       setParticipantes(partsData || []);
       setTareas(tareasData || []);
-      if (tareasData) {
-        setActiveTareaDetalle((prev) => (prev ? tareasData.find((t) => t.id === prev.id) || null : null));
-      }
       setModulos(modulosData || []);
+
+      // Restauración de pantalla según parámetros de URL al recargar (F5)
+      const urlTab = searchParams.get("tab");
+      const urlModulo = searchParams.get("modulo");
+      const urlTarea = searchParams.get("tarea");
+      const urlEntregas = searchParams.get("entregas");
+
+      if (urlTab && ["tareas", "grupos", "participantes", "info"].includes(urlTab)) {
+        setActiveTab(urlTab as any);
+      }
+
+      if (modulosData && urlModulo) {
+        const modIdNum = Number(urlModulo);
+        if (!isNaN(modIdNum) && modulosData.some((m) => m.id === modIdNum)) {
+          setSelectedModuloId(modIdNum);
+        }
+      }
+
+      if (tareasData) {
+        if (urlTarea) {
+          const tIdNum = Number(urlTarea);
+          const tEncontrada = tareasData.find((t) => t.id === tIdNum);
+          if (tEncontrada) {
+            setActiveTareaDetalle(tEncontrada);
+            if (tEncontrada.moduloId) {
+              setSelectedModuloId(tEncontrada.moduloId);
+            }
+          } else {
+            setActiveTareaDetalle((prev) => (prev ? tareasData.find((t) => t.id === prev.id) || null : null));
+          }
+        } else {
+          setActiveTareaDetalle((prev) => (prev ? tareasData.find((t) => t.id === prev.id) || null : null));
+        }
+
+        if (urlEntregas) {
+          const entIdNum = Number(urlEntregas);
+          const tEncontrada = tareasData.find((t) => t.id === entIdNum);
+          if (tEncontrada) {
+            setActiveTareaParaEntregas(tEncontrada);
+          } else {
+            setActiveTareaParaEntregas((prev) => (prev ? tareasData.find((t) => t.id === prev.id) || null : null));
+          }
+        } else {
+          setActiveTareaParaEntregas((prev) => (prev ? tareasData.find((t) => t.id === prev.id) || null : null));
+        }
+      }
 
       if (gruposData) {
         setGruposArea(gruposData.grupos || []);
@@ -602,44 +731,35 @@ export default function AreaMoodlePage() {
     cargarDatos();
   }, [cargarDatos]);
 
-  // Abrir Modal Crear Tarea con restauración de borrador
+  // Limpieza inicial de borradores residuales para eliminar ruido visual
+  useEffect(() => {
+    try {
+      Object.keys(localStorage).forEach((k) => {
+        if (
+          k.startsWith("moodle_entrega_draft_") ||
+          k.startsWith("ficct_create_tarea_draft_") ||
+          k.startsWith("ficct_modulo_draft_")
+        ) {
+          localStorage.removeItem(k);
+        }
+      });
+    } catch {}
+  }, []);
+
+  // Abrir Modal Crear Tarea (limpio, sin borradores)
   const handleAbrirCrearTarea = (moduloIdDefault?: number) => {
     setTareaEditing(null);
     setEntregasTareaEditing([]);
     setTareaModuloId(moduloIdDefault !== undefined ? moduloIdDefault : "");
-    const draftKey = `ficct_create_tarea_draft_${convocatoriaId}`;
-    try {
-      const rawDraft = localStorage.getItem(draftKey);
-      if (rawDraft) {
-        const draft = JSON.parse(rawDraft);
-        if (draft.tituloTarea) setTituloTarea(draft.tituloTarea);
-        if (draft.descTarea) setDescTarea(draft.descTarea);
-        if (draft.fechaHabilitacion) setFechaHabilitacion(draft.fechaHabilitacion);
-        if (draft.fechaEntrega) setFechaEntrega(draft.fechaEntrega);
-        if (draft.fechaCorte) setFechaCorte(draft.fechaCorte);
-        if (draft.archivosPermitidos) setArchivosPermitidos(draft.archivosPermitidos);
-        if (draft.tamanoMb) setTamanoMb(draft.tamanoMb);
-        if (draft.puntajeMax) setPuntajeMax(draft.puntajeMax);
-        if (draft.esGrupalTarea !== undefined) setEsGrupalTarea(draft.esGrupalTarea);
-        if (moduloIdDefault === undefined && draft.tareaModuloId !== undefined) {
-          setTareaModuloId(draft.tareaModuloId);
-        }
-        setRestoredDraftTarea(true);
-      } else {
-        setRestoredDraftTarea(false);
-        setTituloTarea("");
-        setDescTarea("");
-        setFechaHabilitacion("");
-        setFechaEntrega("");
-        setFechaCorte("");
-        setArchivosPermitidos(".pdf, .docx, .zip");
-        setTamanoMb(15);
-        setPuntajeMax(100);
-        setEsGrupalTarea(false);
-      }
-    } catch {
-      setRestoredDraftTarea(false);
-    }
+    setTituloTarea("");
+    setDescTarea("");
+    setFechaHabilitacion("");
+    setFechaEntrega("");
+    setFechaCorte("");
+    setArchivosPermitidos(".pdf, .docx, .zip");
+    setTamanoMb(15);
+    setPuntajeMax(100);
+    setEsGrupalTarea(false);
     setShowCreateTareaModal(true);
   };
 
@@ -656,7 +776,6 @@ export default function AreaMoodlePage() {
     setTamanoMb(tarea.tamanoMaximoMb || 15);
     setPuntajeMax(tarea.puntajeMaximo || 100);
     setEsGrupalTarea(!!tarea.esGrupal);
-    setRestoredDraftTarea(false);
     setShowCreateTareaModal(true);
 
     try {
@@ -670,67 +789,7 @@ export default function AreaMoodlePage() {
     }
   };
 
-  // Descartar borrador Crear Tarea
-  const handleDescartarBorradorTarea = () => {
-    try {
-      localStorage.removeItem(`ficct_create_tarea_draft_${convocatoriaId}`);
-    } catch {}
-    setRestoredDraftTarea(false);
-    setTituloTarea("");
-    setDescTarea("");
-    setFechaHabilitacion("");
-    setFechaEntrega("");
-    setFechaCorte("");
-    setArchivosPermitidos(".pdf, .docx, .zip");
-    setTamanoMb(15);
-    setPuntajeMax(100);
-    setEsGrupalTarea(false);
-    toast("Borrador de tarea descartado", "info");
-  };
-
-  // Auto-guardar borrador de Crear Tarea (solo al crear, no al editar)
-  useEffect(() => {
-    if (!showCreateTareaModal || tareaEditing) return;
-    const hasData = tituloTarea.trim() !== "" || descTarea.trim() !== "";
-    if (!hasData) return;
-
-    const timeout = setTimeout(() => {
-      try {
-        const draft = {
-          tituloTarea,
-          descTarea,
-          fechaHabilitacion,
-          fechaEntrega,
-          fechaCorte,
-          archivosPermitidos,
-          tamanoMb,
-          puntajeMax,
-          esGrupalTarea,
-          tareaModuloId,
-          updatedAt: new Date().toISOString(),
-        };
-        localStorage.setItem(`ficct_create_tarea_draft_${convocatoriaId}`, JSON.stringify(draft));
-      } catch {}
-    }, 500);
-
-    return () => clearTimeout(timeout);
-  }, [
-    showCreateTareaModal,
-    tareaEditing,
-    tituloTarea,
-    descTarea,
-    fechaHabilitacion,
-    fechaEntrega,
-    fechaCorte,
-    archivosPermitidos,
-    tamanoMb,
-    puntajeMax,
-    esGrupalTarea,
-    tareaModuloId,
-    convocatoriaId,
-  ]);
-
-  // Manejador Guardar Tarea (Crear o Editar con triple fecha)
+  // Manejador Guardar Tarea (Crear o Editar con triple fecha sin desfase de zona horaria)
   const handleCrearTarea = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tituloTarea.trim()) {
@@ -745,9 +804,9 @@ export default function AreaMoodlePage() {
         moduloId: tareaModuloId ? Number(tareaModuloId) : 0,
         titulo: tituloTarea.trim(),
         descripcion: descTarea.trim() || undefined,
-        fechaHabilitacion: fechaHabilitacion ? new Date(fechaHabilitacion).toISOString() : undefined,
-        fechaEntrega: fechaEntrega ? new Date(fechaEntrega).toISOString() : undefined,
-        fechaCorte: fechaCorte ? new Date(fechaCorte).toISOString() : undefined,
+        fechaHabilitacion: formatDateTimeForBackend(fechaHabilitacion),
+        fechaEntrega: formatDateTimeForBackend(fechaEntrega),
+        fechaCorte: formatDateTimeForBackend(fechaCorte),
         habilitada: tareaEditing && tareaEditing.habilitada !== undefined ? tareaEditing.habilitada : true,
         tiposArchivosPermitidos: archivosPermitidos.trim() || ".pdf, .docx, .zip",
         tamanoMaximoMb: Number(tamanoMb) || 15,
@@ -764,12 +823,6 @@ export default function AreaMoodlePage() {
       } else {
         await api.createTareaConvocatoria(convocatoriaId, payload);
         toast("Tarea académica creada exitosamente con control de fechas Moodle", "success");
-
-        // Limpiar borrador de tarea
-        try {
-          localStorage.removeItem(`ficct_create_tarea_draft_${convocatoriaId}`);
-        } catch {}
-        setRestoredDraftTarea(false);
       }
 
       setShowCreateTareaModal(false);
@@ -1051,8 +1104,8 @@ export default function AreaMoodlePage() {
         convocatoriaId,
         titulo: nuevaActTitulo.trim(),
         descripcion: nuevaActDesc.trim() || undefined,
-        fechaApertura: nuevaActApertura ? new Date(nuevaActApertura).toISOString() : undefined,
-        fechaCierre: nuevaActCierre ? new Date(nuevaActCierre).toISOString() : undefined,
+        fechaApertura: formatDateTimeForBackend(nuevaActApertura),
+        fechaCierre: formatDateTimeForBackend(nuevaActCierre),
         capacidadPorGrupo: nuevaActCapacidad > 0 ? nuevaActCapacidad : 5,
         permitirCambio: true,
         mostrarMiembros: true,
@@ -1129,154 +1182,28 @@ export default function AreaMoodlePage() {
     }
   };
 
-  // Abrir Modal de Entrega con recuperación de borrador o datos previos
+  // Abrir Modal de Entrega (limpio, cargando datos previos si ya entregó)
   const handleAbrirEntregaModal = (t: TareaDTO) => {
     setSelectedTareaForEntrega(t);
     setErrorValidacionArchivo(null);
     setEditandoNombreArchivo(false);
 
-    const draftKey = `moodle_entrega_draft_${convocatoriaId}_${t.id}_${user?.id || "anon"}`;
-    let loadedFromDraft = false;
-
-    try {
-      const rawDraft = localStorage.getItem(draftKey);
-      if (rawDraft) {
-        const draft = JSON.parse(rawDraft);
-        if (draft && draft.tareaId === t.id) {
-          setNombreArchivoEntrega(draft.nombreArchivo || "");
-          setComentarioEstudiante(draft.comentario || "");
-          setDocVinculadoId(draft.docVinculadoId || "");
-          setArchivoEntregaOriginalName(draft.originalFileName || "");
-          setArchivoEntregaTamano(draft.fileSize || 0);
-
-          if (draft.fileDataUrl && draft.originalFileName) {
-            const reconstructed = dataURLtoFile(draft.fileDataUrl, draft.originalFileName);
-            setArchivoEntregaFile(reconstructed);
-          } else {
-            setArchivoEntregaFile(null);
-          }
-
-          setRestoredDraftEntrega(true);
-          setLastDraftSavedEntrega(draft.updatedAt ? new Date(draft.updatedAt).toLocaleTimeString() : null);
-          loadedFromDraft = true;
-        }
-      }
-    } catch (e) {
-      console.warn("Error leyendo borrador de entrega:", e);
-    }
-
-    if (!loadedFromDraft) {
-      setRestoredDraftEntrega(false);
-      setLastDraftSavedEntrega(null);
-      if (t.miEntrega) {
-        setNombreArchivoEntrega(t.miEntrega.nombreArchivo || "");
-        setArchivoEntregaOriginalName(t.miEntrega.nombreArchivo || "");
-        setArchivoEntregaPrevioUrl(t.miEntrega.archivoUrl || "");
-        setComentarioEstudiante(t.miEntrega.comentarioEstudiante || "");
-        setDocVinculadoId(t.miEntrega.documentoId || "");
-      } else {
-        setNombreArchivoEntrega("");
-        setArchivoEntregaOriginalName("");
-        setArchivoEntregaPrevioUrl("");
-        setComentarioEstudiante("");
-        setDocVinculadoId("");
-      }
-      setArchivoEntregaFile(null);
-      setArchivoEntregaTamano(0);
-    }
-  };
-
-  // Descartar borrador de entrega
-  const handleDescartarBorradorEntrega = () => {
-    if (!selectedTareaForEntrega || !user) return;
-    const draftKey = `moodle_entrega_draft_${convocatoriaId}_${selectedTareaForEntrega.id}_${user.id}`;
-    try {
-      localStorage.removeItem(draftKey);
-    } catch {}
-
-    setRestoredDraftEntrega(false);
-    setLastDraftSavedEntrega(null);
-    setErrorValidacionArchivo(null);
-
-    if (selectedTareaForEntrega.miEntrega) {
-      setNombreArchivoEntrega(selectedTareaForEntrega.miEntrega.nombreArchivo || "");
-      setArchivoEntregaOriginalName(selectedTareaForEntrega.miEntrega.nombreArchivo || "");
-      setArchivoEntregaPrevioUrl(selectedTareaForEntrega.miEntrega.archivoUrl || "");
-      setComentarioEstudiante(selectedTareaForEntrega.miEntrega.comentarioEstudiante || "");
-      setDocVinculadoId(selectedTareaForEntrega.miEntrega.documentoId || "");
-      setArchivoEntregaFile(null);
-      setArchivoEntregaTamano(0);
+    if (t.miEntrega) {
+      setNombreArchivoEntrega(t.miEntrega.nombreArchivo || "");
+      setArchivoEntregaOriginalName(t.miEntrega.nombreArchivo || "");
+      setArchivoEntregaPrevioUrl(t.miEntrega.archivoUrl || "");
+      setComentarioEstudiante(t.miEntrega.comentarioEstudiante || "");
+      setDocVinculadoId(t.miEntrega.documentoId || "");
     } else {
       setNombreArchivoEntrega("");
       setArchivoEntregaOriginalName("");
       setArchivoEntregaPrevioUrl("");
       setComentarioEstudiante("");
       setDocVinculadoId("");
-      setArchivoEntregaFile(null);
-      setArchivoEntregaTamano(0);
     }
-    toast("Borrador local de entrega descartado", "info");
+    setArchivoEntregaFile(null);
+    setArchivoEntregaTamano(0);
   };
-
-  // Auto-guardar borrador de entrega en localStorage
-  useEffect(() => {
-    if (!selectedTareaForEntrega || !user) return;
-    const draftKey = `moodle_entrega_draft_${convocatoriaId}_${selectedTareaForEntrega.id}_${user.id}`;
-
-    const hasData =
-      archivoEntregaFile !== null ||
-      nombreArchivoEntrega.trim() !== "" ||
-      comentarioEstudiante.trim() !== "" ||
-      docVinculadoId !== "";
-
-    if (!hasData) return;
-
-    const timeoutId = setTimeout(() => {
-      try {
-        const draftObj: any = {
-          tareaId: selectedTareaForEntrega.id,
-          nombreArchivo: nombreArchivoEntrega,
-          comentario: comentarioEstudiante,
-          docVinculadoId,
-          originalFileName: archivoEntregaFile ? archivoEntregaFile.name : archivoEntregaOriginalName,
-          fileSize: archivoEntregaFile ? archivoEntregaFile.size : archivoEntregaTamano,
-          fileType: archivoEntregaFile ? archivoEntregaFile.type : "",
-          updatedAt: new Date().toISOString(),
-        };
-
-        if (archivoEntregaFile && archivoEntregaFile.size <= 4 * 1024 * 1024) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            draftObj.fileDataUrl = reader.result as string;
-            try {
-              localStorage.setItem(draftKey, JSON.stringify(draftObj));
-              setLastDraftSavedEntrega(new Date().toLocaleTimeString());
-            } catch (err) {
-              console.warn("localStorage quota exceeded for base64 file:", err);
-            }
-          };
-          reader.readAsDataURL(archivoEntregaFile);
-        } else {
-          localStorage.setItem(draftKey, JSON.stringify(draftObj));
-          setLastDraftSavedEntrega(new Date().toLocaleTimeString());
-        }
-      } catch (e) {
-        console.warn("Error al guardar borrador en localStorage:", e);
-      }
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [
-    selectedTareaForEntrega,
-    archivoEntregaFile,
-    nombreArchivoEntrega,
-    comentarioEstudiante,
-    docVinculadoId,
-    archivoEntregaOriginalName,
-    archivoEntregaTamano,
-    convocatoriaId,
-    user,
-  ]);
 
   // Enviar Entrega FÍSICA con subida real al backend
   const handleEnviarEntrega = async (e: React.FormEvent) => {
@@ -1358,8 +1285,6 @@ export default function AreaMoodlePage() {
       setComentarioEstudiante("");
       setDocVinculadoId("");
       setErrorValidacionArchivo(null);
-      setRestoredDraftEntrega(false);
-      setLastDraftSavedEntrega(null);
 
       const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
       setTareas(updatedTareas);
@@ -1375,51 +1300,17 @@ export default function AreaMoodlePage() {
   // GESTIÓN DE MÓDULOS (LMS / MOODLE)
   // ==========================================
 
-  // Abrir Modal Crear Módulo con restauración de borrador
+  // Abrir Modal Crear Módulo limpio
   const handleAbrirCrearModulo = () => {
     setModuloEditing(null);
     setErrorModuloImg(null);
-    const draftKey = `ficct_modulo_draft_${convocatoriaId}`;
-    try {
-      const rawDraft = localStorage.getItem(draftKey);
-      if (rawDraft) {
-        const draft = JSON.parse(rawDraft);
-        setModuloTitulo(draft.titulo || "");
-        setModuloDescripcion(draft.descripcion || "");
-        setModuloOrden(draft.orden || modulos.length + 1);
-        setModuloImagenUrl(draft.imagenUrl || "");
-        setModuloImagenPreview(draft.imagenPreview || (draft.imagenUrl ? getMediaUrl(draft.imagenUrl) : null));
-        setModuloImagenFile(null);
-        setRestoredDraftModulo(true);
-      } else {
-        setModuloTitulo("");
-        setModuloDescripcion("");
-        setModuloOrden(modulos.length + 1);
-        setModuloImagenUrl("");
-        setModuloImagenPreview(null);
-        setModuloImagenFile(null);
-        setRestoredDraftModulo(false);
-      }
-    } catch {
-      setRestoredDraftModulo(false);
-    }
-    setShowModuloModal(true);
-  };
-
-  // Descartar borrador de módulo
-  const handleDescartarBorradorModulo = () => {
-    try {
-      localStorage.removeItem(`ficct_modulo_draft_${convocatoriaId}`);
-    } catch {}
-    setRestoredDraftModulo(false);
     setModuloTitulo("");
     setModuloDescripcion("");
     setModuloOrden(modulos.length + 1);
     setModuloImagenUrl("");
-    setModuloImagenFile(null);
     setModuloImagenPreview(null);
-    setErrorModuloImg(null);
-    toast("Borrador de módulo descartado", "info");
+    setModuloImagenFile(null);
+    setShowModuloModal(true);
   };
 
   // Drag & drop y validación de imagen para Módulo
@@ -1440,29 +1331,6 @@ export default function AreaMoodlePage() {
     const previewUrl = URL.createObjectURL(file);
     setModuloImagenPreview(previewUrl);
   };
-
-  // Auto-guardar borrador de módulo si no está editando uno existente
-  useEffect(() => {
-    if (!showModuloModal || moduloEditing) return;
-    const hasData = moduloTitulo.trim() !== "" || moduloDescripcion.trim() !== "" || moduloImagenUrl.trim() !== "";
-    if (!hasData) return;
-
-    const timeout = setTimeout(() => {
-      try {
-        const draft = {
-          titulo: moduloTitulo,
-          descripcion: moduloDescripcion,
-          orden: moduloOrden,
-          imagenUrl: moduloImagenUrl,
-          imagenPreview: moduloImagenPreview && !moduloImagenPreview.startsWith("blob:") ? moduloImagenPreview : null,
-          updatedAt: new Date().toISOString(),
-        };
-        localStorage.setItem(`ficct_modulo_draft_${convocatoriaId}`, JSON.stringify(draft));
-      } catch {}
-    }, 500);
-
-    return () => clearTimeout(timeout);
-  }, [showModuloModal, moduloEditing, moduloTitulo, moduloDescripcion, moduloOrden, moduloImagenUrl, moduloImagenPreview, convocatoriaId]);
 
   const handleGuardarModulo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1500,11 +1368,6 @@ export default function AreaMoodlePage() {
       } else {
         await api.createModulo(convocatoriaId, req);
         toast("Módulo creado exitosamente", "success");
-        // Limpiar borrador de módulo
-        try {
-          localStorage.removeItem(`ficct_modulo_draft_${convocatoriaId}`);
-        } catch {}
-        setRestoredDraftModulo(false);
       }
 
       setShowModuloModal(false);
@@ -1565,6 +1428,7 @@ export default function AreaMoodlePage() {
     try {
       setCargandoEntregasTarea(true);
       setActiveTareaParaEntregas(tarea);
+      updateUrlParams({ entregas: tarea.id });
       const entregas = await api.getEntregasTarea(tarea.id);
       setEntregasTareaActual(entregas);
 
@@ -1763,23 +1627,6 @@ export default function AreaMoodlePage() {
             </button>
           </div>
 
-          {/* Banner de Borrador Restaurado */}
-          {restoredDraftEntrega && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
-              <span className="flex items-center gap-1.5 font-medium">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                Se ha recuperado un borrador de entrega no enviado {lastDraftSavedEntrega ? `(${lastDraftSavedEntrega})` : ""}.
-              </span>
-              <button
-                type="button"
-                onClick={handleDescartarBorradorEntrega}
-                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-              >
-                <RotateCcw className="w-3 h-3" /> Descartar
-              </button>
-            </div>
-          )}
-
           {/* Tarjeta de Requisitos de la Tarea */}
           <div className="text-xs space-y-2 bg-paper-sunken/70 p-3.5 rounded-xl border border-line">
             <span className="font-bold text-ink text-sm block">{selectedTareaForEntrega.titulo}</span>
@@ -1891,13 +1738,8 @@ export default function AreaMoodlePage() {
 
             {/* ZONA DRAG & DROP / TARJETA DE ARCHIVO CARGADO */}
             <div>
-              <label className="font-semibold text-ink block mb-1.5 flex items-center justify-between">
-                <span>Archivos de Entrega (Arrastra o Selecciona) *</span>
-                {lastDraftSavedEntrega && (
-                  <span className="text-[10px] text-accent font-normal flex items-center gap-1">
-                    <Save className="w-3 h-3" /> Borrador guardado ({lastDraftSavedEntrega})
-                  </span>
-                )}
+              <label className="font-semibold text-ink block mb-1.5">
+                Archivos de Entrega (Arrastra o Selecciona) *
               </label>
 
               {!archivoEntregaFile && !archivoEntregaPrevioUrl ? (
@@ -2043,12 +1885,7 @@ export default function AreaMoodlePage() {
             </div>
 
             {/* Footer y Acciones de Envío */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-line">
-              <span className="text-[11px] text-ink-faint">
-                {lastDraftSavedEntrega
-                  ? `💾 Borrador guardado localmente (${lastDraftSavedEntrega})`
-                  : ""}
-              </span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3 pt-3 border-t border-line">
 
               <div className="flex items-center justify-end gap-2">
                 <button
@@ -2074,6 +1911,460 @@ export default function AreaMoodlePage() {
                   )}
                 </button>
               </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  // ========================================================
+  // MODAL: CREAR / EDITAR MÓDULO DE APRENDIZAJE
+  // ========================================================
+  const renderModalModulo = () => {
+    if (!showModuloModal) return null;
+    return (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-line pb-3">
+            <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
+              <FolderKanban className="w-5 h-5 text-accent" />
+              {moduloEditing ? "Editar Módulo de Aprendizaje" : "Nuevo Módulo de Aprendizaje"}
+            </h3>
+            <button
+              onClick={() => setShowModuloModal(false)}
+              className="text-ink-faint hover:text-ink cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleGuardarModulo} className="space-y-4 text-xs">
+            <div>
+              <label className="font-semibold text-ink block mb-1">Título del Módulo *</label>
+              <input
+                type="text"
+                required
+                value={moduloTitulo}
+                onChange={(e) => setModuloTitulo(e.target.value)}
+                placeholder="Ej. Módulo 1: Fundamentación Teórica y Estado del Arte"
+                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label className="font-semibold text-ink block mb-1">Descripción del Módulo</label>
+              <textarea
+                rows={3}
+                value={moduloDescripcion}
+                onChange={(e) => setModuloDescripcion(e.target.value)}
+                placeholder="Breve resumen del objetivo pedagógico o temática a cubrir..."
+                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="font-semibold text-ink block mb-1">Orden de Presentación</label>
+              <input
+                type="number"
+                min={1}
+                value={moduloOrden}
+                onChange={(e) => setModuloOrden(Number(e.target.value))}
+                className="w-24 px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
+              />
+            </div>
+
+            {/* Subida o URL de Imagen con Drag & Drop y Previsualización */}
+            <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line space-y-3">
+              <span className="font-bold text-ink block text-[11px] uppercase tracking-wider text-accent">
+                Imagen de Portada del Módulo
+              </span>
+
+              {errorModuloImg && (
+                <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorModuloImg}</span>
+                </div>
+              )}
+
+              {/* Input de archivo oculto */}
+              <input
+                ref={fileInputModuloImgRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleModuloImageFileSelect(file);
+                }}
+                className="hidden"
+              />
+
+              {/* Zona Drag & Drop para la Imagen */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingModuloImg(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDraggingModuloImg(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingModuloImg(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) handleModuloImageFileSelect(file);
+                }}
+                onClick={() => fileInputModuloImgRef.current?.click()}
+                className={`p-4 rounded-xl border-2 border-dashed text-center cursor-pointer transition-all ${
+                  isDraggingModuloImg
+                    ? "border-accent bg-accent/10 ring-2 ring-accent/30"
+                    : "border-line hover:border-accent/60 bg-paper hover:bg-paper-sunken/60"
+                }`}
+              >
+                <UploadCloud className="w-8 h-8 text-accent mx-auto mb-1.5" />
+                <p className="text-xs font-semibold text-ink">
+                  Arrastra y suelta la imagen aquí, o haz clic para examinar
+                </p>
+                <p className="text-[10px] text-ink-faint mt-0.5">
+                  Formatos soportados: PNG, JPG, WEBP, SVG (Máx. 5 MB)
+                </p>
+              </div>
+
+              <div>
+                <label className="text-ink-soft block mb-1">O Ingresar URL Web de la Imagen</label>
+                <input
+                  type="text"
+                  value={moduloImagenUrl}
+                  onChange={(e) => {
+                    setModuloImagenUrl(e.target.value);
+                    if (!moduloImagenFile) {
+                      setModuloImagenPreview(e.target.value.trim() || null);
+                    }
+                  }}
+                  placeholder="https://images.unsplash.com/..."
+                  className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                />
+              </div>
+
+              {/* Previsualización en recuadro */}
+              {moduloImagenPreview && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-semibold text-ink-faint uppercase block">
+                    Previsualización:
+                  </span>
+                  <div className="relative w-full h-36 rounded-xl overflow-hidden border border-line bg-paper-sunken">
+                    <img
+                      src={moduloImagenPreview}
+                      alt="Preview módulo"
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModuloImagenFile(null);
+                        setModuloImagenPreview(null);
+                        setModuloImagenUrl("");
+                        setErrorModuloImg(null);
+                      }}
+                      className="absolute top-2 right-2 px-2 py-1 bg-black/70 hover:bg-black text-white text-[10px] rounded-md font-medium cursor-pointer"
+                    >
+                      ✕ Quitar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
+              <button
+                type="button"
+                onClick={() => setShowModuloModal(false)}
+                className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={guardandoModulo}
+                className="px-4 py-2 bg-accent text-white rounded-xl font-semibold hover:bg-accent-dark disabled:opacity-50 cursor-pointer"
+              >
+                {guardandoModulo ? "Guardando..." : moduloEditing ? "Actualizar Módulo" : "Crear Módulo"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  // ========================================================
+  // MODAL: CREAR / EDITAR TAREA ACADÉMICA (MOODLE)
+  // ========================================================
+  const renderModalCreateTarea = () => {
+    if (!showCreateTareaModal) return null;
+    return (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-line pb-3">
+            <div>
+              <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
+                <FileText className="w-5 h-5 text-accent" />{" "}
+                {tareaEditing ? "Editar Tarea Académica (Moodle)" : "Nueva Tarea Académica (Moodle)"}
+              </h3>
+              <p className="text-[11px] text-ink-soft mt-0.5">
+                {tareaEditing
+                  ? "Modifica fechas, instrucciones o restricciones. Las entregas registradas previamente se mantendrán intactas."
+                  : "Configura las pautas y plazos de entrega para los estudiantes"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCreateTareaModal(false);
+                setTareaEditing(null);
+                setEntregasTareaEditing([]);
+              }}
+              className="text-ink-faint hover:text-ink cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Sección de Protección e Historial de Entregas al editar */}
+          {tareaEditing && (
+            <div className="p-3.5 bg-paper-sunken/80 border border-line rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-bold text-xs text-ink">
+                    Historial de Entregas ({entregasTareaEditing.length} registradas)
+                  </span>
+                </div>
+                <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" /> Entregas Protegidas
+                </span>
+              </div>
+
+              <p className="text-[11px] text-ink-soft leading-relaxed">
+                Si amplías o ajustas la fecha límite o parámetros, <strong>los estudiantes que ya entregaron no perderán su entrega</strong> ni tendrán que reenviarla; sus archivos permanecen registrados formalmente.
+              </p>
+
+              {loadingEntregasEditing ? (
+                <div className="p-3 text-center text-xs text-ink-faint bg-paper rounded-lg border border-line">
+                  Cargando historial de entregas...
+                </div>
+              ) : entregasTareaEditing.length === 0 ? (
+                <div className="p-2.5 text-center text-[11px] text-ink-faint bg-paper rounded-lg border border-line">
+                  No hay entregas previas para esta tarea todavía. Puedes ajustar los plazos con total libertad.
+                </div>
+              ) : (
+                <div className="max-h-40 overflow-y-auto divide-y divide-line rounded-lg border border-line bg-paper text-[11px]">
+                  {entregasTareaEditing.map((entrega) => (
+                    <div
+                      key={entrega.id}
+                      className="p-2.5 flex items-center justify-between gap-2 hover:bg-paper-sunken/40 transition-colors"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="font-semibold text-ink truncate">
+                          {entrega.estudianteNombre || entrega.estudianteEmail}
+                        </p>
+                        <p className="text-[10px] text-ink-soft flex items-center gap-1.5 flex-wrap">
+                          {entrega.grupoNombre && (
+                            <span className="font-medium text-accent">[{entrega.grupoNombre}]</span>
+                          )}
+                          <span>Entregado: {formatMoodleDate(entrega.fechaEntrega)}</span>
+                          {entrega.estado === "CALIFICADO" ? (
+                            <span className="text-emerald-600 font-semibold">({entrega.calificacion} pts)</span>
+                          ) : null}
+                        </p>
+                      </div>
+
+                      {entrega.nombreArchivo && (
+                        <div className="shrink-0 flex items-center gap-1">
+                          {entrega.archivoUrl ? (
+                            <a
+                              href={getMediaUrl(entrega.archivoUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-1 bg-paper-sunken hover:bg-paper text-accent border border-line rounded-md text-[10px] font-medium flex items-center gap-1 transition-colors"
+                              title={`Descargar ${entrega.nombreArchivo}`}
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span className="max-w-[110px] truncate">{entrega.nombreArchivo}</span>
+                              <Download className="w-2.5 h-2.5" />
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-ink-soft">{entrega.nombreArchivo}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <form onSubmit={handleCrearTarea} className="space-y-4 text-xs">
+            {/* Asignar a Módulo opcional */}
+            <div>
+              <label className="font-semibold text-ink block mb-1">Módulo de Aprendizaje (Opcional)</label>
+              <select
+                value={tareaModuloId}
+                onChange={(e) => setTareaModuloId(e.target.value ? Number(e.target.value) : "")}
+                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+              >
+                <option value="">-- Tarea General (Sin Módulo) --</option>
+                {modulos.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    Módulo #{m.orden}: {m.titulo}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="font-semibold text-ink block mb-1">Título de la Tarea *</label>
+              <input
+                type="text"
+                required
+                value={tituloTarea}
+                onChange={(e) => setTituloTarea(e.target.value)}
+                placeholder="Ej. Entrega 1: Perfil de Proyecto y Objetivos"
+                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label className="font-semibold text-ink block mb-1">Instrucciones y Rúbrica</label>
+              <textarea
+                rows={3}
+                value={descTarea}
+                onChange={(e) => setDescTarea(e.target.value)}
+                placeholder="Detalla qué deben entregar los estudiantes, formato esperado y criterios de evaluación..."
+                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"
+              />
+            </div>
+
+            {/* TRIPLE CONTROL DE FECHAS */}
+            <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line space-y-3">
+              <span className="font-bold text-ink block text-[11px] uppercase tracking-wider text-accent">
+                Control de Disponibilidad y Fechas (Moodle)
+              </span>
+
+              <div>
+                <label className="font-semibold text-ink block mb-1">1. Permitir entregas desde (Habilitación)</label>
+                <input
+                  type="datetime-local"
+                  value={fechaHabilitacion}
+                  onChange={(e) => setFechaHabilitacion(e.target.value)}
+                  className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-ink block mb-1">2. Fecha de Entrega (Límite regular)</label>
+                <input
+                  type="datetime-local"
+                  value={fechaEntrega}
+                  onChange={(e) => setFechaEntrega(e.target.value)}
+                  className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-ink block mb-1">3. Fecha de Corte (Cierre definitivo)</label>
+                <input
+                  type="datetime-local"
+                  value={fechaCorte}
+                  onChange={(e) => setFechaCorte(e.target.value)}
+                  className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                />
+                <span className="text-[10px] text-ink-faint mt-1 block">
+                  Tras la fecha de corte, no se permitirán más entregas ni reenvíos bajo ninguna circunstancia.
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="font-semibold text-ink block mb-1">Puntaje Máximo</label>
+                <input
+                  type="number"
+                  value={puntajeMax}
+                  onChange={(e) => setPuntajeMax(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-ink block mb-1">Tamaño Máx (MB)</label>
+                <input
+                  type="number"
+                  value={tamanoMb}
+                  onChange={(e) => setTamanoMb(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-ink block mb-1">Formatos Permitidos</label>
+                <input
+                  type="text"
+                  value={archivosPermitidos}
+                  onChange={(e) => setArchivosPermitidos(e.target.value)}
+                  placeholder=".pdf, .docx, .zip"
+                  className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
+                />
+              </div>
+            </div>
+
+            {/* Modalidad de Entrega: Individual o Grupal */}
+            <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line flex items-center justify-between">
+              <div className="pr-3">
+                <label className="font-bold text-ink block text-xs flex items-center gap-1.5 cursor-pointer">
+                  <Users className="w-4 h-4 text-accent" />
+                  Entrega Grupal (por equipos)
+                </label>
+                <p className="text-[10px] text-ink-faint mt-0.5">
+                  Si se activa, el envío de cualquier integrante del equipo figurará como entregado para todos los compañeros, y al calificarlo se sincronizará la nota y comentarios a todo el grupo.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={esGrupalTarea}
+                  onChange={(e) => setEsGrupalTarea(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-paper-sunken peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-line"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateTareaModal(false);
+                  setTareaEditing(null);
+                  setEntregasTareaEditing([]);
+                }}
+                className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={creandoTarea}
+                className="px-4 py-2 bg-accent text-white rounded-xl font-semibold hover:bg-accent-dark disabled:opacity-50 cursor-pointer"
+              >
+                {creandoTarea
+                  ? "Guardando..."
+                  : tareaEditing
+                  ? "Guardar Cambios de Tarea"
+                  : "Publicar Tarea"}
+              </button>
             </div>
           </form>
         </div>
@@ -2119,6 +2410,11 @@ export default function AreaMoodlePage() {
                     setActiveTareaParaEntregas(null);
                     setEntregasTareaActual([]);
                     setSelectedEstudianteId(null);
+                    updateUrlParams({
+                      entregas: null,
+                      tarea: activeTareaDetalle?.id || null,
+                      modulo: activeTareaDetalle?.moduloId || selectedModuloId || null,
+                    });
                   }}
                   className="inline-flex items-center gap-1.5 text-xs text-ink-faint hover:text-accent font-medium mb-1 transition-colors cursor-pointer"
                 >
@@ -2586,6 +2882,9 @@ export default function AreaMoodlePage() {
               </div>
             </div>
           </div>
+          {/* Modales disponibles en SpeedGrader */}
+          {renderModalSubirEntrega()}
+          {renderModalCreateTarea()}
         </div>
       </DashboardLayout>
     );
@@ -2619,7 +2918,12 @@ export default function AreaMoodlePage() {
           {/* Navegación y Breadcrumbs estilo Moodle */}
           <div>
             <button
-              onClick={() => setActiveTareaDetalle(null)}
+              onClick={() => {
+                const modId = activeTareaDetalle.moduloId || selectedModuloId || null;
+                setActiveTareaDetalle(null);
+                setSelectedModuloId(modId);
+                updateUrlParams({ tarea: null, modulo: modId });
+              }}
               className="inline-flex items-center gap-1.5 text-xs text-ink-faint hover:text-accent font-medium mb-3 transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -2628,13 +2932,30 @@ export default function AreaMoodlePage() {
                 : "Volver a Convocatoria y Módulos"}
             </button>
             <div className="flex items-center gap-2 text-xs text-ink-faint">
-              <span className="hover:text-accent cursor-pointer" onClick={() => setActiveTareaDetalle(null)}>
+              <span
+                className="hover:text-accent cursor-pointer"
+                onClick={() => {
+                  setActiveTareaDetalle(null);
+                  setSelectedModuloId(null);
+                  updateUrlParams({ tarea: null, modulo: null });
+                }}
+              >
                 {convocatoria.titulo}
               </span>
               <ChevronRight className="w-3.5 h-3.5" />
               {activeTareaDetalle.moduloTitulo && (
                 <>
-                  <span className="text-ink-soft">{activeTareaDetalle.moduloTitulo}</span>
+                  <span
+                    className="text-ink-soft hover:text-accent cursor-pointer"
+                    onClick={() => {
+                      const modId = activeTareaDetalle.moduloId || selectedModuloId || null;
+                      setActiveTareaDetalle(null);
+                      setSelectedModuloId(modId);
+                      updateUrlParams({ tarea: null, modulo: modId });
+                    }}
+                  >
+                    {activeTareaDetalle.moduloTitulo}
+                  </span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </>
               )}
@@ -3051,8 +3372,10 @@ export default function AreaMoodlePage() {
             </div>
           )}
 
-          {/* Modal de Subida de Entrega */}
+          {/* Modales disponibles en la vista detallada de la tarea */}
           {renderModalSubirEntrega()}
+          {renderModalCreateTarea()}
+          {renderModalModulo()}
         </div>
       </DashboardLayout>
     );
@@ -3234,7 +3557,7 @@ export default function AreaMoodlePage() {
             {/* Selector de Pestañas tipo Moodle */}
             <div className="flex border-b border-line mt-6 -mb-6 -mx-6 sm:-mx-8 px-6 sm:px-8 gap-6 text-xs font-semibold">
               <button
-                onClick={() => setActiveTab("tareas")}
+                onClick={() => handleCambiarTab("tareas")}
                 className={`py-3.5 border-b-2 flex items-center gap-2 transition-all ${
                   activeTab === "tareas"
                     ? "border-accent text-accent"
@@ -3245,7 +3568,7 @@ export default function AreaMoodlePage() {
               </button>
 
               <button
-                onClick={() => setActiveTab("grupos")}
+                onClick={() => handleCambiarTab("grupos")}
                 className={`py-3.5 border-b-2 flex items-center gap-2 transition-all ${
                   activeTab === "grupos"
                     ? "border-accent text-accent"
@@ -3261,7 +3584,7 @@ export default function AreaMoodlePage() {
               </button>
 
               <button
-                onClick={() => setActiveTab("participantes")}
+                onClick={() => handleCambiarTab("participantes")}
                 className={`py-3.5 border-b-2 flex items-center gap-2 transition-all ${
                   activeTab === "participantes"
                     ? "border-accent text-accent"
@@ -3272,7 +3595,7 @@ export default function AreaMoodlePage() {
               </button>
 
               <button
-                onClick={() => setActiveTab("info")}
+                onClick={() => handleCambiarTab("info")}
                 className={`py-3.5 border-b-2 flex items-center gap-2 transition-all ${
                   activeTab === "info"
                     ? "border-accent text-accent"
@@ -3399,7 +3722,7 @@ export default function AreaMoodlePage() {
                           onClick={() => {
                             setActividadActiva(act);
                             setSelectedGrupoRadioId(act.grupoSeleccionadoId || null);
-                            setActiveTab("grupos");
+                            handleCambiarTab("grupos");
                           }}
                           className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs justify-center"
                         >
@@ -3522,7 +3845,10 @@ export default function AreaMoodlePage() {
                           {/* Footer con acciones */}
                           <div className="p-4 pt-0 border-t border-line-soft mt-3 flex items-center justify-between gap-2">
                             <button
-                              onClick={() => setSelectedModuloId(mod.id)}
+                              onClick={() => {
+                                setSelectedModuloId(mod.id);
+                                updateUrlParams({ modulo: mod.id });
+                              }}
                               className="px-3.5 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all flex-1 justify-center shadow-xs cursor-pointer"
                             >
                               Entrar al Módulo <ChevronRight className="w-4 h-4" />
@@ -3590,7 +3916,10 @@ export default function AreaMoodlePage() {
                         {tareasGenerales.map((t) => (
                           <div
                             key={t.id}
-                            onClick={() => setActiveTareaDetalle(t)}
+                            onClick={() => {
+                              setActiveTareaDetalle(t);
+                              updateUrlParams({ tarea: t.id, modulo: t.moduloId || null });
+                            }}
                             className="bg-paper hover:bg-paper-sunken/60 border border-line rounded-xl p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-2xs"
                           >
                             <div className="flex items-center gap-3.5 min-w-0">
@@ -3684,7 +4013,10 @@ export default function AreaMoodlePage() {
                     <div className="p-8 text-center bg-paper border border-line rounded-2xl">
                       <p className="text-xs text-ink-soft">El módulo seleccionado no existe.</p>
                       <button
-                        onClick={() => setSelectedModuloId(null)}
+                        onClick={() => {
+                          setSelectedModuloId(null);
+                          updateUrlParams({ modulo: null });
+                        }}
                         className="mt-3 px-4 py-2 bg-accent text-white rounded-xl text-xs font-semibold"
                       >
                         Volver a Módulos
@@ -3701,7 +4033,10 @@ export default function AreaMoodlePage() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-paper border border-line rounded-2xl p-4 sm:p-5 shadow-xs">
                       <div>
                         <button
-                          onClick={() => setSelectedModuloId(null)}
+                          onClick={() => {
+                            setSelectedModuloId(null);
+                            updateUrlParams({ modulo: null });
+                          }}
                           className="inline-flex items-center gap-1.5 text-xs text-ink-faint hover:text-accent font-medium mb-1 transition-colors cursor-pointer"
                         >
                           <ArrowLeft className="w-3.5 h-3.5" /> Volver a todos los Módulos
@@ -3798,7 +4133,7 @@ export default function AreaMoodlePage() {
                                 onClick={() => {
                                   setActividadActiva(act);
                                   setSelectedGrupoRadioId(act.grupoSeleccionadoId || null);
-                                  setActiveTab("grupos");
+                                  handleCambiarTab("grupos");
                                 }}
                                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-2xs justify-center"
                               >
@@ -3842,7 +4177,10 @@ export default function AreaMoodlePage() {
                           {tareasDelModulo.map((t) => (
                             <div
                               key={t.id}
-                              onClick={() => setActiveTareaDetalle(t)}
+                              onClick={() => {
+                                setActiveTareaDetalle(t);
+                                updateUrlParams({ tarea: t.id, modulo: t.moduloId || selectedModuloId || null });
+                              }}
                               className="bg-paper hover:bg-paper-sunken/60 border border-line rounded-xl p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-2xs"
                             >
                               <div className="flex items-center gap-3.5 min-w-0">
@@ -4946,486 +5284,10 @@ export default function AreaMoodlePage() {
         )}
 
         {/* ==================================================== */}
-        {/* MODAL: CREAR / EDITAR MÓDULO DE APRENDIZAJE         */}
+        {/* MODALES: MÓDULO Y TAREA ACADÉMICA (MOODLE)          */}
         {/* ==================================================== */}
-        {showModuloModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-line pb-3">
-                <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
-                  <FolderKanban className="w-5 h-5 text-accent" />
-                  {moduloEditing ? "Editar Módulo de Aprendizaje" : "Nuevo Módulo de Aprendizaje"}
-                </h3>
-                <button
-                  onClick={() => setShowModuloModal(false)}
-                  className="text-ink-faint hover:text-ink cursor-pointer"
-                >
-                  <XCircle className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Banner de Borrador Restaurado */}
-              {restoredDraftModulo && !moduloEditing && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
-                  <span className="flex items-center gap-1.5 font-medium">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    Se ha recuperado un borrador de módulo no guardado.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleDescartarBorradorModulo}
-                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-                  >
-                    <RotateCcw className="w-3 h-3" /> Descartar
-                  </button>
-                </div>
-              )}
-
-              <form onSubmit={handleGuardarModulo} className="space-y-4 text-xs">
-                <div>
-                  <label className="font-semibold text-ink block mb-1">Título del Módulo *</label>
-                  <input
-                    type="text"
-                    required
-                    value={moduloTitulo}
-                    onChange={(e) => setModuloTitulo(e.target.value)}
-                    placeholder="Ej. Módulo 1: Fundamentación Teórica y Estado del Arte"
-                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-semibold text-ink block mb-1">Descripción del Módulo</label>
-                  <textarea
-                    rows={3}
-                    value={moduloDescripcion}
-                    onChange={(e) => setModuloDescripcion(e.target.value)}
-                    placeholder="Breve resumen del objetivo pedagógico o temática a cubrir..."
-                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-semibold text-ink block mb-1">Orden de Presentación</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={moduloOrden}
-                    onChange={(e) => setModuloOrden(Number(e.target.value))}
-                    className="w-24 px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
-                  />
-                </div>
-
-                {/* Subida o URL de Imagen con Drag & Drop y Previsualización */}
-                <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line space-y-3">
-                  <span className="font-bold text-ink block text-[11px] uppercase tracking-wider text-accent">
-                    Imagen de Portada del Módulo
-                  </span>
-
-                  {errorModuloImg && (
-                    <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 text-xs flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{errorModuloImg}</span>
-                    </div>
-                  )}
-
-                  {/* Input de archivo oculto */}
-                  <input
-                    ref={fileInputModuloImgRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleModuloImageFileSelect(file);
-                    }}
-                    className="hidden"
-                  />
-
-                  {/* Zona Drag & Drop para la Imagen */}
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDraggingModuloImg(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setIsDraggingModuloImg(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDraggingModuloImg(false);
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) handleModuloImageFileSelect(file);
-                    }}
-                    onClick={() => fileInputModuloImgRef.current?.click()}
-                    className={`p-4 rounded-xl border-2 border-dashed text-center cursor-pointer transition-all ${
-                      isDraggingModuloImg
-                        ? "border-accent bg-accent/10 ring-2 ring-accent/30"
-                        : "border-line hover:border-accent/60 bg-paper hover:bg-paper-sunken/60"
-                    }`}
-                  >
-                    <UploadCloud className="w-8 h-8 text-accent mx-auto mb-1.5" />
-                    <p className="text-xs font-semibold text-ink">
-                      Arrastra y suelta la imagen aquí, o haz clic para examinar
-                    </p>
-                    <p className="text-[10px] text-ink-faint mt-0.5">
-                      Formatos soportados: PNG, JPG, WEBP, SVG (Máx. 5 MB)
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-ink-soft block mb-1">O Ingresar URL Web de la Imagen</label>
-                    <input
-                      type="text"
-                      value={moduloImagenUrl}
-                      onChange={(e) => {
-                        setModuloImagenUrl(e.target.value);
-                        if (!moduloImagenFile) {
-                          setModuloImagenPreview(e.target.value.trim() || null);
-                        }
-                      }}
-                      placeholder="https://images.unsplash.com/..."
-                      className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  {/* Previsualización en recuadro */}
-                  {moduloImagenPreview && (
-                    <div className="space-y-1.5 pt-1">
-                      <span className="text-[10px] font-semibold text-ink-faint uppercase block">
-                        Previsualización:
-                      </span>
-                      <div className="relative w-full h-36 rounded-xl overflow-hidden border border-line bg-paper-sunken">
-                        <img
-                          src={moduloImagenPreview}
-                          alt="Preview módulo"
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModuloImagenFile(null);
-                            setModuloImagenPreview(null);
-                            setModuloImagenUrl("");
-                            setErrorModuloImg(null);
-                          }}
-                          className="absolute top-2 right-2 px-2 py-1 bg-black/70 hover:bg-black text-white text-[10px] rounded-md font-medium cursor-pointer"
-                        >
-                          ✕ Quitar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
-                  <button
-                    type="button"
-                    onClick={() => setShowModuloModal(false)}
-                    className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={guardandoModulo}
-                    className="px-4 py-2 bg-accent text-white rounded-xl font-semibold hover:bg-accent-dark disabled:opacity-50 cursor-pointer"
-                  >
-                    {guardandoModulo ? "Guardando..." : moduloEditing ? "Actualizar Módulo" : "Crear Módulo"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* ==================================================== */}
-        {/* MODAL: CREAR TAREA MOODLE CON TRIPLE CONTROL DE FECHA */}
-        {/* ==================================================== */}
-        {showCreateTareaModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-line pb-3">
-                <div>
-                  <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-accent" />{" "}
-                    {tareaEditing ? "Editar Tarea Académica (Moodle)" : "Nueva Tarea Académica (Moodle)"}
-                  </h3>
-                  <p className="text-[11px] text-ink-soft mt-0.5">
-                    {tareaEditing
-                      ? "Modifica fechas, instrucciones o restricciones. Las entregas registradas previamente se mantendrán intactas."
-                      : "Configura las pautas y plazos de entrega para los estudiantes"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCreateTareaModal(false);
-                    setTareaEditing(null);
-                    setEntregasTareaEditing([]);
-                  }}
-                  className="text-ink-faint hover:text-ink cursor-pointer"
-                >
-                  <XCircle className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Banner de Borrador Restaurado (solo si es nueva tarea) */}
-              {!tareaEditing && restoredDraftTarea && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
-                  <span className="flex items-center gap-1.5 font-medium">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    Se ha recuperado un borrador de tarea no publicada.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleDescartarBorradorTarea}
-                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-                  >
-                    <RotateCcw className="w-3 h-3" /> Descartar
-                  </button>
-                </div>
-              )}
-
-              {/* Sección de Protección e Historial de Entregas al editar */}
-              {tareaEditing && (
-                <div className="p-3.5 bg-paper-sunken/80 border border-line rounded-xl space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="font-bold text-xs text-ink">
-                        Historial de Entregas ({entregasTareaEditing.length} registradas)
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                      <Check className="w-3 h-3 text-emerald-600" /> Entregas Protegidas
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-ink-soft leading-relaxed">
-                    Si amplías o ajustas la fecha límite o parámetros, <strong>los estudiantes que ya entregaron no perderán su entrega</strong> ni tendrán que reenviarla; sus archivos permanecen registrados formalmente.
-                  </p>
-
-                  {loadingEntregasEditing ? (
-                    <div className="p-3 text-center text-xs text-ink-faint bg-paper rounded-lg border border-line">
-                      Cargando historial de entregas...
-                    </div>
-                  ) : entregasTareaEditing.length === 0 ? (
-                    <div className="p-2.5 text-center text-[11px] text-ink-faint bg-paper rounded-lg border border-line">
-                      No hay entregas previas para esta tarea todavía. Puedes ajustar los plazos con total libertad.
-                    </div>
-                  ) : (
-                    <div className="max-h-40 overflow-y-auto divide-y divide-line rounded-lg border border-line bg-paper text-[11px]">
-                      {entregasTareaEditing.map((entrega) => (
-                        <div
-                          key={entrega.id}
-                          className="p-2.5 flex items-center justify-between gap-2 hover:bg-paper-sunken/40 transition-colors"
-                        >
-                          <div className="min-w-0 space-y-0.5">
-                            <p className="font-semibold text-ink truncate">
-                              {entrega.estudianteNombre || entrega.estudianteEmail}
-                            </p>
-                            <p className="text-[10px] text-ink-soft flex items-center gap-1.5 flex-wrap">
-                              {entrega.grupoNombre && (
-                                <span className="font-medium text-accent">[{entrega.grupoNombre}]</span>
-                              )}
-                              <span>Entregado: {formatMoodleDate(entrega.fechaEntrega)}</span>
-                              {entrega.estado === "CALIFICADO" ? (
-                                <span className="text-emerald-600 font-semibold">({entrega.calificacion} pts)</span>
-                              ) : null}
-                            </p>
-                          </div>
-
-                          {entrega.nombreArchivo && (
-                            <div className="shrink-0 flex items-center gap-1">
-                              {entrega.archivoUrl ? (
-                                <a
-                                  href={getMediaUrl(entrega.archivoUrl)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2 py-1 bg-paper-sunken hover:bg-paper text-accent border border-line rounded-md text-[10px] font-medium flex items-center gap-1 transition-colors"
-                                  title={`Descargar ${entrega.nombreArchivo}`}
-                                >
-                                  <FileText className="w-3 h-3" />
-                                  <span className="max-w-[110px] truncate">{entrega.nombreArchivo}</span>
-                                  <Download className="w-2.5 h-2.5" />
-                                </a>
-                              ) : (
-                                <span className="text-[10px] text-ink-soft">{entrega.nombreArchivo}</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <form onSubmit={handleCrearTarea} className="space-y-4 text-xs">
-                {/* Asignar a Módulo opcional */}
-                <div>
-                  <label className="font-semibold text-ink block mb-1">Módulo de Aprendizaje (Opcional)</label>
-                  <select
-                    value={tareaModuloId}
-                    onChange={(e) => setTareaModuloId(e.target.value ? Number(e.target.value) : "")}
-                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
-                  >
-                    <option value="">-- Tarea General (Sin Módulo) --</option>
-                    {modulos.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        Módulo #{m.orden}: {m.titulo}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-ink block mb-1">Título de la Tarea *</label>
-                  <input
-                    type="text"
-                    required
-                    value={tituloTarea}
-                    onChange={(e) => setTituloTarea(e.target.value)}
-                    placeholder="Ej. Entrega 1: Perfil de Proyecto y Objetivos"
-                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-semibold text-ink block mb-1">Instrucciones y Rúbrica</label>
-                  <textarea
-                    rows={3}
-                    value={descTarea}
-                    onChange={(e) => setDescTarea(e.target.value)}
-                    placeholder="Detalla qué deben entregar los estudiantes, formato esperado y criterios de evaluación..."
-                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"
-                  />
-                </div>
-
-                {/* TRIPLE CONTROL DE FECHAS */}
-                <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line space-y-3">
-                  <span className="font-bold text-ink block text-[11px] uppercase tracking-wider text-accent">
-                    Control de Disponibilidad y Fechas (Moodle)
-                  </span>
-
-                  <div>
-                    <label className="font-semibold text-ink block mb-1">1. Permitir entregas desde (Habilitación)</label>
-                    <input
-                      type="datetime-local"
-                      value={fechaHabilitacion}
-                      onChange={(e) => setFechaHabilitacion(e.target.value)}
-                      className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-ink block mb-1">2. Fecha de Entrega (Límite regular)</label>
-                    <input
-                      type="datetime-local"
-                      value={fechaEntrega}
-                      onChange={(e) => setFechaEntrega(e.target.value)}
-                      className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-ink block mb-1">3. Fecha de Corte (Cierre definitivo)</label>
-                    <input
-                      type="datetime-local"
-                      value={fechaCorte}
-                      onChange={(e) => setFechaCorte(e.target.value)}
-                      className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
-                    />
-                    <span className="text-[10px] text-ink-faint mt-1 block">
-                      Tras la fecha de corte, no se permitirán más entregas ni reenvíos bajo ninguna circunstancia.
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="font-semibold text-ink block mb-1">Puntaje Máximo</label>
-                    <input
-                      type="number"
-                      value={puntajeMax}
-                      onChange={(e) => setPuntajeMax(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-ink block mb-1">Tamaño Máx (MB)</label>
-                    <input
-                      type="number"
-                      value={tamanoMb}
-                      onChange={(e) => setTamanoMb(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-ink block mb-1">Formatos Permitidos</label>
-                    <input
-                      type="text"
-                      value={archivosPermitidos}
-                      onChange={(e) => setArchivosPermitidos(e.target.value)}
-                      placeholder=".pdf, .docx, .zip"
-                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
-                    />
-                  </div>
-                </div>
-
-                {/* Modalidad de Entrega: Individual o Grupal */}
-                <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line flex items-center justify-between">
-                  <div className="pr-3">
-                    <label className="font-bold text-ink block text-xs flex items-center gap-1.5 cursor-pointer">
-                      <Users className="w-4 h-4 text-accent" />
-                      Entrega Grupal (por equipos)
-                    </label>
-                    <p className="text-[10px] text-ink-faint mt-0.5">
-                      Si se activa, el envío de cualquier integrante del equipo figurará como entregado para todos los compañeros, y al calificarlo se sincronizará la nota y comentarios a todo el grupo.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={esGrupalTarea}
-                      onChange={(e) => setEsGrupalTarea(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-paper-sunken peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-line"></div>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateTareaModal(false);
-                      setTareaEditing(null);
-                      setEntregasTareaEditing([]);
-                    }}
-                    className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={creandoTarea}
-                    className="px-4 py-2 bg-accent text-white rounded-xl font-semibold hover:bg-accent-dark disabled:opacity-50 cursor-pointer"
-                  >
-                    {creandoTarea
-                      ? "Guardando..."
-                      : tareaEditing
-                      ? "Guardar Cambios de Tarea"
-                      : "Publicar Tarea"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {renderModalModulo()}
+        {renderModalCreateTarea()}
 
         {/* ==================================================== */}
         {/* MODAL: DESIGNAR DOCENTE O JURADO                    */}
