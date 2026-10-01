@@ -126,6 +126,78 @@ function formatMoodleDate(dateStr?: string | null): string {
   }
 }
 
+function formatMoodleDateShort(dateStr?: string | null): string {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+// Cálculo de tiempo restante / entrega previa estilo Moodle (image.png)
+function calcularTiempoRestanteMoodle(
+  fechaLimiteStr?: string | null,
+  fechaEntregaStr?: string | null
+): { texto: string; temprano: boolean; retraso: boolean } {
+  if (!fechaLimiteStr) {
+    return { texto: "Sin fecha límite asignada", temprano: false, retraso: false };
+  }
+  const fechaLimite = new Date(fechaLimiteStr).getTime();
+
+  if (fechaEntregaStr) {
+    const fechaEntrega = new Date(fechaEntregaStr).getTime();
+    const diffMs = fechaLimite - fechaEntrega;
+    const diffMin = Math.round(Math.abs(diffMs) / (1000 * 60));
+    const dias = Math.floor(diffMin / (60 * 24));
+    const horas = Math.floor((diffMin % (60 * 24)) / 60);
+    const minutos = diffMin % 60;
+
+    let duracion = "";
+    if (dias > 0) duracion += `${dias} ${dias === 1 ? "día" : "días"} `;
+    if (horas > 0 || dias > 0) duracion += `${horas} ${horas === 1 ? "hora" : "horas"} `;
+    duracion += `${minutos} ${minutos === 1 ? "minuto" : "minutos"}`;
+
+    if (diffMs >= 0) {
+      return {
+        texto: `La tarea fue enviada ${duracion.trim()} antes de la fecha límite`,
+        temprano: true,
+        retraso: false,
+      };
+    } else {
+      return {
+        texto: `La tarea fue enviada ${duracion.trim()} después de la fecha límite (con retraso)`,
+        temprano: false,
+        retraso: true,
+      };
+    }
+  }
+
+  // Tarea no enviada aún
+  const ahora = Date.now();
+  const diffMs = fechaLimite - ahora;
+  if (diffMs <= 0) {
+    return { texto: "La tarea está cerrada y ha pasado la fecha límite", temprano: false, retraso: true };
+  }
+  const diffMin = Math.round(diffMs / (1000 * 60));
+  const dias = Math.floor(diffMin / (60 * 24));
+  const horas = Math.floor((diffMin % (60 * 24)) / 60);
+  const minutos = diffMin % 60;
+
+  let restante = "";
+  if (dias > 0) restante += `${dias} ${dias === 1 ? "día" : "días"}, `;
+  if (horas > 0 || dias > 0) restante += `${horas} ${horas === 1 ? "hora" : "horas"} `;
+  restante += `y ${minutos} ${minutos === 1 ? "minuto" : "minutos"}`;
+  return { texto: `Quedan ${restante}`, temprano: false, retraso: false };
+}
+
 // Analizar extensiones permitidas tipo ".pdf, .docx, .zip"
 function parseAllowedExtensions(allowedStr?: string): string[] {
   if (!allowedStr || allowedStr.trim() === "" || allowedStr.trim() === "*") {
@@ -222,6 +294,8 @@ export default function AreaMoodlePage() {
 
   // Vista Dedicada / Pantalla Completa de Gestión de Entregas (SpeedGrader)
   const [activeTareaParaEntregas, setActiveTareaParaEntregas] = useState<TareaDTO | null>(null);
+  // Vista Detallada de Tarea Académica estilo Moodle (image.png)
+  const [activeTareaDetalle, setActiveTareaDetalle] = useState<TareaDTO | null>(null);
   const [entregasTareaActual, setEntregasTareaActual] = useState<EntregaTareaDTO[]>([]);
   const [selectedEstudianteId, setSelectedEstudianteId] = useState<number | null>(null);
   const [searchEstudianteEntrega, setSearchEstudianteEntrega] = useState("");
@@ -415,6 +489,9 @@ export default function AreaMoodlePage() {
 
       setParticipantes(partsData || []);
       setTareas(tareasData || []);
+      if (tareasData) {
+        setActiveTareaDetalle((prev) => (prev ? tareasData.find((t) => t.id === prev.id) || null : null));
+      }
       setModulos(modulosData || []);
 
       if (gruposData) {
@@ -647,6 +724,7 @@ export default function AreaMoodlePage() {
     try {
       const updated = await api.toggleHabilitarTarea(tareaId);
       setTareas((prev) => prev.map((t) => (t.id === tareaId ? { ...t, habilitada: updated.habilitada, estadoMoodle: updated.estadoMoodle } : t)));
+      setActiveTareaDetalle((prev) => (prev?.id === tareaId ? { ...prev, habilitada: updated.habilitada, estadoMoodle: updated.estadoMoodle } : prev));
       toast(`Recepción de entregas ${updated.habilitada ? "habilitada" : "deshabilitada"} en vivo`, "success");
     } catch (err: any) {
       toast(err.message || "Error al conmutar estado de habilitación", "error");
@@ -1213,6 +1291,7 @@ export default function AreaMoodlePage() {
 
       const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
       setTareas(updatedTareas);
+      setActiveTareaDetalle((prev) => (prev ? updatedTareas.find((t) => t.id === prev.id) || null : null));
     } catch (err: any) {
       toast(err.message || "Error al enviar la entrega", "error");
     } finally {
@@ -1484,6 +1563,9 @@ export default function AreaMoodlePage() {
       try {
         const refreshedEntregas = await api.getEntregasTarea(activeTareaParaEntregas.id);
         setEntregasTareaActual(refreshedEntregas);
+        const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
+        setTareas(updatedTareas);
+        setActiveTareaDetalle((prev) => (prev ? updatedTareas.find((t) => t.id === prev.id) || null : null));
       } catch {
         setEntregasTareaActual((prev) =>
           prev.map((item) => (item.id === calificada.id ? calificada : item))
@@ -1590,6 +1672,344 @@ export default function AreaMoodlePage() {
   }
 
   // ========================================================
+  // MODAL REUTILIZABLE: SUBIR / MODIFICAR ENTREGA (MOODLE)
+  // ========================================================
+  const renderModalSubirEntrega = () => {
+    if (!selectedTareaForEntrega) return null;
+    return (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-line pb-3">
+            <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
+              <UploadCloud className="w-5 h-5 text-accent" /> Envío de Tarea Académica (Moodle)
+            </h3>
+            <button
+              onClick={() => setSelectedTareaForEntrega(null)}
+              className="text-ink-faint hover:text-ink cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Banner de Borrador Restaurado */}
+          {restoredDraftEntrega && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
+              <span className="flex items-center gap-1.5 font-medium">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                Se ha recuperado un borrador de entrega no enviado {lastDraftSavedEntrega ? `(${lastDraftSavedEntrega})` : ""}.
+              </span>
+              <button
+                type="button"
+                onClick={handleDescartarBorradorEntrega}
+                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" /> Descartar
+              </button>
+            </div>
+          )}
+
+          {/* Tarjeta de Requisitos de la Tarea */}
+          <div className="text-xs space-y-2 bg-paper-sunken/70 p-3.5 rounded-xl border border-line">
+            <span className="font-bold text-ink text-sm block">{selectedTareaForEntrega.titulo}</span>
+            {selectedTareaForEntrega.descripcion && (
+              <p className="text-ink-soft text-[11px] leading-relaxed line-clamp-2">
+                {selectedTareaForEntrega.descripcion}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2 text-[11px] pt-1">
+              {selectedTareaForEntrega.esGrupal && (
+                <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 font-bold flex items-center gap-1">
+                  <Users className="w-3 h-3" /> Entrega Grupal
+                </span>
+              )}
+              <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
+                Puntaje: {selectedTareaForEntrega.puntajeMaximo} pts
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
+                Formatos: {selectedTareaForEntrega.tiposArchivosPermitidos}
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
+                Máx: {selectedTareaForEntrega.tamanoMaximoMb} MB
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
+                Corte: {selectedTareaForEntrega.fechaCorte ? new Date(selectedTareaForEntrega.fechaCorte).toLocaleString() : "Abierto"}
+              </span>
+            </div>
+          </div>
+
+          {/* Entrega Previa Registrada si existe */}
+          {selectedTareaForEntrega.miEntrega && (
+            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-emerald-800">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  {selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal ? (
+                    <span>
+                      {selectedTareaForEntrega.miEntrega.esMiEntregaPropia ? (
+                        <>Entregado previamente por ti (Equipo <strong>{selectedTareaForEntrega.miEntrega.grupoNombre || "del grupo"}</strong>)</>
+                      ) : (
+                        <>Entregado por tu compañero <strong>{selectedTareaForEntrega.miEntrega.entregadoPorNombre}</strong> (Equipo <strong>{selectedTareaForEntrega.miEntrega.grupoNombre || "del grupo"}</strong>)</>
+                      )}
+                    </span>
+                  ) : (
+                    <span>Entrega registrada el {new Date(selectedTareaForEntrega.miEntrega.fechaEntrega).toLocaleString()}</span>
+                  )}
+                </span>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold uppercase text-[10px]">
+                  {selectedTareaForEntrega.miEntrega.estado}
+                </span>
+              </div>
+
+              {(selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal) && selectedTareaForEntrega.miEntrega.companerosEquipo && selectedTareaForEntrega.miEntrega.companerosEquipo.length > 0 && (
+                <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 shrink-0" />
+                  <span>Compañeros de equipo: {selectedTareaForEntrega.miEntrega.companerosEquipo.join(", ")}</span>
+                </div>
+              )}
+
+              {archivoEntregaPrevioUrl && (
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200 text-ink">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {renderArchivoIcon(nombreArchivoEntrega || "archivo_anterior.pdf", "w-4 h-4")}
+                    <span className="truncate font-medium">{nombreArchivoEntrega || "Archivo registrado"}</span>
+                  </div>
+                  <a
+                    href={getMediaUrl(archivoEntregaPrevioUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Descargar
+                  </a>
+                </div>
+              )}
+              <p className="text-[10px] text-emerald-700">
+                {selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal
+                  ? "Puedes adjuntar un nuevo archivo para actualizar la entrega de todo el equipo."
+                  : "Puedes adjuntar un nuevo archivo a continuación para reemplazar tu entrega o actualizar comentarios."}
+              </p>
+            </div>
+          )}
+
+          {/* Mensaje de Error de Validación Inmediata */}
+          {errorValidacionArchivo && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-600 text-xs flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                <span>{errorValidacionArchivo}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErrorValidacionArchivo(null)}
+                className="text-red-500 hover:text-red-700 font-bold shrink-0 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleEnviarEntrega} className="space-y-4 text-xs">
+            {/* Input de archivo físico oculto */}
+            <input
+              ref={fileInputEntregaRef}
+              type="file"
+              onChange={handleSelectFileInputEntrega}
+              className="hidden"
+            />
+
+            {/* ZONA DRAG & DROP / TARJETA DE ARCHIVO CARGADO */}
+            <div>
+              <label className="font-semibold text-ink block mb-1.5 flex items-center justify-between">
+                <span>Archivos de Entrega (Arrastra o Selecciona) *</span>
+                {lastDraftSavedEntrega && (
+                  <span className="text-[10px] text-accent font-normal flex items-center gap-1">
+                    <Save className="w-3 h-3" /> Borrador guardado ({lastDraftSavedEntrega})
+                  </span>
+                )}
+              </label>
+
+              {!archivoEntregaFile && !archivoEntregaPrevioUrl ? (
+                /* Dropzone interactivo cuando no hay archivo seleccionado */
+                <div
+                  onDragOver={handleDragOverEntrega}
+                  onDragLeave={handleDragLeaveEntrega}
+                  onDrop={handleDropEntrega}
+                  onClick={() => fileInputEntregaRef.current?.click()}
+                  className={`p-6 rounded-2xl border-2 border-dashed text-center cursor-pointer transition-all ${
+                    isDraggingEntrega
+                      ? "border-accent bg-accent/10 ring-2 ring-accent/30 scale-[1.01]"
+                      : "border-line hover:border-accent/60 bg-paper-sunken/40 hover:bg-paper-sunken/70"
+                  }`}
+                >
+                  <UploadCloud className="w-10 h-10 text-accent mx-auto mb-2 animate-pulse" />
+                  <p className="text-xs font-bold text-ink">
+                    Arrastra y suelta tu archivo aquí para subirlo
+                  </p>
+                  <p className="text-[11px] text-ink-soft mt-0.5">
+                    o haz clic en esta área para examinar tus documentos
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-[10px] text-ink-faint">
+                    <span className="px-2 py-0.5 rounded-full bg-paper border border-line">
+                      Formatos: {selectedTareaForEntrega.tiposArchivosPermitidos}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-paper border border-line">
+                      Límite: {selectedTareaForEntrega.tamanoMaximoMb} MB
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                /* Tarjeta de Archivo Adjunto Estilo Moodle */
+                <div className="p-4 bg-paper rounded-2xl border border-line shadow-xs space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                        {renderArchivoIcon(
+                          archivoEntregaFile ? archivoEntregaFile.name : archivoEntregaOriginalName || "documento.pdf",
+                          "w-5 h-5"
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-ink text-xs block truncate">
+                          {archivoEntregaFile ? archivoEntregaFile.name : archivoEntregaOriginalName}
+                        </span>
+                        <span className="text-[10px] text-ink-faint">
+                          {archivoEntregaTamano > 0
+                            ? formatBytes(archivoEntregaTamano)
+                            : archivoEntregaPrevioUrl
+                            ? "Archivo de entrega registrado previamente"
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileInputEntregaRef.current?.click()}
+                        className="px-2.5 py-1.5 rounded-lg border border-line bg-paper-sunken hover:bg-paper text-ink text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <RefreshCw className="w-3 h-3 text-accent" /> Cambiar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArchivoEntregaFile(null);
+                          setArchivoEntregaOriginalName("");
+                          setArchivoEntregaTamano(0);
+                          setErrorValidacionArchivo(null);
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg border border-line bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3 text-red-600" /> Quitar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* EDITAR NOMBRE DEL ARCHIVO TAL COMO MOODLE ("Guardar como") */}
+                  <div className="pt-2 border-t border-line-soft space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-semibold text-ink flex items-center gap-1.5">
+                        <Edit2 className="w-3.5 h-3.5 text-accent" /> Guardar como (Nombre del archivo en plataforma):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoNombreArchivo(!editandoNombreArchivo)}
+                        className="text-[10px] text-accent font-semibold hover:underline cursor-pointer"
+                      >
+                        {editandoNombreArchivo ? "Ocultar" : "Renombrar"}
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={nombreArchivoEntrega}
+                      onChange={(e) => setNombreArchivoEntrega(e.target.value)}
+                      placeholder="Ej. Tarea1_GrupoA_Investigacion.pdf"
+                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink text-xs focus:outline-none focus:border-accent"
+                    />
+                    <span className="text-[10px] text-ink-faint block">
+                      Puedes personalizar el nombre formal con el que el docente verá tu entrega (Moodle conservará la extensión correcta).
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Vincular Documento de Investigación si aplica */}
+            {documentosUsuario.length > 0 && (
+              <div>
+                <label className="font-semibold text-ink block mb-1">
+                  Vincular Documento de Investigación de la Plataforma (Opcional)
+                </label>
+                <select
+                  value={docVinculadoId}
+                  onChange={(e) => setDocVinculadoId(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
+                >
+                  <option value="">-- No vincular documento del repositorio --</option>
+                  {documentosUsuario.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.titulo} ({doc.categoria})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Comentario para el Docente */}
+            <div>
+              <label className="font-semibold text-ink block mb-1">
+                Comentario para el Docente / Jurado (Opcional)
+              </label>
+              <textarea
+                rows={3}
+                value={comentarioEstudiante}
+                onChange={(e) => setComentarioEstudiante(e.target.value)}
+                placeholder="Estimado docente, adjuntamos el avance con las correcciones de la sesión anterior..."
+                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink resize-none focus:outline-none focus:border-accent"
+              />
+            </div>
+
+            {/* Footer y Acciones de Envío */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-line">
+              <span className="text-[11px] text-ink-faint">
+                {lastDraftSavedEntrega
+                  ? `💾 Borrador guardado localmente (${lastDraftSavedEntrega})`
+                  : "💾 Los cambios se respaldan en tu navegador"}
+              </span>
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTareaForEntrega(null)}
+                  className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={enviandoEntrega}
+                  className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                >
+                  {enviandoEntrega ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Subiendo archivo...
+                    </>
+                  ) : selectedTareaForEntrega.miEntrega ? (
+                    "Modificar y Guardar Entrega"
+                  ) : (
+                    "Subir Trabajo"
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  // ========================================================
   // MODO SPEEDGRADER DEDICADO (PANTALLA COMPLETA DE ENTREGAS)
   // ========================================================
   if (activeTareaParaEntregas) {
@@ -1630,15 +2050,15 @@ export default function AreaMoodlePage() {
                   }}
                   className="inline-flex items-center gap-1.5 text-xs text-ink-faint hover:text-accent font-medium mb-1 transition-colors cursor-pointer"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Volver a Convocatoria y Tareas
+                  <ArrowLeft className="w-3.5 h-3.5" /> {activeTareaDetalle ? "Volver a Detalle de Tarea" : "Volver a Convocatoria y Tareas"}
                 </button>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent/10 text-accent uppercase tracking-wider">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-paper-sunken border border-line text-ink uppercase tracking-wider">
                     Consola de Evaluación SpeedGrader
                   </span>
                   {activeTareaParaEntregas.esGrupal && (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 uppercase tracking-wider flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5" /> Tarea Grupal (Equipos)
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-paper-sunken text-ink border border-line uppercase tracking-wider flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-ink-soft" /> Tarea Grupal
                     </span>
                   )}
                   {activeTareaParaEntregas.moduloTitulo && (
@@ -1655,23 +2075,23 @@ export default function AreaMoodlePage() {
                 </p>
               </div>
 
-              {/* Métricas / KPIs del aula en esta tarea */}
+              {/* Métricas / KPIs del aula en esta tarea (discretas y neutrales) */}
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
                 <div className="px-3 py-2 bg-paper-sunken border border-line rounded-xl text-center min-w-[80px]">
                   <span className="text-[10px] text-ink-faint uppercase font-semibold block">Inscritos</span>
                   <span className="text-base font-bold text-ink">{estudiantesAdmitidos.length}</span>
                 </div>
-                <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-center min-w-[80px]">
-                  <span className="text-[10px] text-blue-700 dark:text-blue-300 uppercase font-semibold block">Entregas</span>
-                  <span className="text-base font-bold text-blue-700 dark:text-blue-300">{entregasTareaActual.length}</span>
+                <div className="px-3 py-2 bg-paper-sunken border border-line rounded-xl text-center min-w-[80px]">
+                  <span className="text-[10px] text-ink-faint uppercase font-semibold block">Entregas</span>
+                  <span className="text-base font-bold text-ink">{entregasTareaActual.length}</span>
                 </div>
-                <div className="px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center min-w-[80px]">
-                  <span className="text-[10px] text-amber-700 dark:text-amber-300 uppercase font-semibold block">Por Calificar</span>
-                  <span className="text-base font-bold text-amber-700 dark:text-amber-300">{totalEntregadas}</span>
+                <div className="px-3 py-2 bg-paper-sunken border border-line rounded-xl text-center min-w-[80px]">
+                  <span className="text-[10px] text-ink-faint uppercase font-semibold block">Por Calificar</span>
+                  <span className="text-base font-bold text-amber-700 dark:text-amber-400">{totalEntregadas}</span>
                 </div>
-                <div className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center min-w-[80px]">
-                  <span className="text-[10px] text-emerald-700 dark:text-emerald-300 uppercase font-semibold block">Calificadas</span>
-                  <span className="text-base font-bold text-emerald-700 dark:text-emerald-300">{totalCalificadas}</span>
+                <div className="px-3 py-2 bg-paper-sunken border border-line rounded-xl text-center min-w-[80px]">
+                  <span className="text-[10px] text-ink-faint uppercase font-semibold block">Calificadas</span>
+                  <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">{totalCalificadas}</span>
                 </div>
               </div>
             </div>
@@ -1687,7 +2107,7 @@ export default function AreaMoodlePage() {
                     <Users className="w-4 h-4 text-accent" /> Estudiantes ({estudiantesAdmitidos.length})
                   </h3>
                   {cargandoEntregasTarea && (
-                    <span className="text-[10px] text-ink-faint animate-pulse">Cargando...</span>
+                    <span className="text-[10px] text-ink-faint">Cargando...</span>
                   )}
                 </div>
 
@@ -1719,8 +2139,8 @@ export default function AreaMoodlePage() {
                     onClick={() => setFiltroEntregasEstado("PENDIENTES")}
                     className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
                       filtroEntregasEstado === "PENDIENTES"
-                        ? "bg-amber-600 text-white"
-                        : "bg-paper border border-line text-amber-700 hover:bg-amber-50"
+                        ? "bg-accent text-white"
+                        : "bg-paper border border-line text-ink-soft hover:bg-paper-sunken"
                     }`}
                   >
                     Por Calificar ({totalEntregadas})
@@ -1729,8 +2149,8 @@ export default function AreaMoodlePage() {
                     onClick={() => setFiltroEntregasEstado("CALIFICADOS")}
                     className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
                       filtroEntregasEstado === "CALIFICADOS"
-                        ? "bg-emerald-600 text-white"
-                        : "bg-paper border border-line text-emerald-700 hover:bg-emerald-50"
+                        ? "bg-accent text-white"
+                        : "bg-paper border border-line text-ink-soft hover:bg-paper-sunken"
                     }`}
                   >
                     Calificadas ({totalCalificadas})
@@ -1739,8 +2159,8 @@ export default function AreaMoodlePage() {
                     onClick={() => setFiltroEntregasEstado("SIN_ENTREGA")}
                     className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
                       filtroEntregasEstado === "SIN_ENTREGA"
-                        ? "bg-ink text-white"
-                        : "bg-paper border border-line text-ink-faint hover:bg-paper-sunken"
+                        ? "bg-accent text-white"
+                        : "bg-paper border border-line text-ink-soft hover:bg-paper-sunken"
                     }`}
                   >
                     Sin Entrega ({Math.max(0, totalSinEntrega)})
@@ -1807,7 +2227,7 @@ export default function AreaMoodlePage() {
                               {ent.calificacion}/{activeTareaParaEntregas.puntajeMaximo} pts
                             </span>
                           ) : esPendiente ? (
-                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 animate-pulse">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
                               Por calificar
                             </span>
                           ) : (
@@ -1896,21 +2316,21 @@ export default function AreaMoodlePage() {
                     <div className="bg-paper-sunken/50 border border-line rounded-2xl p-5 space-y-4">
                       {/* Banner de Entrega Grupal y Auditoría de Envío */}
                       {(activeTareaParaEntregas.esGrupal || selectedEntregaObj.esGrupal) && (
-                        <div className="p-3.5 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2 text-xs">
+                        <div className="p-3 bg-paper border border-line rounded-xl space-y-1.5 text-xs">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
-                              <Users className="w-4 h-4" /> Entrega Grupal • Equipo {selectedEntregaObj.grupoNombre || selectedEstudianteObj.nombreEquipo || "Asignado"}
+                            <span className="font-semibold text-ink flex items-center gap-1.5 text-xs">
+                              <Users className="w-3.5 h-3.5 text-ink-soft" /> Entrega Grupal • Equipo {selectedEntregaObj.grupoNombre || selectedEstudianteObj.nombreEquipo || "Asignado"}
                             </span>
                             <span className="text-[11px] text-ink-soft">
-                              Subido físicamente por: <strong className="text-ink">{selectedEntregaObj.entregadoPorNombre || selectedEstudianteObj.nombre}</strong>
+                              Subido por: <strong className="text-ink font-medium">{selectedEntregaObj.entregadoPorNombre || selectedEstudianteObj.nombre}</strong>
                               {selectedEntregaObj.entregadoPorEmail && (
                                 <span className="text-ink-faint"> ({selectedEntregaObj.entregadoPorEmail})</span>
                               )}
                             </span>
                           </div>
                           {selectedEntregaObj.companerosEquipo && selectedEntregaObj.companerosEquipo.length > 0 && (
-                            <div className="text-[11px] text-ink-soft pt-1 border-t border-blue-500/15">
-                              <span className="font-semibold text-ink">Integrantes del Equipo: </span>
+                            <div className="text-[11px] text-ink-soft pt-1 border-t border-line">
+                              <span className="font-medium text-ink">Integrantes: </span>
                               {selectedEntregaObj.companerosEquipo.join(" • ")}
                             </div>
                           )}
@@ -2001,7 +2421,7 @@ export default function AreaMoodlePage() {
                     </div>
 
                     {/* Consola de Evaluación Docente / Jurado */}
-                    <div className="bg-paper border-2 border-accent/20 rounded-2xl p-6 shadow-xs space-y-4">
+                    <div className="bg-paper border border-line rounded-2xl p-6 shadow-xs space-y-4">
                       <div className="border-b border-line pb-3 flex items-center justify-between">
                         <h3 className="text-sm font-serif font-bold text-ink flex items-center gap-2">
                           <Award className="w-4 h-4 text-accent" /> Calificación &amp; Rúbrica Pedagógica
@@ -2088,6 +2508,442 @@ export default function AreaMoodlePage() {
               </div>
             </div>
           </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ========================================================
+  // PANTALLA DEDICADA DE TAREA ACADÉMICA ESTILO MOODLE (image.png)
+  // ========================================================
+  if (activeTareaDetalle && !activeTareaParaEntregas) {
+    const miEntrega = activeTareaDetalle.miEntrega;
+    const fechaLimite = activeTareaDetalle.fechaEntrega || activeTareaDetalle.fechaLimite;
+    const tiempoRestante = calcularTiempoRestanteMoodle(fechaLimite, miEntrega?.fechaEntrega);
+
+    return (
+      <DashboardLayout>
+        <div className="max-w-4xl mx-auto space-y-6 pb-16">
+          {/* Toast Flotante */}
+          {toastMsg && (
+            <div
+              className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-lg text-sm flex items-center gap-2.5 transition-all ${
+                toastMsg.type === "success"
+                  ? "bg-emerald-600 text-white shadow-emerald-600/20"
+                  : "bg-red-600 text-white shadow-red-600/20"
+              }`}
+            >
+              {toastMsg.type === "success" ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              <span>{toastMsg.text}</span>
+            </div>
+          )}
+
+          {/* Navegación y Breadcrumbs estilo Moodle */}
+          <div>
+            <button
+              onClick={() => setActiveTareaDetalle(null)}
+              className="inline-flex items-center gap-1.5 text-xs text-ink-faint hover:text-accent font-medium mb-3 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              {activeTareaDetalle.moduloTitulo
+                ? `Volver al Módulo: ${activeTareaDetalle.moduloTitulo}`
+                : "Volver a Convocatoria y Módulos"}
+            </button>
+            <div className="flex items-center gap-2 text-xs text-ink-faint">
+              <span className="hover:text-accent cursor-pointer" onClick={() => setActiveTareaDetalle(null)}>
+                {convocatoria.titulo}
+              </span>
+              <ChevronRight className="w-3.5 h-3.5" />
+              {activeTareaDetalle.moduloTitulo && (
+                <>
+                  <span className="text-ink-soft">{activeTareaDetalle.moduloTitulo}</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </>
+              )}
+              <span className="text-ink font-semibold truncate max-w-xs">{activeTareaDetalle.titulo}</span>
+            </div>
+          </div>
+
+          {/* Encabezado Moodle idéntico a image.png */}
+          <div className="bg-paper border border-line rounded-2xl p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 flex items-center justify-center shrink-0">
+                  <FileUp className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-serif font-bold text-ink">
+                      {activeTareaDetalle.titulo}
+                    </h1>
+                    {activeTareaDetalle.esGrupal && (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 flex items-center gap-1">
+                        <Users className="w-3 h-3" /> Grupal
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Apertura y Cierre debajo del título idéntico a image.png */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-y-1 gap-x-5 text-xs text-ink-soft pt-1">
+                    <div>
+                      <span className="font-semibold text-ink">Apertura: </span>
+                      <span>{formatMoodleDate(activeTareaDetalle.fechaHabilitacion)}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-ink">Cierre: </span>
+                      <span>{formatMoodleDate(fechaLimite)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Puntaje máximo y badge discreto de recepción */}
+              <div className="flex sm:flex-col items-end gap-2 shrink-0">
+                <span className="px-3 py-1 bg-paper-sunken border border-line rounded-xl text-xs font-bold text-ink">
+                  {activeTareaDetalle.puntajeMaximo} puntos
+                </span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
+                    activeTareaDetalle.habilitada
+                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                      : "bg-paper-sunken text-ink-faint border border-line"
+                  }`}
+                >
+                  {activeTareaDetalle.habilitada ? "Abierta" : "Cerrada"}
+                </span>
+              </div>
+            </div>
+
+            {/* Descripción / Instrucciones de la tarea */}
+            {activeTareaDetalle.descripcion && (
+              <div className="pt-3 border-t border-line-soft">
+                <p className="text-xs sm:text-sm text-ink leading-relaxed whitespace-pre-line">
+                  {activeTareaDetalle.descripcion}
+                </p>
+              </div>
+            )}
+
+            {/* Parámetros de entrega */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 text-xs text-ink-soft border-t border-line-soft">
+              <span><strong>Formatos permitidos:</strong> {activeTareaDetalle.tiposArchivosPermitidos || "*"}</span>
+              <span>•</span>
+              <span><strong>Tamaño máximo:</strong> {activeTareaDetalle.tamanoMaximoMb || 10} MB</span>
+              {activeTareaDetalle.fechaCorte && (
+                <>
+                  <span>•</span>
+                  <span className="text-rose-700 dark:text-rose-300">
+                    <strong>Límite estricto de corte:</strong> {formatMoodleDate(activeTareaDetalle.fechaCorte)}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Sumario de Calificaciones para Docentes / Jurados */}
+          {(puedeGestionarTareas || esJuradoEnEstaArea) && (
+            <div className="bg-paper border border-line rounded-2xl p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base sm:text-lg font-serif font-bold text-ink">
+                  Sumario de calificaciones
+                </h2>
+                {puedeGestionarTareas && (
+                  <button
+                    onClick={() => handleToggleHabilitar(activeTareaDetalle.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer ${
+                      activeTareaDetalle.habilitada
+                        ? "bg-paper-sunken border-line text-ink hover:bg-paper"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                    }`}
+                  >
+                    {activeTareaDetalle.habilitada ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                    {activeTareaDetalle.habilitada ? "Cerrar Recepción" : "Habilitar Recepción"}
+                  </button>
+                )}
+              </div>
+
+              <div className="border border-line rounded-xl overflow-hidden bg-paper shadow-2xs divide-y divide-line text-xs sm:text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-3">
+                  <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                    Participantes
+                  </div>
+                  <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                    {estudiantesAdmitidos.length}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3">
+                  <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                    Enviados
+                  </div>
+                  <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper font-medium">
+                    {activeTareaDetalle.totalEntregas || 0}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3">
+                  <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                    Fecha de entrega
+                  </div>
+                  <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                    {formatMoodleDate(fechaLimite)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3">
+                  <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                    Tiempo restante
+                  </div>
+                  <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                    {calcularTiempoRestanteMoodle(fechaLimite).texto}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => handleVerEntregas(activeTareaDetalle)}
+                  className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+                >
+                  <Users className="w-4 h-4" /> Ver / Calificar todas las entregas (SpeedGrader)
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Tabla de "Estado de la entrega" idéntica a image.png */}
+          <div className="bg-paper border border-line rounded-2xl p-6 shadow-xs space-y-4">
+            <h2 className="text-base sm:text-lg font-serif font-bold text-ink">
+              Estado de la entrega
+            </h2>
+
+            <div className="border border-line rounded-xl overflow-hidden bg-paper shadow-2xs divide-y divide-line text-xs sm:text-sm">
+              {/* Estado de la entrega */}
+              <div className="grid grid-cols-1 sm:grid-cols-3">
+                <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                  Estado de la entrega
+                </div>
+                <div
+                  className={`sm:col-span-2 p-3 sm:px-4 font-medium ${
+                    miEntrega
+                      ? "bg-[#cfefcf] text-[#155724] dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "text-ink-soft bg-paper"
+                  }`}
+                >
+                  {miEntrega ? "Enviado para calificar" : "No entregado"}
+                </div>
+              </div>
+
+              {/* Estado de la calificación */}
+              <div className="grid grid-cols-1 sm:grid-cols-3">
+                <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                  Estado de la calificación
+                </div>
+                <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                  {miEntrega?.estado === "CALIFICADO" ? (
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                      Calificado ({miEntrega.calificacion} / {activeTareaDetalle.puntajeMaximo} pts)
+                    </span>
+                  ) : (
+                    "Sin calificar"
+                  )}
+                </div>
+              </div>
+
+              {/* Fecha de entrega */}
+              <div className="grid grid-cols-1 sm:grid-cols-3">
+                <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                  Fecha de entrega
+                </div>
+                <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                  {formatMoodleDate(fechaLimite)}
+                </div>
+              </div>
+
+              {/* Tiempo restante */}
+              <div className="grid grid-cols-1 sm:grid-cols-3">
+                <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                  Tiempo restante
+                </div>
+                <div
+                  className={`sm:col-span-2 p-3 sm:px-4 font-medium ${
+                    tiempoRestante.temprano
+                      ? "bg-[#cfefcf] text-[#155724] dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : tiempoRestante.retraso
+                      ? "text-rose-700 dark:text-rose-300 bg-rose-50/50 dark:bg-rose-950/20"
+                      : "text-ink-soft bg-paper"
+                  }`}
+                >
+                  {tiempoRestante.texto}
+                </div>
+              </div>
+
+              {/* Última modificación */}
+              <div className="grid grid-cols-1 sm:grid-cols-3">
+                <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                  Última modificación
+                </div>
+                <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                  {miEntrega ? formatMoodleDate(miEntrega.fechaEntrega) : "-"}
+                </div>
+              </div>
+
+              {/* Archivos enviados */}
+              <div className="grid grid-cols-1 sm:grid-cols-3">
+                <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                  Archivos enviados
+                </div>
+                <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                  {miEntrega?.nombreArchivo ? (
+                    <div className="flex items-center gap-2">
+                      {renderArchivoIcon(miEntrega.nombreArchivo, "w-4 h-4 text-ink-faint shrink-0")}
+                      {miEntrega.archivoUrl ? (
+                        <a
+                          href={getMediaUrl(miEntrega.archivoUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent hover:underline font-medium inline-flex items-center gap-1.5"
+                        >
+                          {miEntrega.nombreArchivo}
+                          <Download className="w-3.5 h-3.5 shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="font-medium text-ink">{miEntrega.nombreArchivo}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span>-</span>
+                  )}
+
+                  {miEntrega?.documentoId && (
+                    <div className="mt-1.5 flex items-center gap-2 text-xs">
+                      <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                      <Link
+                        href={`/dashboard/documentos/${miEntrega.documentoId}`}
+                        target="_blank"
+                        className="text-blue-600 hover:underline inline-flex items-center gap-1"
+                      >
+                        {miEntrega.documentoTitulo || `Documento #${miEntrega.documentoId}`}
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Fila Grupal si aplica */}
+              {(activeTareaDetalle.esGrupal || miEntrega?.esGrupal) && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3">
+                    <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                      Equipo / Grupo
+                    </div>
+                    <div className="sm:col-span-2 p-3 sm:px-4 text-ink bg-paper font-medium">
+                      {miEntrega?.grupoNombre || miParticipacion?.nombreEquipo || "Sin equipo asignado"}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3">
+                    <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                      Subido por
+                    </div>
+                    <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                      {miEntrega ? (
+                        miEntrega.esMiEntregaPropia ? (
+                          <span className="font-semibold text-ink">Tú ({user?.nombre} {user?.apellido})</span>
+                        ) : (
+                          <span className="font-semibold text-ink">{miEntrega.entregadoPorNombre}</span>
+                        )
+                      ) : (
+                        "-"
+                      )}
+                    </div>
+                  </div>
+                  {miEntrega?.companerosEquipo && miEntrega.companerosEquipo.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3">
+                      <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                        Integrantes del equipo
+                      </div>
+                      <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                        {miEntrega.companerosEquipo.join(", ")}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Comentarios de la entrega */}
+              <div className="grid grid-cols-1 sm:grid-cols-3">
+                <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                  Comentarios de la entrega
+                </div>
+                <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                  {miEntrega?.comentarioEstudiante ? (
+                    <span className="italic">&ldquo;{miEntrega.comentarioEstudiante}&rdquo;</span>
+                  ) : (
+                    "Comentarios (0)"
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Botón de Agregar / Modificar Entrega */}
+            <div className="pt-3 flex flex-col items-center justify-center text-center space-y-2">
+              {activeTareaDetalle.habilitada && activeTareaDetalle.estadoMoodle !== "CERRADA_CORTE" ? (
+                <button
+                  onClick={() => handleAbrirEntregaModal(activeTareaDetalle)}
+                  className="px-8 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer"
+                >
+                  {miEntrega ? "Modificar entrega" : "Agregar entrega"}
+                </button>
+              ) : (
+                <div className="p-3 bg-paper-sunken border border-line rounded-xl text-xs text-ink-faint">
+                  Esta tarea ya no acepta entregas debido a que se encuentra cerrada.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sección de Retroalimentación Docente (si ya fue calificada) */}
+          {miEntrega?.estado === "CALIFICADO" && (
+            <div className="bg-paper border border-line rounded-2xl p-6 shadow-xs space-y-4">
+              <h2 className="text-base sm:text-lg font-serif font-bold text-ink">
+                Retroalimentación
+              </h2>
+              <div className="border border-line rounded-xl overflow-hidden bg-paper shadow-2xs divide-y divide-line text-xs sm:text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-3">
+                  <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                    Calificación
+                  </div>
+                  <div className="sm:col-span-2 p-3 sm:px-4 font-bold text-accent bg-paper text-sm">
+                    {miEntrega.calificacion?.toFixed(2)} / {activeTareaDetalle.puntajeMaximo?.toFixed(2)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3">
+                  <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                    Calificado el
+                  </div>
+                  <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
+                    {formatMoodleDate(miEntrega.fechaCalificacion || miEntrega.fechaEntrega)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3">
+                  <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                    Calificado por
+                  </div>
+                  <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper font-medium">
+                    {miEntrega.calificadoPorNombre || "Docente / Evaluador"}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3">
+                  <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
+                    Comentarios de retroalimentación
+                  </div>
+                  <div className="sm:col-span-2 p-3 sm:px-4 text-ink bg-paper leading-relaxed whitespace-pre-line">
+                    {miEntrega.retroalimentacion || "Sin comentarios adicionales."}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal de Subida de Entrega */}
+          {renderModalSubirEntrega()}
         </div>
       </DashboardLayout>
     );
@@ -2625,176 +3481,69 @@ export default function AreaMoodlePage() {
                         {tareasGenerales.map((t) => (
                           <div
                             key={t.id}
-                            className="bg-paper border border-line rounded-2xl p-5 shadow-xs hover:border-line-dark transition-all space-y-3"
+                            onClick={() => setActiveTareaDetalle(t)}
+                            className="bg-paper hover:bg-paper-sunken/60 border border-line rounded-xl p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-2xs"
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                              <div className="space-y-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="font-serif text-base font-bold text-ink">{t.titulo}</h3>
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              <div className="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                <FileUp className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0 space-y-0.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-sm font-bold text-ink font-serif group-hover:text-accent transition-colors truncate">
+                                    {t.titulo}
+                                  </h4>
                                   {t.esGrupal && (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 flex items-center gap-1">
-                                      <Users className="w-3 h-3" /> Grupal
+                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                      Grupal
                                     </span>
                                   )}
+                                </div>
+                                <p className="text-[11px] text-ink-soft flex items-center gap-2 flex-wrap">
+                                  <span>Vence: {formatMoodleDateShort(t.fechaEntrega || t.fechaLimite)}</span>
+                                  <span>•</span>
+                                  <span>{t.puntajeMaximo} pts</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0">
+                              {user?.rol === "ESTUDIANTE" ? (
+                                t.miEntrega?.estado === "CALIFICADO" ? (
+                                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                    ✓ Calificado ({t.miEntrega.calificacion}/{t.puntajeMaximo})
+                                  </span>
+                                ) : t.miEntrega ? (
+                                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                    ✓ Enviado
+                                  </span>
+                                ) : !t.habilitada || t.estadoMoodle === "CERRADA_CORTE" ? (
+                                  <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-paper-sunken text-ink-faint border border-line">
+                                    No entregado
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                                    Pendiente
+                                  </span>
+                                )
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-ink-soft hidden sm:inline">
+                                    {t.totalEntregas || 0} {t.totalEntregas === 1 ? "entrega" : "entregas"}
+                                  </span>
                                   <span
-                                    className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                      t.estadoMoodle === "ABIERTA"
-                                        ? "bg-emerald-500/10 text-emerald-700"
-                                        : t.estadoMoodle === "PENDIENTE_APERTURA"
-                                        ? "bg-blue-500/10 text-blue-700"
-                                        : t.estadoMoodle === "ENTREGA_CON_RETRASO"
-                                        ? "bg-amber-500/10 text-amber-700"
-                                        : "bg-red-500/10 text-red-700"
-                                    }`}
-                                  >
-                                    {t.estadoMoodle?.replace("_", " ") || (t.habilitada ? "ABIERTA" : "CERRADA")}
-                                  </span>
-                                </div>
-                                {t.descripcion && <p className="text-xs text-ink-soft">{t.descripcion}</p>}
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="px-2.5 py-1 bg-paper-sunken border border-line rounded-lg text-xs font-bold text-ink">
-                                  {t.puntajeMaximo} pts
-                                </span>
-                                {puedeGestionarTareas && (
-                                  <button
-                                    onClick={() => handleToggleHabilitar(t.id)}
-                                    title={t.habilitada ? "Deshabilitar recepción" : "Habilitar recepción"}
-                                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center gap-1 transition-all ${
+                                    className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
                                       t.habilitada
-                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                                        : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                                        ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                                        : "bg-paper-sunken text-ink-faint border border-line"
                                     }`}
                                   >
-                                    {t.habilitada ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                                    <span className="hidden sm:inline">{t.habilitada ? "Abierta" : "Cerrada"}</span>
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Triple Control de Fechas */}
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-paper-sunken/60 p-2.5 rounded-xl border border-line text-xs">
-                              <div>
-                                <span className="text-[10px] uppercase text-ink-faint block font-semibold">1. Habilitación</span>
-                                <span className="font-medium text-ink">
-                                  {t.fechaHabilitacion ? new Date(t.fechaHabilitacion).toLocaleString() : "Inmediata"}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] uppercase text-ink-faint block font-semibold">2. Entrega Límite</span>
-                                <span className="font-medium text-ink">
-                                  {t.fechaEntrega
-                                    ? new Date(t.fechaEntrega).toLocaleString()
-                                    : t.fechaLimite
-                                    ? new Date(t.fechaLimite).toLocaleString()
-                                    : "Sin límite"}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] uppercase text-ink-faint block font-semibold">3. Fecha Corte</span>
-                                <span className="font-medium text-ink">
-                                  {t.fechaCorte ? new Date(t.fechaCorte).toLocaleString() : "Sin fecha corte"}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Footer tarea */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-xs text-ink-soft">
-                              <span>Archivos: {t.tiposArchivosPermitidos} • Máx: {t.tamanoMaximoMb} MB</span>
-                              <div className="flex items-center gap-2">
-                                {(puedeGestionarTareas || esJuradoEnEstaArea) && (
-                                  <button
-                                    onClick={() => handleVerEntregas(t)}
-                                    className="px-3 py-1.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-                                  >
-                                    <Users className="w-3.5 h-3.5 text-blue-600" />
-                                    Gestionar Entregas ({t.totalEntregas})
-                                  </button>
-                                )}
-                                {user?.rol === "ESTUDIANTE" && (
-                                  <button
-                                    onClick={() => handleAbrirEntregaModal(t)}
-                                    disabled={!t.habilitada || t.estadoMoodle === "CERRADA_CORTE"}
-                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                                      t.miEntrega
-                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                        : t.habilitada && t.estadoMoodle !== "CERRADA_CORTE"
-                                        ? "bg-accent text-white hover:bg-accent-dark"
-                                        : "bg-paper-sunken text-ink-faint cursor-not-allowed"
-                                    }`}
-                                  >
-                                    <Upload className="w-3.5 h-3.5" />
-                                    {t.miEntrega ? "Modificar Entrega" : "Subir Trabajo"}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Resumen entrega previa estudiante */}
-                            {t.miEntrega && (
-                              <div className="mt-2 bg-emerald-50/50 border border-emerald-200 rounded-xl p-3 text-xs space-y-1.5">
-                                <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-emerald-800">
-                                  <span className="flex items-center gap-1.5">
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                    {t.esGrupal || t.miEntrega.esGrupal ? (
-                                      <span>
-                                        {t.miEntrega.esMiEntregaPropia ? (
-                                          <>Trabajo Entregado por ti (Equipo <strong>{t.miEntrega.grupoNombre || "del grupo"}</strong>)</>
-                                        ) : (
-                                          <>Entregado por tu compañero <strong>{t.miEntrega.entregadoPorNombre}</strong> (Equipo <strong>{t.miEntrega.grupoNombre || "del grupo"}</strong>)</>
-                                        )}
-                                      </span>
-                                    ) : (
-                                      <span>Trabajo Entregado el {new Date(t.miEntrega.fechaEntrega).toLocaleString()}</span>
-                                    )}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase font-bold text-[10px]">
-                                    {t.miEntrega.estado}
+                                    {t.habilitada ? "Abierta" : "Cerrada"}
                                   </span>
                                 </div>
-
-                                {(t.esGrupal || t.miEntrega.esGrupal) && t.miEntrega.companerosEquipo && t.miEntrega.companerosEquipo.length > 0 && (
-                                  <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                                    <Users className="w-3 h-3 shrink-0" />
-                                    <span>Integrantes: {t.miEntrega.companerosEquipo.join(", ")}</span>
-                                  </div>
-                                )}
-
-                                {t.miEntrega.nombreArchivo && (
-                                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200/60 text-[11px] text-ink">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      {renderArchivoIcon(t.miEntrega.nombreArchivo, "w-4 h-4")}
-                                      <span className="truncate font-medium">{t.miEntrega.nombreArchivo}</span>
-                                    </div>
-                                    {t.miEntrega.archivoUrl && (
-                                      <a
-                                        href={getMediaUrl(t.miEntrega.archivoUrl)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[10px] font-semibold flex items-center gap-1 shrink-0 transition-colors"
-                                      >
-                                        <Download className="w-3 h-3" /> Ver Archivo
-                                      </a>
-                                    )}
-                                  </div>
-                                )}
-
-                                {t.miEntrega.calificacion !== undefined && t.miEntrega.calificacion !== null && (
-                                  <div className="text-ink pt-1">
-                                    <span className="font-bold text-accent text-sm">
-                                      Nota: {t.miEntrega.calificacion} / {t.puntajeMaximo}
-                                    </span>
-                                    {t.miEntrega.retroalimentacion && (
-                                      <p className="text-ink-soft mt-0.5 italic">
-                                        Retroalimentación: &ldquo;{t.miEntrega.retroalimentacion}&rdquo;
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                              )}
+                              <ChevronRight className="w-4 h-4 text-ink-faint group-hover:text-accent transition-colors" />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -2971,194 +3720,69 @@ export default function AreaMoodlePage() {
                           {tareasDelModulo.map((t) => (
                             <div
                               key={t.id}
-                              className="bg-paper border border-line rounded-2xl p-5 sm:p-6 shadow-xs hover:border-line-dark transition-all space-y-4"
+                              onClick={() => setActiveTareaDetalle(t)}
+                              className="bg-paper hover:bg-paper-sunken/60 border border-line rounded-xl p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-2xs"
                             >
-                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                                <div className="space-y-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <h3 className="font-serif text-base sm:text-lg font-bold text-ink">{t.titulo}</h3>
+                              <div className="flex items-center gap-3.5 min-w-0">
+                                <div className="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                  <FileUp className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0 space-y-0.5">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-sm font-bold text-ink font-serif group-hover:text-accent transition-colors truncate">
+                                      {t.titulo}
+                                    </h4>
                                     {t.esGrupal && (
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 flex items-center gap-1">
-                                        <Users className="w-3 h-3" /> Grupal
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                        Grupal
                                       </span>
                                     )}
+                                  </div>
+                                  <p className="text-[11px] text-ink-soft flex items-center gap-2 flex-wrap">
+                                    <span>Vence: {formatMoodleDateShort(t.fechaEntrega || t.fechaLimite)}</span>
+                                    <span>•</span>
+                                    <span>{t.puntajeMaximo} pts</span>
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 shrink-0">
+                                {user?.rol === "ESTUDIANTE" ? (
+                                  t.miEntrega?.estado === "CALIFICADO" ? (
+                                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                      ✓ Calificado ({t.miEntrega.calificacion}/{t.puntajeMaximo})
+                                    </span>
+                                  ) : t.miEntrega ? (
+                                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                      ✓ Enviado
+                                    </span>
+                                  ) : !t.habilitada || t.estadoMoodle === "CERRADA_CORTE" ? (
+                                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-paper-sunken text-ink-faint border border-line">
+                                      No entregado
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                                      Pendiente
+                                    </span>
+                                  )
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-ink-soft hidden sm:inline">
+                                      {t.totalEntregas || 0} {t.totalEntregas === 1 ? "entrega" : "entregas"}
+                                    </span>
                                     <span
-                                      className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                        t.estadoMoodle === "ABIERTA"
-                                          ? "bg-emerald-500/10 text-emerald-700"
-                                          : t.estadoMoodle === "PENDIENTE_APERTURA"
-                                          ? "bg-blue-500/10 text-blue-700"
-                                          : t.estadoMoodle === "ENTREGA_CON_RETRASO"
-                                          ? "bg-amber-500/10 text-amber-700"
-                                          : "bg-red-500/10 text-red-700"
-                                      }`}
-                                    >
-                                      {t.estadoMoodle?.replace("_", " ") || (t.habilitada ? "ABIERTA" : "CERRADA")}
-                                    </span>
-                                  </div>
-                                  {t.descripcion && <p className="text-xs text-ink-soft leading-relaxed">{t.descripcion}</p>}
-                                </div>
-
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="px-2.5 py-1 bg-paper-sunken border border-line rounded-lg text-xs font-bold text-ink">
-                                    {t.puntajeMaximo} pts
-                                  </span>
-
-                                  {puedeGestionarTareas && (
-                                    <button
-                                      onClick={() => handleToggleHabilitar(t.id)}
-                                      title={t.habilitada ? "Deshabilitar recepción" : "Habilitar recepción"}
-                                      className={`p-2 rounded-lg border text-xs font-semibold flex items-center gap-1 transition-all ${
+                                      className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
                                         t.habilitada
-                                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                                          : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                                          ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                                          : "bg-paper-sunken text-ink-faint border border-line"
                                       }`}
                                     >
-                                      {t.habilitada ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                                      <span className="hidden sm:inline">{t.habilitada ? "Abierta" : "Cerrada"}</span>
-                                    </button>
-                                  )}
-                                </div>
+                                      {t.habilitada ? "Abierta" : "Cerrada"}
+                                    </span>
+                                  </div>
+                                )}
+                                <ChevronRight className="w-4 h-4 text-ink-faint group-hover:text-accent transition-colors" />
                               </div>
-
-                              {/* Triple Control de Fechas */}
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-paper-sunken/60 p-3 rounded-xl border border-line text-xs">
-                                <div className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-                                  <div>
-                                    <span className="text-[10px] uppercase text-ink-faint block font-semibold">1. Habilitación</span>
-                                    <span className="font-medium text-ink">
-                                      {t.fechaHabilitacion ? new Date(t.fechaHabilitacion).toLocaleString() : "Inmediata"}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
-                                  <div>
-                                    <span className="text-[10px] uppercase text-ink-faint block font-semibold">2. Fecha Entrega (Límite)</span>
-                                    <span className="font-medium text-ink">
-                                      {t.fechaEntrega
-                                        ? new Date(t.fechaEntrega).toLocaleString()
-                                        : t.fechaLimite
-                                        ? new Date(t.fechaLimite).toLocaleString()
-                                        : "Sin límite"}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                                  <div>
-                                    <span className="text-[10px] uppercase text-ink-faint block font-semibold">3. Fecha de Corte</span>
-                                    <span className="font-medium text-ink">
-                                      {t.fechaCorte ? new Date(t.fechaCorte).toLocaleString() : "Sin fecha corte"}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Parámetros y Acciones */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 text-xs text-ink-soft">
-                                <div className="flex flex-wrap items-center gap-3">
-                                  <span className="font-medium text-ink">Archivos: {t.tiposArchivosPermitidos}</span>
-                                  <span>•</span>
-                                  <span>Máx: {t.tamanoMaximoMb} MB</span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  {(puedeGestionarTareas || esJuradoEnEstaArea) && (
-                                    <button
-                                      onClick={() => handleVerEntregas(t)}
-                                      className="px-3 py-1.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-                                    >
-                                      <Users className="w-3.5 h-3.5 text-blue-600" />
-                                      Gestionar Entregas ({t.totalEntregas})
-                                    </button>
-                                  )}
-
-                                  {user?.rol === "ESTUDIANTE" && (
-                                    <button
-                                      onClick={() => handleAbrirEntregaModal(t)}
-                                      disabled={!t.habilitada || t.estadoMoodle === "CERRADA_CORTE"}
-                                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                                        t.miEntrega
-                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                          : t.habilitada && t.estadoMoodle !== "CERRADA_CORTE"
-                                          ? "bg-accent text-white hover:bg-accent-dark"
-                                          : "bg-paper-sunken text-ink-faint cursor-not-allowed"
-                                      }`}
-                                    >
-                                      <Upload className="w-3.5 h-3.5" />
-                                      {t.miEntrega ? "Modificar Entrega" : "Subir Trabajo"}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Resumen entrega previa estudiante */}
-                              {t.miEntrega && (
-                                <div className="mt-2 bg-emerald-50/50 border border-emerald-200 rounded-xl p-3 text-xs space-y-1.5">
-                                  <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-emerald-800">
-                                    <span className="flex items-center gap-1.5">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                      {t.esGrupal || t.miEntrega.esGrupal ? (
-                                        <span>
-                                          {t.miEntrega.esMiEntregaPropia ? (
-                                            <>Trabajo Entregado por ti (Equipo <strong>{t.miEntrega.grupoNombre || "del grupo"}</strong>)</>
-                                          ) : (
-                                            <>Entregado por tu compañero <strong>{t.miEntrega.entregadoPorNombre}</strong> (Equipo <strong>{t.miEntrega.grupoNombre || "del grupo"}</strong>)</>
-                                          )}
-                                        </span>
-                                      ) : (
-                                        <span>Trabajo Entregado el {new Date(t.miEntrega.fechaEntrega).toLocaleString()}</span>
-                                      )}
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase font-bold text-[10px]">
-                                      {t.miEntrega.estado}
-                                    </span>
-                                  </div>
-
-                                  {(t.esGrupal || t.miEntrega.esGrupal) && t.miEntrega.companerosEquipo && t.miEntrega.companerosEquipo.length > 0 && (
-                                    <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                                      <Users className="w-3 h-3 shrink-0" />
-                                      <span>Integrantes: {t.miEntrega.companerosEquipo.join(", ")}</span>
-                                    </div>
-                                  )}
-
-                                  {t.miEntrega.nombreArchivo && (
-                                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200/60 text-[11px] text-ink">
-                                      <div className="flex items-center gap-1.5 min-w-0">
-                                        {renderArchivoIcon(t.miEntrega.nombreArchivo, "w-4 h-4")}
-                                        <span className="truncate font-medium">{t.miEntrega.nombreArchivo}</span>
-                                      </div>
-                                      {t.miEntrega.archivoUrl && (
-                                        <a
-                                          href={getMediaUrl(t.miEntrega.archivoUrl)}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[10px] font-semibold flex items-center gap-1 shrink-0 transition-colors"
-                                        >
-                                          <Download className="w-3 h-3" /> Ver Archivo
-                                        </a>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {t.miEntrega.calificacion !== undefined && t.miEntrega.calificacion !== null && (
-                                    <div className="text-ink pt-1">
-                                      <span className="font-bold text-accent text-sm">
-                                        Nota: {t.miEntrega.calificacion} / {t.puntajeMaximo}
-                                      </span>
-                                      {t.miEntrega.retroalimentacion && (
-                                        <p className="text-ink-soft mt-0.5 italic">
-                                          Retroalimentación: &ldquo;{t.miEntrega.retroalimentacion}&rdquo;
-                                        </p>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
                             </div>
                           ))}
                         </div>
@@ -4713,337 +5337,7 @@ export default function AreaMoodlePage() {
         {/* ==================================================== */}
         {/* MODAL: SUBIR ENTREGA (ESTUDIANTE - MOODLE LMS UX)   */}
         {/* ==================================================== */}
-        {selectedTareaForEntrega && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-line pb-3">
-                <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
-                  <UploadCloud className="w-5 h-5 text-accent" /> Envío de Tarea Académica (Moodle)
-                </h3>
-                <button
-                  onClick={() => setSelectedTareaForEntrega(null)}
-                  className="text-ink-faint hover:text-ink cursor-pointer"
-                >
-                  <XCircle className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Banner de Borrador Restaurado */}
-              {restoredDraftEntrega && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
-                  <span className="flex items-center gap-1.5 font-medium">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    Se ha recuperado un borrador de entrega no enviado {lastDraftSavedEntrega ? `(${lastDraftSavedEntrega})` : ""}.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleDescartarBorradorEntrega}
-                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-                  >
-                    <RotateCcw className="w-3 h-3" /> Descartar
-                  </button>
-                </div>
-              )}
-
-              {/* Tarjeta de Requisitos de la Tarea */}
-              <div className="text-xs space-y-2 bg-paper-sunken/70 p-3.5 rounded-xl border border-line">
-                <span className="font-bold text-ink text-sm block">{selectedTareaForEntrega.titulo}</span>
-                {selectedTareaForEntrega.descripcion && (
-                  <p className="text-ink-soft text-[11px] leading-relaxed line-clamp-2">
-                    {selectedTareaForEntrega.descripcion}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2 text-[11px] pt-1">
-                  {selectedTareaForEntrega.esGrupal && (
-                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 font-bold flex items-center gap-1">
-                      <Users className="w-3 h-3" /> Entrega Grupal
-                    </span>
-                  )}
-                  <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
-                    Puntaje: {selectedTareaForEntrega.puntajeMaximo} pts
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
-                    Formatos: {selectedTareaForEntrega.tiposArchivosPermitidos}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
-                    Máx: {selectedTareaForEntrega.tamanoMaximoMb} MB
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
-                    Corte: {selectedTareaForEntrega.fechaCorte ? new Date(selectedTareaForEntrega.fechaCorte).toLocaleString() : "Abierto"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Entrega Previa Registrada si existe */}
-              {selectedTareaForEntrega.miEntrega && (
-                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-emerald-800">
-                    <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      {selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal ? (
-                        <span>
-                          {selectedTareaForEntrega.miEntrega.esMiEntregaPropia ? (
-                            <>Entregado previamente por ti (Equipo <strong>{selectedTareaForEntrega.miEntrega.grupoNombre || "del grupo"}</strong>)</>
-                          ) : (
-                            <>Entregado por tu compañero <strong>{selectedTareaForEntrega.miEntrega.entregadoPorNombre}</strong> (Equipo <strong>{selectedTareaForEntrega.miEntrega.grupoNombre || "del grupo"}</strong>)</>
-                          )}
-                        </span>
-                      ) : (
-                        <span>Entrega registrada el {new Date(selectedTareaForEntrega.miEntrega.fechaEntrega).toLocaleString()}</span>
-                      )}
-                    </span>
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold uppercase text-[10px]">
-                      {selectedTareaForEntrega.miEntrega.estado}
-                    </span>
-                  </div>
-
-                  {(selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal) && selectedTareaForEntrega.miEntrega.companerosEquipo && selectedTareaForEntrega.miEntrega.companerosEquipo.length > 0 && (
-                    <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 shrink-0" />
-                      <span>Compañeros de equipo: {selectedTareaForEntrega.miEntrega.companerosEquipo.join(", ")}</span>
-                    </div>
-                  )}
-
-                  {archivoEntregaPrevioUrl && (
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200 text-ink">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {renderArchivoIcon(nombreArchivoEntrega || "archivo_anterior.pdf", "w-4 h-4")}
-                        <span className="truncate font-medium">{nombreArchivoEntrega || "Archivo registrado"}</span>
-                      </div>
-                      <a
-                        href={getMediaUrl(archivoEntregaPrevioUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Descargar
-                      </a>
-                    </div>
-                  )}
-                  <p className="text-[10px] text-emerald-700">
-                    {selectedTareaForEntrega.esGrupal || selectedTareaForEntrega.miEntrega.esGrupal
-                      ? "Puedes adjuntar un nuevo archivo para actualizar la entrega de todo el equipo."
-                      : "Puedes adjuntar un nuevo archivo a continuación para reemplazar tu entrega o actualizar comentarios."}
-                  </p>
-                </div>
-              )}
-
-              {/* Mensaje de Error de Validación Inmediata */}
-              {errorValidacionArchivo && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-600 text-xs flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
-                    <span>{errorValidacionArchivo}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setErrorValidacionArchivo(null)}
-                    className="text-red-500 hover:text-red-700 font-bold shrink-0 cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-
-              <form onSubmit={handleEnviarEntrega} className="space-y-4 text-xs">
-                {/* Input de archivo físico oculto */}
-                <input
-                  ref={fileInputEntregaRef}
-                  type="file"
-                  onChange={handleSelectFileInputEntrega}
-                  className="hidden"
-                />
-
-                {/* ZONA DRAG & DROP / TARJETA DE ARCHIVO CARGADO */}
-                <div>
-                  <label className="font-semibold text-ink block mb-1.5 flex items-center justify-between">
-                    <span>Archivos de Entrega (Arrastra o Selecciona) *</span>
-                    {lastDraftSavedEntrega && (
-                      <span className="text-[10px] text-accent font-normal flex items-center gap-1">
-                        <Save className="w-3 h-3" /> Borrador guardado ({lastDraftSavedEntrega})
-                      </span>
-                    )}
-                  </label>
-
-                  {!archivoEntregaFile && !archivoEntregaPrevioUrl ? (
-                    /* Dropzone interactivo cuando no hay archivo seleccionado */
-                    <div
-                      onDragOver={handleDragOverEntrega}
-                      onDragLeave={handleDragLeaveEntrega}
-                      onDrop={handleDropEntrega}
-                      onClick={() => fileInputEntregaRef.current?.click()}
-                      className={`p-6 rounded-2xl border-2 border-dashed text-center cursor-pointer transition-all ${
-                        isDraggingEntrega
-                          ? "border-accent bg-accent/10 ring-2 ring-accent/30 scale-[1.01]"
-                          : "border-line hover:border-accent/60 bg-paper-sunken/40 hover:bg-paper-sunken/70"
-                      }`}
-                    >
-                      <UploadCloud className="w-10 h-10 text-accent mx-auto mb-2 animate-pulse" />
-                      <p className="text-xs font-bold text-ink">
-                        Arrastra y suelta tu archivo aquí para subirlo
-                      </p>
-                      <p className="text-[11px] text-ink-soft mt-0.5">
-                        o haz clic en esta área para examinar tus documentos
-                      </p>
-                      <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-[10px] text-ink-faint">
-                        <span className="px-2 py-0.5 rounded-full bg-paper border border-line">
-                          Formatos: {selectedTareaForEntrega.tiposArchivosPermitidos}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-paper border border-line">
-                          Límite: {selectedTareaForEntrega.tamanoMaximoMb} MB
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Tarjeta de Archivo Adjunto Estilo Moodle */
-                    <div className="p-4 bg-paper rounded-2xl border border-line shadow-xs space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                            {renderArchivoIcon(
-                              archivoEntregaFile ? archivoEntregaFile.name : archivoEntregaOriginalName || "documento.pdf",
-                              "w-5 h-5"
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-bold text-ink text-xs block truncate">
-                              {archivoEntregaFile ? archivoEntregaFile.name : archivoEntregaOriginalName}
-                            </span>
-                            <span className="text-[10px] text-ink-faint">
-                              {archivoEntregaTamano > 0
-                                ? formatBytes(archivoEntregaTamano)
-                                : archivoEntregaPrevioUrl
-                                ? "Archivo de entrega registrado previamente"
-                                : ""}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => fileInputEntregaRef.current?.click()}
-                            className="px-2.5 py-1.5 rounded-lg border border-line bg-paper-sunken hover:bg-paper text-ink text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <RefreshCw className="w-3 h-3 text-accent" /> Cambiar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setArchivoEntregaFile(null);
-                              setArchivoEntregaOriginalName("");
-                              setArchivoEntregaTamano(0);
-                              setErrorValidacionArchivo(null);
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg border border-line bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <Trash2 className="w-3 h-3 text-red-600" /> Quitar
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* EDITAR NOMBRE DEL ARCHIVO TAL COMO MOODLE ("Guardar como") */}
-                      <div className="pt-2 border-t border-line-soft space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-semibold text-ink flex items-center gap-1.5">
-                            <Edit2 className="w-3.5 h-3.5 text-accent" /> Guardar como (Nombre del archivo en plataforma):
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => setEditandoNombreArchivo(!editandoNombreArchivo)}
-                            className="text-[10px] text-accent font-semibold hover:underline cursor-pointer"
-                          >
-                            {editandoNombreArchivo ? "Ocultar" : "Renombrar"}
-                          </button>
-                        </div>
-
-                        <input
-                          type="text"
-                          value={nombreArchivoEntrega}
-                          onChange={(e) => setNombreArchivoEntrega(e.target.value)}
-                          placeholder="Ej. Tarea1_GrupoA_Investigacion.pdf"
-                          className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink text-xs focus:outline-none focus:border-accent"
-                        />
-                        <span className="text-[10px] text-ink-faint block">
-                          Puedes personalizar el nombre formal con el que el docente verá tu entrega (Moodle conservará la extensión correcta).
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Vincular Documento de Investigación si aplica */}
-                {documentosUsuario.length > 0 && (
-                  <div>
-                    <label className="font-semibold text-ink block mb-1">
-                      Vincular Documento de Investigación de la Plataforma (Opcional)
-                    </label>
-                    <select
-                      value={docVinculadoId}
-                      onChange={(e) => setDocVinculadoId(e.target.value ? Number(e.target.value) : "")}
-                      className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
-                    >
-                      <option value="">-- No vincular documento del repositorio --</option>
-                      {documentosUsuario.map((doc) => (
-                        <option key={doc.id} value={doc.id}>
-                          {doc.titulo} ({doc.categoria})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Comentario para el Docente */}
-                <div>
-                  <label className="font-semibold text-ink block mb-1">
-                    Comentario para el Docente / Jurado (Opcional)
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={comentarioEstudiante}
-                    onChange={(e) => setComentarioEstudiante(e.target.value)}
-                    placeholder="Estimado docente, adjuntamos el avance con las correcciones de la sesión anterior..."
-                    className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink resize-none focus:outline-none focus:border-accent"
-                  />
-                </div>
-
-                {/* Footer y Acciones de Envío */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-line">
-                  <span className="text-[11px] text-ink-faint">
-                    {lastDraftSavedEntrega
-                      ? `💾 Borrador guardado localmente (${lastDraftSavedEntrega})`
-                      : "💾 Los cambios se respaldan en tu navegador"}
-                  </span>
-
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTareaForEntrega(null)}
-                      className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={enviandoEntrega}
-                      className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
-                    >
-                      {enviandoEntrega ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Subiendo archivo...
-                        </>
-                      ) : selectedTareaForEntrega.miEntrega ? (
-                        "Modificar y Guardar Entrega"
-                      ) : (
-                        "Subir Trabajo"
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {renderModalSubirEntrega()}
 
 
         {/* ==================================================== */}
