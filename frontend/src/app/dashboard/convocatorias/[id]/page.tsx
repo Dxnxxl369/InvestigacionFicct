@@ -142,6 +142,24 @@ function formatMoodleDateShort(dateStr?: string | null): string {
   }
 }
 
+// Formateo de fecha ISO a YYYY-MM-DDTHH:mm para inputs datetime-local
+function formatForDateTimeLocal(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hours = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  } catch {
+    return "";
+  }
+}
+
 // Cálculo de tiempo restante / entrega previa estilo Moodle (image.png)
 function calcularTiempoRestanteMoodle(
   fechaLimiteStr?: string | null,
@@ -375,6 +393,11 @@ export default function AreaMoodlePage() {
   const [creandoTarea, setCreandoTarea] = useState(false);
   const [restoredDraftTarea, setRestoredDraftTarea] = useState(false);
 
+  // Estados para Edición de Tarea y Preservación de Entregas
+  const [tareaEditing, setTareaEditing] = useState<TareaDTO | null>(null);
+  const [entregasTareaEditing, setEntregasTareaEditing] = useState<EntregaTareaDTO[]>([]);
+  const [loadingEntregasEditing, setLoadingEntregasEditing] = useState(false);
+
   // Formulario de Designar Miembro
   const [usuarioDesignarId, setUsuarioDesignarId] = useState<number | "">("");
   const [rolDesignar, setRolDesignar] = useState<"DOCENTE" | "JURADO">("DOCENTE");
@@ -581,6 +604,8 @@ export default function AreaMoodlePage() {
 
   // Abrir Modal Crear Tarea con restauración de borrador
   const handleAbrirCrearTarea = (moduloIdDefault?: number) => {
+    setTareaEditing(null);
+    setEntregasTareaEditing([]);
     setTareaModuloId(moduloIdDefault !== undefined ? moduloIdDefault : "");
     const draftKey = `ficct_create_tarea_draft_${convocatoriaId}`;
     try {
@@ -602,11 +627,47 @@ export default function AreaMoodlePage() {
         setRestoredDraftTarea(true);
       } else {
         setRestoredDraftTarea(false);
+        setTituloTarea("");
+        setDescTarea("");
+        setFechaHabilitacion("");
+        setFechaEntrega("");
+        setFechaCorte("");
+        setArchivosPermitidos(".pdf, .docx, .zip");
+        setTamanoMb(15);
+        setPuntajeMax(100);
+        setEsGrupalTarea(false);
       }
     } catch {
       setRestoredDraftTarea(false);
     }
     setShowCreateTareaModal(true);
+  };
+
+  // Abrir Modal Editar Tarea existente
+  const handleAbrirEditarTarea = async (tarea: TareaDTO) => {
+    setTareaEditing(tarea);
+    setTareaModuloId(tarea.moduloId !== undefined && tarea.moduloId !== null ? tarea.moduloId : "");
+    setTituloTarea(tarea.titulo || "");
+    setDescTarea(tarea.descripcion || "");
+    setFechaHabilitacion(formatForDateTimeLocal(tarea.fechaHabilitacion));
+    setFechaEntrega(formatForDateTimeLocal(tarea.fechaEntrega || tarea.fechaLimite));
+    setFechaCorte(formatForDateTimeLocal(tarea.fechaCorte));
+    setArchivosPermitidos(tarea.tiposArchivosPermitidos || ".pdf, .docx, .zip");
+    setTamanoMb(tarea.tamanoMaximoMb || 15);
+    setPuntajeMax(tarea.puntajeMaximo || 100);
+    setEsGrupalTarea(!!tarea.esGrupal);
+    setRestoredDraftTarea(false);
+    setShowCreateTareaModal(true);
+
+    try {
+      setLoadingEntregasEditing(true);
+      const entregas = await api.getEntregasTarea(tarea.id);
+      setEntregasTareaEditing(entregas || []);
+    } catch {
+      setEntregasTareaEditing([]);
+    } finally {
+      setLoadingEntregasEditing(false);
+    }
   };
 
   // Descartar borrador Crear Tarea
@@ -627,9 +688,9 @@ export default function AreaMoodlePage() {
     toast("Borrador de tarea descartado", "info");
   };
 
-  // Auto-guardar borrador de Crear Tarea
+  // Auto-guardar borrador de Crear Tarea (solo al crear, no al editar)
   useEffect(() => {
-    if (!showCreateTareaModal) return;
+    if (!showCreateTareaModal || tareaEditing) return;
     const hasData = tituloTarea.trim() !== "" || descTarea.trim() !== "";
     if (!hasData) return;
 
@@ -655,6 +716,7 @@ export default function AreaMoodlePage() {
     return () => clearTimeout(timeout);
   }, [
     showCreateTareaModal,
+    tareaEditing,
     tituloTarea,
     descTarea,
     fechaHabilitacion,
@@ -668,7 +730,7 @@ export default function AreaMoodlePage() {
     convocatoriaId,
   ]);
 
-  // Manejador Crear Tarea (con 3 fechas)
+  // Manejador Guardar Tarea (Crear o Editar con triple fecha)
   const handleCrearTarea = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tituloTarea.trim()) {
@@ -680,29 +742,39 @@ export default function AreaMoodlePage() {
       setCreandoTarea(true);
       const payload: TareaRequest = {
         convocatoriaId,
-        moduloId: tareaModuloId ? Number(tareaModuloId) : undefined,
+        moduloId: tareaModuloId ? Number(tareaModuloId) : 0,
         titulo: tituloTarea.trim(),
         descripcion: descTarea.trim() || undefined,
         fechaHabilitacion: fechaHabilitacion ? new Date(fechaHabilitacion).toISOString() : undefined,
         fechaEntrega: fechaEntrega ? new Date(fechaEntrega).toISOString() : undefined,
         fechaCorte: fechaCorte ? new Date(fechaCorte).toISOString() : undefined,
-        habilitada: true,
+        habilitada: tareaEditing && tareaEditing.habilitada !== undefined ? tareaEditing.habilitada : true,
         tiposArchivosPermitidos: archivosPermitidos.trim() || ".pdf, .docx, .zip",
         tamanoMaximoMb: Number(tamanoMb) || 15,
         puntajeMaximo: Number(puntajeMax) || 100,
         esGrupal: esGrupalTarea,
       };
 
-      await api.createTareaConvocatoria(convocatoriaId, payload);
-      toast("Tarea académica creada exitosamente con control de fechas Moodle", "success");
+      if (tareaEditing) {
+        const updated = await api.updateTarea(tareaEditing.id, payload);
+        toast("Tarea académica actualizada exitosamente. Las entregas registradas se mantienen intactas.", "success");
+        if (activeTareaDetalle && activeTareaDetalle.id === tareaEditing.id) {
+          setActiveTareaDetalle(updated);
+        }
+      } else {
+        await api.createTareaConvocatoria(convocatoriaId, payload);
+        toast("Tarea académica creada exitosamente con control de fechas Moodle", "success");
 
-      // Limpiar borrador de tarea
-      try {
-        localStorage.removeItem(`ficct_create_tarea_draft_${convocatoriaId}`);
-      } catch {}
-      setRestoredDraftTarea(false);
+        // Limpiar borrador de tarea
+        try {
+          localStorage.removeItem(`ficct_create_tarea_draft_${convocatoriaId}`);
+        } catch {}
+        setRestoredDraftTarea(false);
+      }
 
       setShowCreateTareaModal(false);
+      setTareaEditing(null);
+      setEntregasTareaEditing([]);
       setTituloTarea("");
       setDescTarea("");
       setFechaHabilitacion("");
@@ -713,7 +785,7 @@ export default function AreaMoodlePage() {
       const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
       setTareas(updatedTareas);
     } catch (err: any) {
-      toast(err.message || "No se pudo crear la tarea", "error");
+      toast(err.message || (tareaEditing ? "No se pudo actualizar la tarea" : "No se pudo crear la tarea"), "error");
     } finally {
       setCreandoTarea(false);
     }
@@ -1975,7 +2047,7 @@ export default function AreaMoodlePage() {
               <span className="text-[11px] text-ink-faint">
                 {lastDraftSavedEntrega
                   ? `💾 Borrador guardado localmente (${lastDraftSavedEntrega})`
-                  : "💾 Los cambios se respaldan en tu navegador"}
+                  : ""}
               </span>
 
               <div className="flex items-center justify-end gap-2">
@@ -2053,9 +2125,7 @@ export default function AreaMoodlePage() {
                   <ArrowLeft className="w-3.5 h-3.5" /> {activeTareaDetalle ? "Volver a Detalle de Tarea" : "Volver a Convocatoria y Tareas"}
                 </button>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-paper-sunken border border-line text-ink uppercase tracking-wider">
-                    Consola de Evaluación SpeedGrader
-                  </span>
+                  
                   {activeTareaParaEntregas.esGrupal && (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-paper-sunken text-ink border border-line uppercase tracking-wider flex items-center gap-1">
                       <Users className="w-3.5 h-3.5 text-ink-soft" /> Tarea Grupal
@@ -2346,7 +2416,15 @@ export default function AreaMoodlePage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {activeTareaParaEntregas.updatedAt && new Date(selectedEntregaObj.fechaEntrega) < new Date(activeTareaParaEntregas.updatedAt) && (
+                            <span
+                              className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 flex items-center gap-1"
+                              title={`Entregado antes de la última edición de plazos del docente (${formatMoodleDate(activeTareaParaEntregas.updatedAt)})`}
+                            >
+                              <ShieldCheck className="w-3 h-3 text-emerald-600" /> Previo a edición
+                            </span>
+                          )}
                           <span
                             className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
                               selectedEntregaObj.estado === "CALIFICADO"
@@ -2647,17 +2725,28 @@ export default function AreaMoodlePage() {
                   Sumario de calificaciones
                 </h2>
                 {puedeGestionarTareas && (
-                  <button
-                    onClick={() => handleToggleHabilitar(activeTareaDetalle.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer ${
-                      activeTareaDetalle.habilitada
-                        ? "bg-paper-sunken border-line text-ink hover:bg-paper"
-                        : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                    }`}
-                  >
-                    {activeTareaDetalle.habilitada ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                    {activeTareaDetalle.habilitada ? "Cerrar Recepción" : "Habilitar Recepción"}
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleAbrirEditarTarea(activeTareaDetalle)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-line bg-paper-sunken hover:bg-paper text-ink flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Editar información, plazos y restricciones de la tarea"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-accent" />
+                      Editar Tarea
+                    </button>
+                    <button
+                      onClick={() => handleToggleHabilitar(activeTareaDetalle.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer ${
+                        activeTareaDetalle.habilitada
+                          ? "bg-paper-sunken border-line text-ink hover:bg-paper"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                      }`}
+                    >
+                      {activeTareaDetalle.habilitada ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                      {activeTareaDetalle.habilitada ? "Cerrar Recepción" : "Habilitar Recepción"}
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -2701,7 +2790,7 @@ export default function AreaMoodlePage() {
                   onClick={() => handleVerEntregas(activeTareaDetalle)}
                   className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
                 >
-                  <Users className="w-4 h-4" /> Ver / Calificar todas las entregas (SpeedGrader)
+                  <Users className="w-4 h-4" /> Ver / Calificar todas las entregas
                 </button>
               </div>
             </div>
@@ -2712,6 +2801,21 @@ export default function AreaMoodlePage() {
             <h2 className="text-base sm:text-lg font-serif font-bold text-ink">
               Estado de la entrega
             </h2>
+
+            {/* Aviso de Entrega Protegida Previa a la Edición del Docente */}
+            {miEntrega && activeTareaDetalle.updatedAt && new Date(miEntrega.fechaEntrega) < new Date(activeTareaDetalle.updatedAt) && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-200 shadow-2xs">
+                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold text-emerald-900 dark:text-emerald-100">
+                    Tu entrega se encuentra registrada y resguardada
+                  </p>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 leading-relaxed">
+                    Tu trabajo fue enviado exitosamente el <strong>{formatMoodleDate(miEntrega.fechaEntrega)}</strong> con anterioridad a la última modificación de plazos o parámetros del docente ({formatMoodleDate(activeTareaDetalle.updatedAt)}). Tu entrega se mantiene formalmente archivada y válida sin requerir ninguna acción adicional.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="border border-line rounded-xl overflow-hidden bg-paper shadow-2xs divide-y divide-line text-xs sm:text-sm">
               {/* Estado de la entrega */}
@@ -2779,8 +2883,13 @@ export default function AreaMoodlePage() {
                 <div className="p-3 sm:px-4 font-semibold text-ink bg-paper-sunken/40 flex items-center">
                   Última modificación
                 </div>
-                <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
-                  {miEntrega ? formatMoodleDate(miEntrega.fechaEntrega) : "-"}
+                <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper flex items-center gap-2 flex-wrap">
+                  <span>{miEntrega ? formatMoodleDate(miEntrega.fechaEntrega) : "-"}</span>
+                  {miEntrega && activeTareaDetalle.updatedAt && new Date(miEntrega.fechaEntrega) < new Date(activeTareaDetalle.updatedAt) && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                      Entregado antes de la última edición
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -3540,6 +3649,19 @@ export default function AreaMoodlePage() {
                                   >
                                     {t.habilitada ? "Abierta" : "Cerrada"}
                                   </span>
+                                  {puedeGestionarTareas && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAbrirEditarTarea(t);
+                                      }}
+                                      title="Editar tarea (plazos, restricciones y detalles)"
+                                      className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
                               )}
                               <ChevronRight className="w-4 h-4 text-ink-faint group-hover:text-accent transition-colors" />
@@ -3779,6 +3901,19 @@ export default function AreaMoodlePage() {
                                     >
                                       {t.habilitada ? "Abierta" : "Cerrada"}
                                     </span>
+                                    {puedeGestionarTareas && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAbrirEditarTarea(t);
+                                        }}
+                                        title="Editar tarea (plazos, restricciones y detalles)"
+                                        className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                                 <ChevronRight className="w-4 h-4 text-ink-faint group-hover:text-accent transition-colors" />
@@ -5011,16 +5146,32 @@ export default function AreaMoodlePage() {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-line pb-3">
-                <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-accent" /> Nueva Tarea Académica (Moodle)
-                </h3>
-                <button onClick={() => setShowCreateTareaModal(false)} className="text-ink-faint hover:text-ink cursor-pointer">
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-accent" />{" "}
+                    {tareaEditing ? "Editar Tarea Académica (Moodle)" : "Nueva Tarea Académica (Moodle)"}
+                  </h3>
+                  <p className="text-[11px] text-ink-soft mt-0.5">
+                    {tareaEditing
+                      ? "Modifica fechas, instrucciones o restricciones. Las entregas registradas previamente se mantendrán intactas."
+                      : "Configura las pautas y plazos de entrega para los estudiantes"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateTareaModal(false);
+                    setTareaEditing(null);
+                    setEntregasTareaEditing([]);
+                  }}
+                  className="text-ink-faint hover:text-ink cursor-pointer"
+                >
                   <XCircle className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Banner de Borrador Restaurado */}
-              {restoredDraftTarea && (
+              {/* Banner de Borrador Restaurado (solo si es nueva tarea) */}
+              {!tareaEditing && restoredDraftTarea && (
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
                   <span className="flex items-center gap-1.5 font-medium">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -5033,6 +5184,81 @@ export default function AreaMoodlePage() {
                   >
                     <RotateCcw className="w-3 h-3" /> Descartar
                   </button>
+                </div>
+              )}
+
+              {/* Sección de Protección e Historial de Entregas al editar */}
+              {tareaEditing && (
+                <div className="p-3.5 bg-paper-sunken/80 border border-line rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-bold text-xs text-ink">
+                        Historial de Entregas ({entregasTareaEditing.length} registradas)
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-600" /> Entregas Protegidas
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-ink-soft leading-relaxed">
+                    Si amplías o ajustas la fecha límite o parámetros, <strong>los estudiantes que ya entregaron no perderán su entrega</strong> ni tendrán que reenviarla; sus archivos permanecen registrados formalmente.
+                  </p>
+
+                  {loadingEntregasEditing ? (
+                    <div className="p-3 text-center text-xs text-ink-faint bg-paper rounded-lg border border-line">
+                      Cargando historial de entregas...
+                    </div>
+                  ) : entregasTareaEditing.length === 0 ? (
+                    <div className="p-2.5 text-center text-[11px] text-ink-faint bg-paper rounded-lg border border-line">
+                      No hay entregas previas para esta tarea todavía. Puedes ajustar los plazos con total libertad.
+                    </div>
+                  ) : (
+                    <div className="max-h-40 overflow-y-auto divide-y divide-line rounded-lg border border-line bg-paper text-[11px]">
+                      {entregasTareaEditing.map((entrega) => (
+                        <div
+                          key={entrega.id}
+                          className="p-2.5 flex items-center justify-between gap-2 hover:bg-paper-sunken/40 transition-colors"
+                        >
+                          <div className="min-w-0 space-y-0.5">
+                            <p className="font-semibold text-ink truncate">
+                              {entrega.estudianteNombre || entrega.estudianteEmail}
+                            </p>
+                            <p className="text-[10px] text-ink-soft flex items-center gap-1.5 flex-wrap">
+                              {entrega.grupoNombre && (
+                                <span className="font-medium text-accent">[{entrega.grupoNombre}]</span>
+                              )}
+                              <span>Entregado: {formatMoodleDate(entrega.fechaEntrega)}</span>
+                              {entrega.estado === "CALIFICADO" ? (
+                                <span className="text-emerald-600 font-semibold">({entrega.calificacion} pts)</span>
+                              ) : null}
+                            </p>
+                          </div>
+
+                          {entrega.nombreArchivo && (
+                            <div className="shrink-0 flex items-center gap-1">
+                              {entrega.archivoUrl ? (
+                                <a
+                                  href={getMediaUrl(entrega.archivoUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2 py-1 bg-paper-sunken hover:bg-paper text-accent border border-line rounded-md text-[10px] font-medium flex items-center gap-1 transition-colors"
+                                  title={`Descargar ${entrega.nombreArchivo}`}
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span className="max-w-[110px] truncate">{entrega.nombreArchivo}</span>
+                                  <Download className="w-2.5 h-2.5" />
+                                </a>
+                              ) : (
+                                <span className="text-[10px] text-ink-soft">{entrega.nombreArchivo}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -5175,17 +5401,25 @@ export default function AreaMoodlePage() {
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
                   <button
                     type="button"
-                    onClick={() => setShowCreateTareaModal(false)}
-                    className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken"
+                    onClick={() => {
+                      setShowCreateTareaModal(false);
+                      setTareaEditing(null);
+                      setEntregasTareaEditing([]);
+                    }}
+                    className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={creandoTarea}
-                    className="px-4 py-2 bg-accent text-white rounded-xl font-semibold hover:bg-accent-dark disabled:opacity-50"
+                    className="px-4 py-2 bg-accent text-white rounded-xl font-semibold hover:bg-accent-dark disabled:opacity-50 cursor-pointer"
                   >
-                    {creandoTarea ? "Guardando..." : "Publicar Tarea"}
+                    {creandoTarea
+                      ? "Guardando..."
+                      : tareaEditing
+                      ? "Guardar Cambios de Tarea"
+                      : "Publicar Tarea"}
                   </button>
                 </div>
               </form>

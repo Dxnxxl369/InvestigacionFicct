@@ -228,6 +228,10 @@ public class Tarea {
         return updatedAt;
     }
 
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
     public boolean isEsGrupal() {
         return esGrupal;
     }

@@ -114,9 +114,7 @@ public class TareaService {
         } else if (request.getFechaLimite() != null) {
             tarea.setFechaEntrega(request.getFechaLimite());
         }
-        if (request.getFechaCorte() != null) {
-            tarea.setFechaCorte(request.getFechaCorte());
-        }
+        tarea.setFechaCorte(request.getFechaCorte());
         tarea.setHabilitada(request.isHabilitada());
         if (request.getTiposArchivosPermitidos() != null) {
             tarea.setTiposArchivosPermitidos(request.getTiposArchivosPermitidos());
@@ -127,14 +125,13 @@ public class TareaService {
         if (request.getPuntajeMaximo() != null) {
             tarea.setPuntajeMaximo(request.getPuntajeMaximo());
         }
-        if (request.getModuloId() != null) {
-            if (request.getModuloId() > 0) {
-                moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
-            } else {
-                tarea.setModulo(null);
-            }
+        if (request.getModuloId() != null && request.getModuloId() > 0) {
+            moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
+        } else {
+            tarea.setModulo(null);
         }
         tarea.setEsGrupal(request.isEsGrupal());
+        tarea.setUpdatedAt(LocalDateTime.now());
 
         Tarea saved = tareaRepository.save(tarea);
         return toDTO(saved, user);
@@ -421,6 +418,7 @@ public class TareaService {
         }
         dto.setTotalEntregas(tarea.getEntregas().size());
         dto.setCreatedAt(tarea.getCreatedAt());
+        dto.setUpdatedAt(tarea.getUpdatedAt());
 
         // Estado Moodle computado
         LocalDateTime ahora = LocalDateTime.now();

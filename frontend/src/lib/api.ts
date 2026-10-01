@@ -725,6 +725,7 @@ export interface TareaDTO {
   totalEntregas: number;
   estadoMoodle?: "ABIERTA" | "PENDIENTE_APERTURA" | "CERRADA_CORTE" | "DESHABILITADA" | "ENTREGA_CON_RETRASO";
   createdAt?: string;
+  updatedAt?: string;
   miEntrega?: EntregaTareaDTO;
   moduloId?: number;
   moduloTitulo?: string;

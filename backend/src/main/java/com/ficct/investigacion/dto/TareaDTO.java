@@ -22,6 +22,7 @@ public class TareaDTO {
     private int totalEntregas;
     private String estadoMoodle; // "ABIERTA", "PENDIENTE_APERTURA", "CERRADA_CORTE", "DESHABILITADA"
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private EntregaTareaDTO miEntrega;
     private Long moduloId;
     private String moduloTitulo;
@@ -204,5 +205,13 @@ public class TareaDTO {
 
     public void setEsGrupal(boolean esGrupal) {
         this.esGrupal = esGrupal;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }
