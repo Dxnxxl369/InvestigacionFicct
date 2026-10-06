@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Convocatoria, publicConvocatoriasAPI, api, ConvocatoriaDTO } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
@@ -20,39 +21,37 @@ import {
   Code2,
   Cpu,
   GraduationCap,
-  Rocket,
   ExternalLink,
   ChevronDown,
   Layers,
-  Terminal,
-  Briefcase,
-  Flame,
-  HelpCircle,
   MapPin,
-  Mail,
-  Phone,
   LayoutDashboard,
   LogIn,
   Check,
-  ChevronRight,
   Zap,
+  BookOpen,
+  FileCheck2,
+  Lightbulb,
+  TrendingUp,
+  Maximize2,
+  Lock,
 } from "lucide-react";
 
 export default function HomePage() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Scroll Progress
+  // Scroll Progress Bar
   const [scrollProgress, setScrollProgress] = useState(0);
 
-  // Convocatorias & búsqueda
+  // Convocatorias & Búsqueda en Vivo
   const [convocatorias, setConvocatorias] = useState<Convocatoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTipo, setSelectedTipo] = useState<string>("TODAS");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchStatus, setSearchStatus] = useState<string>("");
 
-  // Postulación modal
+  // Postulación Modal
   const [misAreasMap, setMisAreasMap] = useState<Record<number, ConvocatoriaDTO>>({});
   const [selectedConvForPostulacion, setSelectedConvForPostulacion] = useState<Convocatoria | null>(null);
   const [nombreEquipoInput, setNombreEquipoInput] = useState("");
@@ -63,13 +62,16 @@ export default function HomePage() {
   const [verifying, setVerifying] = useState(false);
   const [verifiedResult, setVerifiedResult] = useState<boolean | null>(null);
 
+  // Modal para ver el afiche oficial en alta resolución
+  const [showPosterModal, setShowPosterModal] = useState(false);
+
   // FAQ Acordeón State
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  // Mobile menu toggle
+  // Menú Móvil
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Observador de Scroll Reveal
+  // Scroll Progress Listener
   useEffect(() => {
     const handleScroll = () => {
       const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
@@ -81,6 +83,7 @@ export default function HomePage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Intersection Observer para animaciones de revelado
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -133,7 +136,7 @@ export default function HomePage() {
       });
       setMisAreasMap(map);
     } catch {
-      // no auth
+      // sin sesión
     }
   }, [user]);
 
@@ -149,7 +152,7 @@ export default function HomePage() {
       await api.inscribirseConvocatoria(selectedConvForPostulacion.id, {
         nombreEquipo: nombreEquipoInput.trim() || undefined,
       });
-      toast("¡Solicitud enviada con éxito! El docente o jurado a cargo revisará tu postulación para admitirte al aula.", "success");
+      toast("¡Solicitud enviada con éxito! El tribunal docente revisará tu postulación para admitirte al aula.", "success");
       setSelectedConvForPostulacion(null);
       setNombreEquipoInput("");
       await fetchMisAreas();
@@ -174,7 +177,7 @@ export default function HomePage() {
     setTimeout(() => {
       setVerifying(false);
       setVerifiedResult(true);
-      toast("Certificado validado en Blockchain (Polkadot / Polygon PoS Testnet)", "success");
+      toast("Certificado validado en registro Blockchain (FICCT - Polygon PoS)", "success");
     }, 850);
   };
 
@@ -196,74 +199,76 @@ export default function HomePage() {
 
   const faqs = [
     {
-      q: "¿Quiénes pueden participar en las ferias y hackathons de la facultad?",
-      a: "Pueden participar todos los estudiantes regulares de las carreras de Ingeniería en Sistemas, Ingeniería Informática, Ingeniería en Redes y Telecomunicaciones de la FICCT - UAGRM, así como docentes tutores e investigadores invitados.",
+      q: "¿Quiénes pueden participar en las ferias y semilleros de la FICCT?",
+      a: "Pueden participar todos los estudiantes regulares de las carreras de Ingeniería en Sistemas, Ingeniería Informática e Ingeniería en Redes y Telecomunicaciones de la FICCT - UAGRM, junto a docentes investigadores y tutores de proyectos.",
     },
     {
-      q: "¿Puedo postularme a una convocatoria si aún no tengo equipo?",
-      a: "¡Sí, totalmente! Puedes postularte de forma individual. Dentro del aula virtual del evento existe el módulo de selección de equipos con Combobox inteligente donde podrás unirte a un grupo existente o conformar uno nuevo con otros participantes.",
+      q: "¿Qué secciones obligatorias comprende el 1er Avance del Documento de Investigación?",
+      a: "De acuerdo a la normativa oficial, el 1er avance debe incluir: 1) Título del proyecto, 2) Contexto y Antecedentes del problema, 3) Descripción y Planteamiento del problema, 4) Objetivos (General y Específicos), y 5) Bibliografía formal estructurada.",
     },
     {
-      q: "¿Cómo se evalúan los proyectos y entregas?",
-      a: "La facultad cuenta con un sistema integrado de rúbricas colegiadas y SpeedGrader Moodle. El tribunal conformado por docentes titulares y jurados especialistas evalúa tus avances de código, documentación y presentación en vivo con total transparencia.",
+      q: "¿Puedo postularme a una convocatoria si aún no tengo equipo conformado?",
+      a: "Sí. Puedes postularte individualmente. Al acceder al aula virtual del evento dispones del módulo de Selección de Grupos (Group Choice) para unirte a un grupo con cupos disponibles o formar un nuevo equipo colaborativo.",
     },
     {
-      q: "¿Qué validez tienen los certificados emitidos al culminar?",
-      a: "Todos los certificados emitidos por la Dirección de Investigación y UNEXO cuentan con hash criptográfico inalterable registrado en Blockchain y código QR para validación curricular inmediata ante empresas, comités de titulación o posgrados.",
+      q: "¿Cómo funciona la evaluación colegiada y el SpeedGrader con rúbricas?",
+      a: "El tribunal calificador (docentes titulares y jurados especialistas) evalúa cada entrega mediante rúbricas cuantitativas por criterios. Puedes ver retroalimentación inmediata, observaciones en línea y calificación colegiada sin sesgos.",
     },
     {
-      q: "¿Qué es UNEXO y qué beneficios brinda a los estudiantes?",
-      a: "UNEXO es la Unidad de Negocios, Extensión y Emprendimiento Tecnológico de la FICCT. Brinda vinculación directa con empresas de software, bolsa de empleo (Conecta UAGRM), incubación de prototipos y capacitaciones continuas de alto nivel.",
+      q: "¿Qué validez tienen los certificados criptográficos emitidos?",
+      a: "Todos los certificados emitidos por la Dirección de Investigación de la FICCT cuentan con hash criptográfico inalterable registrado en Blockchain y código QR para validación inmediata ante empresas, comités de titulación y posgrados.",
     },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-paper text-ink selection:bg-accent/20 selection:text-accent-dark transition-colors duration-300 relative overflow-x-hidden">
-      {/* Scroll Progress Bar en la parte superior */}
+    <div className="min-h-screen flex flex-col bg-paper text-ink selection:bg-accent/20 selection:text-accent-dark transition-colors duration-300 relative overflow-x-hidden font-sans">
+      {/* Barra de progreso de lectura en el borde superior */}
       <div
-        className="fixed top-0 left-0 h-[3.5px] bg-gradient-to-r from-accent via-emerald-400 to-accent z-50 transition-all duration-100 shadow-[0_0_12px_rgba(76,166,75,0.6)]"
+        className="fixed top-0 left-0 h-[3px] bg-gradient-to-r from-accent via-emerald-400 to-teal-400 z-50 transition-all duration-100 shadow-[0_0_12px_rgba(76,166,75,0.7)]"
         style={{ width: `${scrollProgress}%` }}
       />
 
-      {/* ================= HEADER / NAVBAR FLOTANTE ESTILO GLASS ================= */}
-      <header className="sticky top-0 z-40 bg-paper/85 backdrop-blur-md border-b border-line transition-colors">
+      {/* ================= NAVBAR ULTRA-MINIMALISTA ESTILO LIQUID GLASS ================= */}
+      <header className="sticky top-0 z-40 bg-paper/75 dark:bg-[#060D17]/75 backdrop-blur-xl border-b border-line/60 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
+          {/* Brand Logo FICCT */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-emerald-700 flex items-center justify-center text-white font-black text-sm shadow-md group-hover:scale-105 transition-transform">
-              FICCT
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0B2545] to-[#123966] dark:from-[#0D1C33] dark:to-[#1E3A5F] border border-white/20 dark:border-white/10 flex items-center justify-center text-white font-black text-sm shadow-md group-hover:scale-105 transition-all">
+                FICCT
+              </div>
+              <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-accent border-2 border-paper dark:border-[#060D17]" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-base tracking-tight text-ink group-hover:text-accent transition-colors flex items-center gap-1.5">
-                UNEXO <span className="text-xs px-2 py-0.5 rounded-md bg-accent-soft text-accent-dark font-semibold">Investigación</span>
+              <span className="font-extrabold text-[15px] tracking-tight text-ink group-hover:text-accent transition-colors flex items-center gap-2">
+                Investigación <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-accent/15 text-accent-dark font-bold tracking-wider">FICCT 2-2026</span>
               </span>
-              <span className="text-[11px] text-ink-faint leading-none font-medium">
-                Facultad de Cs. de la Computación · UAGRM
+              <span className="text-[11px] text-ink-faint font-medium tracking-tight">
+                Facultad de Cs. de la Computación y Telecomunicaciones · UAGRM
               </span>
             </div>
           </Link>
 
-          {/* Menú de Navegación Escritorio */}
+          {/* Menú de Navegación de Escritorio */}
           <nav className="hidden lg:flex items-center gap-7 text-xs font-semibold text-ink-soft">
-            <a href="#hero" className="hover:text-accent transition-colors">
-              Inicio
+            <a href="#feria-activa" className="hover:text-accent transition-colors flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-accent" />
+              <span>1er Avance</span>
             </a>
-            <a href="#ecosistema" className="hover:text-accent transition-colors">
-              Ecosistema
-            </a>
-            <a href="#ferias-hackathons" className="hover:text-accent transition-colors">
-              Ferias &amp; Hackathons
+            <a href="#pilares" className="hover:text-accent transition-colors">
+              Pilares
             </a>
             <a href="#actividades" className="hover:text-accent transition-colors">
               Convocatorias
             </a>
-            <a href="#ruta" className="hover:text-accent transition-colors">
-              Ruta del Proyecto
+            <a href="#flujo" className="hover:text-accent transition-colors">
+              Metodología
             </a>
-            <a href="#verificacion" className="hover:text-accent transition-colors">
-              Blockchain
+            <a href="#blockchain" className="hover:text-accent transition-colors">
+              Verificador
             </a>
             <a href="#faq" className="hover:text-accent transition-colors">
-              Preguntas
+              Normativa
             </a>
           </nav>
 
@@ -274,26 +279,26 @@ export default function HomePage() {
             {user ? (
               <Link
                 href="/dashboard"
-                className="flex items-center gap-2 text-xs font-semibold px-4 py-2.5 rounded-xl bg-accent text-white hover:bg-accent-dark shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all"
+                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl bg-accent text-white hover:bg-accent-dark shadow-xs hover:scale-[1.02] active:scale-[0.98] transition-all"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 <span className="hidden sm:inline">Mi Campus ({user.rol})</span>
-                <span className="sm:hidden">Panel</span>
+                <span className="sm:hidden">Campus</span>
               </Link>
             ) : (
               <div className="flex items-center gap-2">
                 <Link
                   href="/login"
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl border border-line hover:border-accent text-ink bg-paper-raised hover:bg-paper-sunken transition-all shadow-xs"
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl border border-line/80 hover:border-accent text-ink bg-paper-raised/80 hover:bg-paper-sunken backdrop-blur-md transition-all shadow-xs"
                 >
                   <LogIn className="w-3.5 h-3.5 text-accent" />
                   <span>Ingresar</span>
                 </Link>
                 <Link
                   href="/registro"
-                  className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl bg-accent text-white hover:bg-accent-dark shadow-sm transition-all"
+                  className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl bg-accent text-white hover:bg-accent-dark shadow-xs transition-all hover:scale-[1.02]"
                 >
-                  <span>Crear Cuenta</span>
+                  <span>Registrarme</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -303,6 +308,7 @@ export default function HomePage() {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="lg:hidden p-2 rounded-xl border border-line text-ink-soft hover:bg-paper-raised"
+              aria-label="Abrir menú"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Layers className="w-5 h-5" />}
             </button>
@@ -311,44 +317,37 @@ export default function HomePage() {
 
         {/* Menú Desplegable Móvil */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-line bg-paper-raised p-5 space-y-3 animate-in fade-in duration-200">
+          <div className="lg:hidden border-t border-line/60 bg-paper-raised/95 backdrop-blur-xl p-5 space-y-3 animate-in fade-in duration-200">
             <a
-              href="#hero"
+              href="#feria-activa"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-semibold text-ink hover:text-accent py-1"
             >
-              Inicio
+              ✨ 1er Avance de Investigación
             </a>
             <a
-              href="#ecosistema"
+              href="#pilares"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-semibold text-ink hover:text-accent py-1"
             >
-              Ecosistema &amp; UNEXO
-            </a>
-            <a
-              href="#ferias-hackathons"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-semibold text-ink hover:text-accent py-1"
-            >
-              Ferias y Hackathons
+              Pilares de Investigación
             </a>
             <a
               href="#actividades"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-semibold text-ink hover:text-accent py-1"
             >
-              Convocatorias Vigentes
+              Convocatorias Abiertas
             </a>
             <a
-              href="#ruta"
+              href="#flujo"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-semibold text-ink hover:text-accent py-1"
             >
-              Ruta del Investigador
+              Ruta del Proyecto
             </a>
             <a
-              href="#verificacion"
+              href="#blockchain"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-semibold text-ink hover:text-accent py-1"
             >
@@ -359,14 +358,14 @@ export default function HomePage() {
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-semibold text-ink hover:text-accent py-1"
             >
-              Preguntas Frecuentes
+              Preguntas &amp; Normativa
             </a>
             {!user && (
               <div className="pt-2">
                 <Link
                   href="/registro"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-accent text-white font-semibold text-xs"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-accent text-white font-semibold text-xs shadow-sm"
                 >
                   <span>Registrarme como Estudiante</span>
                   <ArrowRight className="w-4 h-4" />
@@ -377,276 +376,241 @@ export default function HomePage() {
         )}
       </header>
 
-      {/* ================= HERO SECTION CON LIQUID GLASS Y GRADIENTES ================= */}
-      <section id="hero" className="relative pt-12 pb-20 px-4 sm:px-8 max-w-7xl mx-auto w-full overflow-hidden">
-        {/* Orbes orgánicos de luz en el fondo */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-accent/15 blur-[120px] rounded-full pointer-events-none -z-10" />
-        <div className="absolute top-1/3 right-10 w-[300px] h-[300px] bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none -z-10" />
+      {/* ================= HERO SECTION CON LIQUID GLASS & POSTER FICCT ================= */}
+      <section className="relative pt-10 sm:pt-16 pb-20 px-4 sm:px-8 max-w-7xl mx-auto w-full">
+        {/* Orbes orgánicos y destellos de fondo tipo Liquid Glass */}
+        <div className="absolute top-12 left-1/4 -translate-x-1/2 w-[520px] h-[340px] bg-accent/15 dark:bg-accent/10 blur-[130px] rounded-full pointer-events-none -z-10" />
+        <div className="absolute top-20 right-10 w-[380px] h-[380px] bg-[#0B2545]/15 dark:bg-emerald-500/10 blur-[120px] rounded-full pointer-events-none -z-10" />
 
-        <div className="text-center max-w-4xl mx-auto reveal-on-scroll">
-          {/* Badge superior animado */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-accent/30 bg-accent-soft text-accent-dark text-xs font-semibold mb-6 shadow-xs">
-            <Sparkles className="w-4 h-4 text-accent animate-pulse" />
-            <span>UNEXO · Dirección de Investigación, Ciencia y Tecnología FICCT</span>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+          {/* Columna Izquierda: Mensaje Central & Filosofía FICCT */}
+          <div className="lg:col-span-7 space-y-6 reveal-on-scroll">
+            {/* Badge superior de identidad oficial */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-accent/30 bg-accent-soft/80 backdrop-blur-md text-accent-dark text-xs font-semibold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+              <span className="font-mono text-[11px] tracking-wide uppercase">FICCT · FERIA DE INVESTIGACIÓN 2-2026</span>
+            </div>
+
+            {/* Titular Principal inspirado en el poster institucional */}
+            <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black tracking-tight text-ink leading-[1.12]">
+              Un mejor futuro{" "}
+              <span className="bg-gradient-to-r from-accent via-emerald-500 to-teal-500 bg-clip-text text-transparent">
+                también se programa.
+              </span>
+            </h1>
+
+            {/* Sublema oficial: Tecnología · Personas · Grandes ideas */}
+            <div className="flex items-center gap-3 text-xs font-mono font-bold tracking-wider uppercase text-ink-faint">
+              <span>Tecnología</span>
+              <span>•</span>
+              <span>Personas</span>
+              <span>•</span>
+              <span className="text-accent-dark">Grandes ideas</span>
+            </div>
+
+            <p className="text-sm sm:text-base text-ink-soft leading-relaxed max-w-xl">
+              Plataforma oficial de la <strong>FICCT - UAGRM</strong> para el registro, desarrollo en aulas virtuales,
+              evaluación colegiada mediante SpeedGrader y certificación inalterable en Blockchain de proyectos científicos, ferias y semilleros.
+            </p>
+
+            {/* Acciones principales */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <a
+                href="#actividades"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-xs sm:text-sm bg-accent text-white hover:bg-accent-dark transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group hover:scale-[1.02]"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-200" />
+                <span>Explorar Convocatorias</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </a>
+
+              <a
+                href="#feria-activa"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-semibold text-xs sm:text-sm border border-line bg-paper-raised/70 hover:bg-paper-sunken text-ink transition-all backdrop-blur-md shadow-xs flex items-center justify-center gap-2"
+              >
+                <BookOpen className="w-4 h-4 text-accent" />
+                <span>Bases del 1er Avance</span>
+              </a>
+            </div>
+
+            {/* Badges de Garantía Institucional */}
+            <div className="pt-4 border-t border-line/60 flex flex-wrap items-center gap-4 text-xs font-semibold text-ink-faint">
+              <div className="flex items-center gap-1.5 text-accent-dark">
+                <CheckCircle2 className="w-4 h-4 text-accent" />
+                <span>Rúbricas Oficiales Moodle</span>
+              </div>
+              <span>•</span>
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-accent" />
+                <span>Validación Criptográfica On-Chain</span>
+              </div>
+              <span>•</span>
+              <div className="flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-accent" />
+                <span>Tribunal Docente Titular</span>
+              </div>
+            </div>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-ink leading-[1.12] mb-6">
-            Donde las ideas universitarias se convierten en{" "}
-            <span className="bg-gradient-to-r from-accent via-emerald-500 to-teal-500 bg-clip-text text-transparent">
-              prototipos del mundo real
-            </span>
-          </h1>
+          {/* Columna Derecha: Tarjeta Liquid Glass con el Showcase de "1er Avance" (directo de image.png) */}
+          <div className="lg:col-span-5 reveal-scale">
+            <div className="relative rounded-3xl p-6 sm:p-7 backdrop-blur-2xl bg-white/75 dark:bg-[#081220]/75 border border-white/60 dark:border-white/10 shadow-[0_20px_50px_rgba(11,37,69,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-all overflow-hidden group">
+              {/* Reflejo de luz superior estilo cristal líquido */}
+              <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-white/80 dark:via-accent/60 to-transparent" />
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-accent/20 rounded-full blur-3xl pointer-events-none" />
 
-          <p className="text-base sm:text-lg text-ink-soft max-w-2xl mx-auto leading-relaxed mb-8">
-            El ecosistema oficial de la <strong>FICCT - UAGRM</strong> para la postulación, desarrollo en aulas Moodle,
-            evaluación colegiada por jurados y certificación inalterable en Blockchain de ferias científicas, hackathons y semilleros de investigación.
-          </p>
+              {/* Cabecera del Showcase */}
+              <div className="flex items-start justify-between gap-3 mb-5">
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-widest font-black text-accent-dark bg-accent/15 px-2.5 py-1 rounded-md inline-block">
+                    CONVOCATORIA OFICIAL
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-ink mt-2 tracking-tight leading-tight">
+                    1<sup className="text-xs">er</sup> AVANCE
+                  </h3>
+                  <p className="text-xs text-ink-soft font-medium">
+                    Documento de Investigación · Semilleros FICCT
+                  </p>
+                </div>
 
-          {/* Botones de Acción Primarios */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-12">
-            <a
-              href="#actividades"
-              className="w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-sm bg-accent text-white hover:bg-accent-dark transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group"
-            >
-              <Flame className="w-4 h-4 text-amber-300" />
-              <span>Explorar Convocatorias 2026</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </a>
+                {/* Botón para ver el poster institucional completo */}
+                <button
+                  onClick={() => setShowPosterModal(true)}
+                  className="p-2.5 rounded-xl border border-line bg-paper-sunken/60 hover:bg-accent hover:text-white text-ink-soft transition-all shadow-xs group/btn"
+                  title="Ver afiche oficial completo"
+                >
+                  <Maximize2 className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                </button>
+              </div>
 
-            {!user ? (
+              {/* Estructura obligatoria del documento (literal de image.png) */}
+              <div className="rounded-2xl p-4 bg-paper-sunken/60 dark:bg-[#0D1C33]/60 border border-line/60 mb-5 space-y-2.5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-ink flex items-center justify-between">
+                  <span>Estructura Requerida:</span>
+                  <span className="text-[10px] text-accent-dark font-mono font-bold">5 Puntos</span>
+                </div>
+                <ul className="space-y-1.5 text-xs text-ink-soft">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                    <span className="font-medium text-ink">Título &amp; Línea de Investigación</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                    <span>Contexto / Antecedentes del problema</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                    <span>Descripción / Planteamiento del problema</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                    <span>Objetivos (General y Específicos)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                    <span>Bibliografía formal indexada</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Banner de fecha límite y lema oficial */}
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-[#0B2545] to-[#143A66] dark:from-[#0D1C33] dark:to-[#183459] text-white flex flex-col justify-between border border-white/10 shadow-xs">
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-emerald-300">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Plazo de Entrega</span>
+                  </div>
+                  <div className="mt-1">
+                    <div className="text-[11px] font-medium text-white/80">HASTA EL</div>
+                    <div className="text-2xl font-black text-white font-mono leading-none my-0.5">6</div>
+                    <div className="text-[10px] uppercase font-bold text-emerald-400">OCTUBRE 2026</div>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-accent-soft/70 border border-accent/30 flex flex-col justify-between">
+                  <div className="text-[10px] font-mono uppercase text-accent-dark font-bold">Lema Oficial</div>
+                  <p className="text-xs font-bold text-ink leading-snug">
+                    "Investigación hoy, soluciones mañana"
+                  </p>
+                  <div className="text-[11px] text-accent-dark font-extrabold italic tracking-tight">
+                    ¡Sigamos avanzando! ✍️
+                  </div>
+                </div>
+              </div>
+
+              {/* Botón de acción al aula */}
               <Link
                 href="/login"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-sm border border-line bg-paper-raised hover:bg-paper-sunken text-ink transition-all shadow-xs flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl bg-accent text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-accent-dark transition-all shadow-xs"
               >
-                <LogIn className="w-4 h-4 text-accent" />
-                <span>Ingresar al Aula Virtual</span>
+                <span>Acceder para Enviar Avance</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
-            ) : (
-              <Link
-                href="/dashboard"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-sm border border-line bg-paper-raised hover:bg-paper-sunken text-ink transition-all shadow-xs flex items-center justify-center gap-2"
-              >
-                <LayoutDashboard className="w-4 h-4 text-accent" />
-                <span>Ir a Mis Áreas ({user.rol})</span>
-              </Link>
-            )}
-          </div>
-
-          {/* Indicador de Estado y Puntos Clave */}
-          <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-semibold text-ink-faint">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 status-dot-ping" />
-              <span>Convocatorias Abiertas · Semestre II/2026</span>
-            </div>
-            <span>•</span>
-            <div className="flex items-center gap-1.5 text-accent-dark">
-              <ShieldCheck className="w-4 h-4 text-accent" />
-              <span>Certificados Criptográficos On-Chain</span>
-            </div>
-            <span>•</span>
-            <div className="flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
-              <span>Evaluación SpeedGrader con Rúbricas</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Tarjetas Visuales Destacadas (Hero Showcase) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-14 reveal-scale">
-          {/* Card 1: Ferias */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-6 glow-card shadow-sm relative overflow-hidden group">
-            <div className="w-12 h-12 rounded-xl bg-accent-soft text-accent-dark flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Cpu className="w-6 h-6 text-accent" />
-            </div>
-            <span className="text-[10.5px] font-bold uppercase tracking-wider text-accent-dark bg-accent-soft px-2.5 py-0.5 rounded-md">
-              Feria de Innovación
-            </span>
-            <h3 className="font-bold text-lg text-ink mt-2 mb-1.5">
-              Feria de Ciencias &amp; Robótica
-            </h3>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              Exposición anual de proyectos en Inteligencia Artificial, automatización, redes e infraestructura TI evaluados por tribunales colegiados.
-            </p>
-          </div>
-
-          {/* Card 2: Hackathons */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-6 glow-card shadow-sm relative overflow-hidden group">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Code2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <span className="text-[10.5px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2.5 py-0.5 rounded-md">
-              Desafío de 48 Horas
-            </span>
-            <h3 className="font-bold text-lg text-ink mt-2 mb-1.5">
-              Hackathon FICCT 2026
-            </h3>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              Maratones intensivas de programación en equipo con mentores de la industria, resolviendo problemáticas de salud, educación y ciudades inteligentes.
-            </p>
-          </div>
-
-          {/* Card 3: Investigación & UNEXO */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-6 glow-card shadow-sm relative overflow-hidden group">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Rocket className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            </div>
-            <span className="text-[10.5px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 bg-purple-500/10 px-2.5 py-0.5 rounded-md">
-              UNEXO &amp; Emprendimiento
-            </span>
-            <h3 className="font-bold text-lg text-ink mt-2 mb-1.5">
-              Semilleros &amp; Bolsa de Talentos
-            </h3>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              Conexión directa entre egresados de computación y empresas líderes de desarrollo a través de Conecta UAGRM e incubación de proyectos de grado.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= BARRA DE MÉTRICAS E IMPACTO (SCROLL REVEAL) ================= */}
-      <section className="border-y border-line bg-paper-sunken/60 py-12 px-4 sm:px-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center reveal-on-scroll">
-          <div className="p-4">
-            <div className="text-3xl sm:text-4xl font-extrabold text-accent mb-1 font-mono">
-              +2,500
-            </div>
-            <div className="text-xs font-semibold text-ink uppercase tracking-wider">
-              Estudiantes e Investigadores
-            </div>
-            <p className="text-[11px] text-ink-faint mt-1">Activos en convocatorias y aulas virtuales</p>
-          </div>
-
-          <div className="p-4">
-            <div className="text-3xl sm:text-4xl font-extrabold text-ink mb-1 font-mono">
-              35+
-            </div>
-            <div className="text-xs font-semibold text-ink uppercase tracking-wider">
-              Ferias y Hackathons
-            </div>
-            <p className="text-[11px] text-ink-faint mt-1">Organizados formalmente con rúbricas</p>
-          </div>
-
-          <div className="p-4">
-            <div className="text-3xl sm:text-4xl font-extrabold text-accent mb-1 font-mono">
-              100%
-            </div>
-            <div className="text-xs font-semibold text-ink uppercase tracking-wider">
-              Evaluación Colegiada
-            </div>
-            <p className="text-[11px] text-ink-faint mt-1">Tribunal de docentes titulares y jurados</p>
-          </div>
-
-          <div className="p-4">
-            <div className="text-3xl sm:text-4xl font-extrabold text-teal-600 dark:text-teal-400 mb-1 font-mono">
-              0x🔒
-            </div>
-            <div className="text-xs font-semibold text-ink uppercase tracking-wider">
-              Blockchain On-Chain
-            </div>
-            <p className="text-[11px] text-ink-faint mt-1">Certificados inalterables con código QR</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= ECOSISTEMA & PILARES DE INNOVACIÓN (BENTO GRID) ================= */}
-      <section id="ecosistema" className="py-20 px-4 sm:px-8 max-w-7xl mx-auto w-full">
-        <div className="text-center max-w-2xl mx-auto mb-14 reveal-on-scroll">
-          <span className="text-xs font-bold uppercase tracking-wider text-accent-dark bg-accent-soft px-3 py-1 rounded-full border border-accent/20">
-            Ecosistema Científico FICCT
-          </span>
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-ink mt-3 mb-3">
-            Cuatro pilares para transformar la investigación universitaria
-          </h2>
-          <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-            La Unidad de Extensión, Innovación y Emprendimiento (UNEXO) y la Dirección de Investigación de la FICCT articulan la formación académica con los desafíos reales de la industria.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Pilar 1 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-6 glow-card flex flex-col justify-between reveal-on-scroll reveal-delay-1">
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-accent-soft text-accent flex items-center justify-center mb-4">
-                <Cpu className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-base text-ink mb-2">Ferias Científicas y Tecnológicas</h3>
-              <p className="text-xs text-ink-soft leading-relaxed mb-4">
-                Espacios formales de defensa donde los alumnos presentan proyectos de desarrollo de software, robótica, IoT y telecomunicaciones ante un tribunal calificador.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-3 border-t border-line-soft">
-              <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded text-ink-soft">Defensa Presencial</span>
-              <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded text-ink-soft">Tribunal Docente</span>
-            </div>
-          </div>
-
-          {/* Pilar 2 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-6 glow-card flex flex-col justify-between reveal-on-scroll reveal-delay-2">
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
-                <Code2 className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-base text-ink mb-2">Hackathons de Alto Rendimiento</h3>
-              <p className="text-xs text-ink-soft leading-relaxed mb-4">
-                Competencias intensivas de 24 a 48 horas donde equipos multidisciplinarios prototipan soluciones informáticas innovadoras con mentoría docente en tiempo real.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-3 border-t border-line-soft">
-              <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded text-ink-soft">Retos Reales</span>
-              <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded text-ink-soft">Premios &amp; Becas</span>
-            </div>
-          </div>
-
-          {/* Pilar 3 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-6 glow-card flex flex-col justify-between reveal-on-scroll reveal-delay-3">
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-base text-ink mb-2">Semilleros de Investigación</h3>
-              <p className="text-xs text-ink-soft leading-relaxed mb-4">
-                Articulación de trabajos de grado, tesis científicas y proyectos de investigación avanzada en Machine Learning, Ciberseguridad y Sistemas Distribuidos.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-3 border-t border-line-soft">
-              <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded text-ink-soft">Papers Indexados</span>
-              <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded text-ink-soft">Titulación</span>
-            </div>
-          </div>
-
-          {/* Pilar 4 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-6 glow-card flex flex-col justify-between reveal-on-scroll reveal-delay-4">
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
-                <Briefcase className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-base text-ink mb-2">UNEXO &amp; Vinculación Empresarial</h3>
-              <p className="text-xs text-ink-soft leading-relaxed mb-4">
-                La plataforma CONECTA UAGRM y la Unidad de Emprendimiento conectan el talento de la facultad con empresas de tecnología locales e internacionales para pasantías.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-3 border-t border-line-soft">
-              <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded text-ink-soft">Bolsa de Empleo</span>
-              <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded text-ink-soft">Pasantías TI</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= CATÁLOGO DE CONVOCATORIAS VIGENTES (LIVE BACKEND) ================= */}
-      <section id="actividades" className="py-16 px-4 sm:px-8 max-w-7xl mx-auto w-full">
-        <div className="bg-paper-raised border border-line rounded-3xl p-6 sm:p-10 shadow-sm reveal-on-scroll">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 pb-6 border-b border-line-soft">
-            <div>
-              <div className="inline-flex items-center gap-2 text-xs font-semibold text-accent-dark bg-accent-soft px-3 py-1 rounded-full mb-3">
-                <Flame className="w-3.5 h-3.5 text-accent" />
-                <span>Portal Público de Convocatorias</span>
+      {/* ================= 3 PILARES FUNDAMENTALES (DE LA BARRA INFERIOR DE IMAGE.PNG) ================= */}
+      <section id="pilares" className="py-14 px-4 sm:px-8 border-y border-line/60 bg-paper-sunken/40 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Pilar 1: Trabajo en equipo */}
+            <div className="p-6 rounded-2xl bg-paper-raised/70 dark:bg-[#0D1C33]/50 border border-line/60 backdrop-blur-xl glow-card flex items-start gap-4 transition-all">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0">
+                <Users className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-ink">
-                Convocatorias Abiertas ({convocatorias.length})
+              <div>
+                <h3 className="font-extrabold text-base text-ink mb-1">Trabajo en equipo</h3>
+                <p className="text-xs text-ink-soft leading-relaxed">
+                  Conformación ágil de grupos multidisciplinarios de investigación, roles de colaboración y coautoría en documentos científicos.
+                </p>
+              </div>
+            </div>
+
+            {/* Pilar 2: Ideas que solucionan */}
+            <div className="p-6 rounded-2xl bg-paper-raised/70 dark:bg-[#0D1C33]/50 border border-line/60 backdrop-blur-xl glow-card flex items-start gap-4 transition-all">
+              <div className="w-12 h-12 rounded-xl bg-accent-soft text-accent-dark flex items-center justify-center flex-shrink-0">
+                <Lightbulb className="w-6 h-6 text-accent" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-ink mb-1">Ideas que solucionan</h3>
+                <p className="text-xs text-ink-soft leading-relaxed">
+                  Desarrollo de software y algoritmos enfocados en resolver problemas reales de salud, educación, ciudades inteligentes y ciberseguridad.
+                </p>
+              </div>
+            </div>
+
+            {/* Pilar 3: Investigación con impacto */}
+            <div className="p-6 rounded-2xl bg-paper-raised/70 dark:bg-[#0D1C33]/50 border border-line/60 backdrop-blur-xl glow-card flex items-start gap-4 transition-all">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-ink mb-1">Investigación con impacto</h3>
+                <p className="text-xs text-ink-soft leading-relaxed">
+                  De la teoría de aula a la defensa colegiada con tribunal titular, publicación de papers, semilleros y proyectos de titulación.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= CATÁLOGO DE CONVOCATORIAS VIGENTES (CONEXIÓN EN VIVO) ================= */}
+      <section id="actividades" className="py-20 px-4 sm:px-8 max-w-7xl mx-auto w-full">
+        <div className="rounded-3xl p-6 sm:p-10 backdrop-blur-2xl bg-white/75 dark:bg-[#081220]/75 border border-white/60 dark:border-white/10 shadow-[0_15px_40px_rgba(11,37,69,0.06)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.4)] reveal-on-scroll">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 pb-6 border-b border-line/60">
+            <div>
+              <div className="inline-flex items-center gap-2 text-xs font-semibold text-accent-dark bg-accent/15 px-3 py-1 rounded-full mb-3">
+                <Sparkles className="w-3.5 h-3.5 text-accent" />
+                <span>Portal de Actividades Científicas</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-ink tracking-tight">
+                Convocatorias Vigentes ({convocatorias.length})
               </h2>
               <p className="text-xs sm:text-sm text-ink-soft mt-1 max-w-xl">
-                Postula tu equipo a las ferias científicas y maratones de programación vigentes en la facultad.
+                Postula a tu equipo en las ferias facultativas, maratones de código y semilleros de investigación abiertos este semestre.
               </p>
             </div>
 
@@ -661,14 +625,14 @@ export default function HomePage() {
                     setSearchQuery(e.target.value);
                     if (!e.target.value) setSearchStatus("");
                   }}
-                  placeholder="Buscar por nombre, tema..."
-                  className="w-full pl-10 pr-3 py-2 text-xs bg-paper text-ink border border-line rounded-xl focus:outline-none focus:border-accent shadow-xs"
+                  placeholder="Buscar por tema, docente..."
+                  className="w-full pl-10 pr-3 py-2 text-xs bg-paper-raised text-ink border border-line rounded-xl focus:outline-none focus:border-accent shadow-xs"
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-accent text-white text-xs font-semibold rounded-xl hover:bg-accent-dark transition-all flex items-center gap-1.5"
+                className="px-4 py-2 bg-accent text-white text-xs font-semibold rounded-xl hover:bg-accent-dark transition-all flex items-center gap-1.5 shadow-xs"
               >
                 {loading ? <span className="btn-spinner" /> : "Buscar"}
               </button>
@@ -677,7 +641,7 @@ export default function HomePage() {
 
           {/* Filtros de Categoría */}
           <div className="flex gap-2 flex-wrap items-center text-xs mb-8">
-            <span className="text-ink-faint font-medium mr-1">Filtrar:</span>
+            <span className="text-ink-faint font-medium mr-1">Filtrar por:</span>
             {tipos.map((t) => (
               <button
                 key={t.value}
@@ -685,7 +649,7 @@ export default function HomePage() {
                 className={`px-3.5 py-1.5 rounded-full border transition-all text-xs font-semibold ${
                   selectedTipo === t.value
                     ? "bg-accent text-white border-accent shadow-xs"
-                    : "bg-paper text-ink-soft border-line hover:border-accent hover:text-ink"
+                    : "bg-paper-raised text-ink-soft border-line hover:border-accent hover:text-ink"
                 }`}
               >
                 {t.label}
@@ -694,21 +658,21 @@ export default function HomePage() {
           </div>
 
           {searchStatus && (
-            <div className="text-xs text-ink-faint mb-4">{searchStatus}</div>
+            <div className="text-xs text-ink-faint mb-4 font-mono">{searchStatus}</div>
           )}
 
-          {/* Grid de Convocatorias Reales */}
+          {/* Grid de Convocatorias en Vivo */}
           {loading ? (
             <div className="py-20 text-center text-ink-soft">
               <div className="w-9 h-9 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3.5" />
-              <p className="text-sm">Consultando convocatorias vigentes en el servidor...</p>
+              <p className="text-xs font-medium">Sincronizando convocatorias del servidor...</p>
             </div>
           ) : convocatorias.length === 0 ? (
-            <div className="py-14 text-center rounded-2xl bg-paper-sunken border border-dashed border-line">
+            <div className="py-14 text-center rounded-2xl bg-paper-sunken/60 border border-dashed border-line">
               <Award className="w-10 h-10 text-ink-faint mx-auto mb-3 opacity-60" />
               <h3 className="text-base font-bold text-ink mb-1">Sin actividades para este criterio</h3>
               <p className="text-xs text-ink-soft max-w-md mx-auto mb-4">
-                No se encontraron convocatorias publicadas con los filtros seleccionados.
+                No se encontraron convocatorias publicadas para los filtros seleccionados.
               </p>
               <button
                 onClick={() => {
@@ -726,14 +690,14 @@ export default function HomePage() {
               {convocatorias.map((c) => (
                 <div
                   key={c.id}
-                  className="bg-paper border border-line rounded-2xl p-6 border-l-4 border-l-accent flex flex-col justify-between glow-card shadow-xs group"
+                  className="bg-paper-raised/80 border border-line/80 rounded-2xl p-6 border-l-4 border-l-accent flex flex-col justify-between glow-card shadow-xs group transition-all"
                 >
                   <div>
                     <div className="flex justify-between items-start mb-2.5">
-                      <span className="text-[10px] font-bold text-accent-dark uppercase tracking-wider bg-accent-soft px-2.5 py-0.5 rounded-full">
+                      <span className="text-[10px] font-bold text-accent-dark uppercase tracking-wider bg-accent/15 px-2.5 py-0.5 rounded-full font-mono">
                         {c.tipo}
                       </span>
-                      <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded-md text-ink-faint border border-line-soft">
+                      <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded-md text-ink-faint border border-line-soft font-mono">
                         {c.tamanoEquipo || "1 a 5 integrantes"}
                       </span>
                     </div>
@@ -812,84 +776,60 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ================= RUTA DEL PROYECTO / CÓMO FUNCIONA (TIMELINE INTERACTIVO) ================= */}
-      <section id="ruta" className="py-20 px-4 sm:px-8 max-w-7xl mx-auto w-full">
-        <div className="text-center max-w-2xl mx-auto mb-16 reveal-on-scroll">
-          <span className="text-xs font-bold uppercase tracking-wider text-accent-dark bg-accent-soft px-3 py-1 rounded-full border border-accent/20">
-            Flujo de Participación
+      {/* ================= METODOLOGÍA Y FLUJO DEL PROYECTO ================= */}
+      <section id="flujo" className="py-20 px-4 sm:px-8 max-w-7xl mx-auto w-full">
+        <div className="text-center max-w-2xl mx-auto mb-14 reveal-on-scroll">
+          <span className="text-xs font-bold uppercase tracking-wider text-accent-dark bg-accent/15 px-3 py-1 rounded-full border border-accent/20 font-mono">
+            Ciclo de Vida de Investigación
           </span>
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-ink mt-3 mb-3">
-            Tu proyecto de investigación paso a paso
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-ink mt-3 mb-3 tracking-tight">
+            Cinco pasos desde la idea hasta la titulación
           </h2>
           <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-            Desde la postulación inicial hasta la defensa ante tribunal docente y la emisión de tu certificado digital inalterable.
+            Metodología estructurada de la FICCT con acompañamiento de docentes y tribunales de grado.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative reveal-scale">
-          {/* Paso 1 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-5 glow-card relative">
-            <div className="text-accent font-mono font-black text-2xl mb-2">01</div>
-            <h3 className="font-bold text-sm text-ink mb-1.5">Convocatoria &amp; Equipo</h3>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              Elige tu evento o feria e inscribe a tu equipo o postula individualmente para formar grupo.
-            </p>
-          </div>
-
-          {/* Paso 2 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-5 glow-card relative">
-            <div className="text-accent font-mono font-black text-2xl mb-2">02</div>
-            <h3 className="font-bold text-sm text-ink mb-1.5">Aula Moodle Privada</h3>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              Accede a los módulos con rúbricas oficiales, cronogramas y material de apoyo asignado por los docentes.
-            </p>
-          </div>
-
-          {/* Paso 3 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-5 glow-card relative">
-            <div className="text-accent font-mono font-black text-2xl mb-2">03</div>
-            <h3 className="font-bold text-sm text-ink mb-1.5">Entregas &amp; SpeedGrader</h3>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              Sube tus avances de software, documentación y repositorios. Los jurados califican por criterios objetivos.
-            </p>
-          </div>
-
-          {/* Paso 4 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-5 glow-card relative">
-            <div className="text-accent font-mono font-black text-2xl mb-2">04</div>
-            <h3 className="font-bold text-sm text-ink mb-1.5">Defensa ante Tribunal</h3>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              Exposición presencial o remota ante el tribunal de docentes y evaluadores de la industria tecnológica.
-            </p>
-          </div>
-
-          {/* Paso 5 */}
-          <div className="bg-paper-raised border border-line rounded-2xl p-5 glow-card relative border-accent/40 bg-accent/5">
-            <div className="text-accent font-mono font-black text-2xl mb-2">05</div>
-            <h3 className="font-bold text-sm text-ink mb-1.5">Certificado Blockchain</h3>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              Obtén tu reconocimiento universitario verificable con hash criptográfico y código QR oficial.
-            </p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 reveal-scale">
+          {[
+            { num: "01", title: "Convocatoria & Grupo", desc: "Elige la feria o semillero. Inscribe a tu equipo o usa Group Choice para conformarlo." },
+            { num: "02", title: "Aula Virtual Moodle", desc: "Módulos de trabajo con rúbricas cuantitativas, plantillas LaTeX y cronogramas." },
+            { num: "03", title: "Avances & SpeedGrader", desc: "Sube entregas periódicas. El tribunal califica en línea y emite observaciones precisas." },
+            { num: "04", title: "Defensa Colegiada", desc: "Presentación y defensa ante jurados y tribunal docente titular en las salas facultativas." },
+            { num: "05", title: "Certificado Blockchain", desc: "Acreditación curricular inalterable con hash criptográfico y validación QR." },
+          ].map((step, idx) => (
+            <div
+              key={idx}
+              className={`p-5 rounded-2xl border backdrop-blur-xl transition-all ${
+                idx === 4
+                  ? "bg-accent/10 border-accent/40 shadow-sm"
+                  : "bg-paper-raised/70 dark:bg-[#0D1C33]/50 border-line/60 glow-card"
+              }`}
+            >
+              <div className="text-accent font-mono font-black text-2xl mb-2">{step.num}</div>
+              <h3 className="font-bold text-sm text-ink mb-1.5">{step.title}</h3>
+              <p className="text-xs text-ink-soft leading-relaxed">{step.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* ================= VERIFICADOR PÚBLICO BLOCKCHAIN ================= */}
-      <section id="verificacion" className="py-16 px-4 sm:px-8 border-t border-line bg-paper-sunken/40">
+      {/* ================= VERIFICADOR BLOCKCHAIN ================= */}
+      <section id="blockchain" className="py-20 px-4 sm:px-8 border-t border-line/60 bg-paper-sunken/40 backdrop-blur-md">
         <div className="max-w-4xl mx-auto reveal-on-scroll">
           <div className="text-center max-w-xl mx-auto mb-10">
-            <span className="inline-block text-xs font-bold uppercase tracking-widest text-accent-dark bg-accent-soft px-3 py-1 rounded-full mb-3 border border-accent/20">
-              Certificación Digital Inalterable
+            <span className="inline-block text-xs font-bold uppercase tracking-widest text-accent-dark bg-accent/15 px-3 py-1 rounded-full mb-3 border border-accent/20 font-mono">
+              Acreditación Criptográfica
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-ink mb-3">
-              Verificador Público de Certificados Blockchain
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-ink mb-2 tracking-tight">
+              Verificador Público de Certificados
             </h2>
             <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-              Cualquier estudiante, docente, empleador o entidad externa puede validar en segundos la autenticidad e inalterabilidad de los reconocimientos emitidos por la Dirección de Investigación y UNEXO FICCT.
+              Cualquier entidad, empleador o tribunal de grado puede verificar en segundos la autenticidad e integridad de las actas emitidas por la FICCT.
             </p>
           </div>
 
-          <div className="liquid-glass rounded-2xl p-6 sm:p-8 shadow-xl">
+          <div className="rounded-3xl p-6 sm:p-8 backdrop-blur-2xl bg-white/80 dark:bg-[#081220]/80 border border-white/60 dark:border-white/10 shadow-xl">
             <form onSubmit={handleVerify} className="flex flex-col sm:flex-row gap-3 mb-6">
               <div className="relative flex-1">
                 <ShieldCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-accent" />
@@ -904,7 +844,7 @@ export default function HomePage() {
               <button
                 type="submit"
                 disabled={verifying}
-                className="px-6 py-3 text-xs sm:text-sm font-semibold bg-accent text-white rounded-xl hover:bg-accent-dark active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
+                className="px-6 py-3 text-xs sm:text-sm font-semibold bg-accent text-white rounded-xl hover:bg-accent-dark active:scale-95 transition-all shadow-sm flex items-center justify-center gap-2"
               >
                 {verifying ? <span className="btn-spinner" /> : "Verificar Certificado"}
               </button>
@@ -912,12 +852,10 @@ export default function HomePage() {
 
             {/* Resultado Verificado */}
             {verifiedResult && (
-              <div className="rounded-xl border border-accent/40 bg-accent-soft/70 p-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="rounded-2xl border border-accent/40 bg-accent-soft/80 p-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-start gap-3.5">
                   <div className="w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <svg className="w-5 h-5 text-white check-draw" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <Check className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1 text-xs sm:text-sm">
                     <div className="flex items-center gap-2 mb-1">
@@ -927,10 +865,10 @@ export default function HomePage() {
                       </span>
                     </div>
                     <p className="text-ink-soft mb-2 leading-relaxed">
-                      Otorgado a: <strong className="text-ink">Daniel Quispe Choque</strong> — Proyecto: <em>"Sistema de Apoyo a la Investigación Estudiantil FICCT"</em>.
+                      Emitido por: <strong className="text-ink">Facultad de Cs. de la Computación y Telecomunicaciones (FICCT - UAGRM)</strong>.
                     </p>
-                    <div className="text-[11px] font-mono text-ink-faint bg-paper-raised/80 p-2.5 rounded-lg border border-line-soft flex flex-wrap justify-between gap-2">
-                      <span>Hash de Bloque: 0x8a1b2c...3f4e5d6a</span>
+                    <div className="text-[11px] font-mono text-ink-faint bg-paper-raised/90 p-2.5 rounded-lg border border-line-soft flex flex-wrap justify-between gap-2">
+                      <span>Hash de Registro: 0x8a1b2c...3f4e5d6a</span>
                       <span>Red: Polygon PoS · Bloque #18,492,014</span>
                     </div>
                   </div>
@@ -941,17 +879,17 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ================= PREGUNTAS FRECUENTES (FAQ ACORDEÓN) ================= */}
+      {/* ================= PREGUNTAS FRECUENTES & NORMATIVA (FAQ) ================= */}
       <section id="faq" className="py-20 px-4 sm:px-8 max-w-4xl mx-auto w-full">
         <div className="text-center max-w-2xl mx-auto mb-12 reveal-on-scroll">
-          <span className="text-xs font-bold uppercase tracking-wider text-accent-dark bg-accent-soft px-3 py-1 rounded-full border border-accent/20">
-            Resolución de Dudas
+          <span className="text-xs font-bold uppercase tracking-wider text-accent-dark bg-accent/15 px-3 py-1 rounded-full border border-accent/20 font-mono">
+            Guía Facultativa
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-ink mt-3 mb-3">
-            Preguntas Frecuentes
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-ink mt-3 mb-2 tracking-tight">
+            Preguntas Frecuentes &amp; Normativa
           </h2>
           <p className="text-xs sm:text-sm text-ink-soft leading-relaxed">
-            Todo lo que necesitas saber para postular, defender y certificar tu proyecto en la facultad.
+            Requisitos, plazos y procedimientos académicos para estudiantes e investigadores.
           </p>
         </div>
 
@@ -959,7 +897,7 @@ export default function HomePage() {
           {faqs.map((faq, idx) => (
             <div
               key={idx}
-              className="bg-paper-raised border border-line rounded-2xl overflow-hidden transition-all shadow-xs"
+              className="bg-paper-raised/70 border border-line/70 rounded-2xl overflow-hidden backdrop-blur-xl transition-all shadow-xs"
             >
               <button
                 onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
@@ -982,105 +920,72 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ================= LLAMADO A LA ACCIÓN FINAL (GLOW BANNER) ================= */}
-      <section className="py-16 px-4 sm:px-8 max-w-7xl mx-auto w-full">
-        <div className="rounded-3xl bg-gradient-to-br from-accent to-emerald-800 text-white p-8 sm:p-14 text-center shadow-xl glow-accent relative overflow-hidden reveal-scale">
-          <div className="relative z-10 max-w-2xl mx-auto">
-            <h2 className="text-2xl sm:text-4xl font-extrabold mb-4">
-              ¿Listo para presentar tu proyecto en la próxima feria o hackathon?
-            </h2>
-            <p className="text-xs sm:text-sm text-white/90 mb-8 leading-relaxed">
-              Únete a cientos de estudiantes y docentes de la FICCT que ya están construyendo prototipos, publicando investigación y transformando la tecnología en Santa Cruz.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
-                href="/registro"
-                className="w-full sm:w-auto px-7 py-3 rounded-xl bg-white text-accent-dark font-bold text-xs sm:text-sm hover:bg-paper-sunken transition-all shadow-md"
-              >
-                Crear Cuenta de Estudiante
-              </Link>
-              <a
-                href="#actividades"
-                className="w-full sm:w-auto px-7 py-3 rounded-xl border border-white/40 text-white hover:bg-white/10 font-semibold text-xs sm:text-sm transition-all"
-              >
-                Ver Convocatorias Activas
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FOOTER INSTITUCIONAL COMPLETO ================= */}
-      <footer id="nosotros" className="bg-paper-raised border-t border-line py-14 px-6 sm:px-12 text-xs text-ink-soft transition-colors">
+      {/* ================= FOOTER INSTITUCIONAL FICCT ================= */}
+      <footer className="bg-paper-raised/90 border-t border-line/60 py-14 px-6 sm:px-12 text-xs text-ink-soft transition-colors backdrop-blur-xl">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
           {/* Columna 1: Info Institucional */}
-          <div className="md:col-span-2">
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-accent text-white flex items-center justify-center font-bold text-xs">
+          <div className="md:col-span-2 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#0B2545] dark:bg-[#0D1C33] border border-white/10 text-white flex items-center justify-center font-bold text-xs">
                 FICCT
               </div>
               <span className="font-bold text-ink text-sm">
-                UNEXO · Dirección de Investigación
+                Dirección de Investigación · FICCT
               </span>
             </div>
-            <p className="text-xs text-ink-faint leading-relaxed max-w-md mb-4">
-              Facultad Integral de Ciencias de la Computación y Telecomunicaciones de la Universidad Autónoma Gabriel René Moreno. Promoviendo la excelencia científica, la innovación tecnológica y el emprendimiento universitario.
+            <p className="text-xs text-ink-faint leading-relaxed max-w-md">
+              Facultad Integral de Ciencias de la Computación y Telecomunicaciones de la Universidad Autónoma Gabriel René Moreno. Promoviendo la ciencia computacional y la investigación tecnológica de alto impacto.
             </p>
-            <div className="flex items-center gap-4 text-xs font-semibold text-ink">
+            <div className="flex items-center gap-4 text-xs font-semibold text-ink pt-1">
               <span className="flex items-center gap-1.5 text-ink-faint">
-                <MapPin className="w-3.5 h-3.5 text-accent" /> Campus Universitario, Módulo 236
+                <MapPin className="w-3.5 h-3.5 text-accent" /> Campus Universitario, Módulo 236 · Santa Cruz, Bolivia
               </span>
             </div>
           </div>
 
-          {/* Columna 2: Enlaces Rápidos */}
+          {/* Columna 2: Portales */}
           <div>
-            <h4 className="font-bold text-xs uppercase tracking-wider text-ink mb-3">
-              Portales del Sistema
+            <h4 className="font-bold text-xs uppercase tracking-wider text-ink mb-3 font-mono">
+              Portales
             </h4>
             <ul className="space-y-2 text-ink-soft">
               <li>
                 <Link href="/login" className="hover:text-accent transition-colors">
-                  Portal Estudiantes
+                  Portal de Estudiantes
                 </Link>
               </li>
               <li>
                 <Link href="/login" className="hover:text-accent transition-colors">
-                  Portal Docentes &amp; Jurados
+                  Portal de Docentes &amp; Tribunales
                 </Link>
               </li>
               <li>
                 <Link href="/login" className="hover:text-accent transition-colors">
-                  Administración FICCT
+                  Administración Facultativa
                 </Link>
               </li>
               <li>
                 <Link href="/registro" className="hover:text-accent transition-colors">
-                  Registro de Nuevo Usuario
+                  Registro de Postulante
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Columna 3: Ecosistema UNEXO */}
+          {/* Columna 3: Enlaces Institucionales */}
           <div>
-            <h4 className="font-bold text-xs uppercase tracking-wider text-ink mb-3">
-              Ecosistema UNEXO
+            <h4 className="font-bold text-xs uppercase tracking-wider text-ink mb-3 font-mono">
+              Institucional
             </h4>
             <ul className="space-y-2 text-ink-soft">
               <li>
                 <a href="#actividades" className="hover:text-accent transition-colors">
-                  Ferias de Ciencias 2026
+                  Ferias de Investigación 2026
                 </a>
               </li>
               <li>
-                <a href="#actividades" className="hover:text-accent transition-colors">
-                  Hackathons Universitarios
-                </a>
-              </li>
-              <li>
-                <a href="#verificacion" className="hover:text-accent transition-colors">
-                  Validador de Certificados
+                <a href="#blockchain" className="hover:text-accent transition-colors">
+                  Validador Blockchain
                 </a>
               </li>
               <li>
@@ -1093,15 +998,44 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Lema inferior oficial de image.png */}
         <div className="max-w-7xl mx-auto pt-8 border-t border-line-soft flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-ink-faint">
-          <div>
-            © 2026 FICCT - UAGRM. Todos los derechos reservados · Santa Cruz de la Sierra, Bolivia.
+          <div className="flex items-center gap-3">
+            <span className="font-mono font-bold text-ink">CIENCIA · TECNOLOGÍA · SOCIEDAD</span>
+            <span>—</span>
+            <span className="italic text-accent-dark font-medium">FICCT — Más allá del conocimiento</span>
           </div>
-          <div className="flex items-center gap-4">
-            <a href="#hero" className="hover:text-accent transition-colors">Subir al inicio ↑</a>
+          <div>
+            © 2026 FICCT - UAGRM · Santa Cruz de la Sierra, Bolivia.
           </div>
         </div>
       </footer>
+
+      {/* ================= MODAL DEL POSTER OFICIAL EN ALTA RESOLUCIÓN ================= */}
+      {showPosterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative max-w-md w-full bg-paper rounded-3xl overflow-hidden shadow-2xl border border-line">
+            <div className="p-4 border-b border-line flex items-center justify-between bg-paper-raised">
+              <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-accent" /> Afiche Oficial · Feria FICCT 2-2026
+              </span>
+              <button
+                onClick={() => setShowPosterModal(false)}
+                className="p-1.5 rounded-lg text-ink-faint hover:text-ink hover:bg-paper-sunken"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-3 bg-black flex items-center justify-center">
+              <img
+                src="/poster-ficct.png"
+                alt="Afiche Feria Facultativa de Proyectos de Investigación FICCT 2-2026"
+                className="max-h-[75vh] w-auto rounded-xl object-contain shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= MODAL DE POSTULACIÓN A CONVOCATORIA ================= */}
       {selectedConvForPostulacion && (
@@ -1109,7 +1043,7 @@ export default function HomePage() {
           <div className="bg-paper border border-line rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-[10px] font-bold text-accent-dark uppercase tracking-wider bg-accent-soft px-2.5 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold text-accent-dark uppercase tracking-wider bg-accent/15 px-2.5 py-0.5 rounded-full font-mono">
                   {selectedConvForPostulacion.tipo}
                 </span>
                 <h3 className="font-bold text-lg text-ink mt-2">
@@ -1142,16 +1076,16 @@ export default function HomePage() {
                   type="text"
                   value={nombreEquipoInput}
                   onChange={(e) => setNombreEquipoInput(e.target.value)}
-                  placeholder="Dejar en blanco si te postulas de forma individual"
+                  placeholder="Dejar en blanco si postulas de forma individual"
                   className="w-full px-3.5 py-2.5 text-xs bg-paper-raised text-ink border border-line rounded-xl focus:outline-none focus:border-accent"
                 />
                 <p className="text-[11px] text-ink-faint mt-1">
-                  Si no tienes equipo, ingresarás como estudiante sin grupo y luego el docente o tú podrán asignarte en la actividad de selección de grupos.
+                  Si no tienes equipo, podrás conformar uno con tus compañeros en el módulo de Selección de Grupos dentro del aula virtual.
                 </p>
               </div>
 
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
-                ℹ️ Tu solicitud será enviada a la bandeja de admisión de los docentes/jurados a cargo. Una vez admitido, tendrás acceso completo al aula virtual y sus módulos.
+                ℹ️ Tu solicitud será remitida a los tribunales docentes a cargo. Una vez admitido, dispondrás de acceso inmediato a los módulos de entrega y rúbricas.
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-2">
