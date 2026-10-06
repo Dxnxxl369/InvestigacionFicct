@@ -102,6 +102,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   runSpacing: 6,
                   children: [
                     ActionChip(
+                      avatar: const Icon(Icons.cloud_done_rounded, size: 14, color: AppTheme.accent),
+                      label: const Text('Nube Render (Producción)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      onPressed: () => ipCtrl.text = AppConstants.apiBaseUrlCloud,
+                    ),
+                    ActionChip(
                       label: const Text('Wi-Fi Actual (192.168.3.42)', style: TextStyle(fontSize: 11)),
                       onPressed: () => ipCtrl.text = 'http://192.168.3.42:8080/api',
                     ),

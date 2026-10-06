@@ -7,6 +7,7 @@ class AppConstants {
   // En emulador Android: 10.0.2.2:8080
   // En web o Windows: localhost:8080
   static const String apiBaseUrl = 'http://192.168.3.42:8080/api';
+  static const String apiBaseUrlCloud = 'https://ficct-backend.onrender.com/api';
   static const String apiBaseUrlEmulator = 'http://10.0.2.2:8080/api';
   static const String apiBaseUrlWeb = 'http://localhost:8080/api';
 
