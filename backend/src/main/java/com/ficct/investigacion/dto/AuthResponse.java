@@ -15,6 +15,7 @@ public class AuthResponse {
     private EstadoUsuario estado;
     private String fotoPerfil;
     private String descripcion;
+    private Boolean ocultarCursos;
 
     public AuthResponse() {
     }
@@ -39,6 +40,19 @@ public class AuthResponse {
         this.estado = estado;
         this.fotoPerfil = fotoPerfil;
         this.descripcion = descripcion;
+    }
+
+    public AuthResponse(String token, Long id, String nombre, String apellido, String email, Rol rol, EstadoUsuario estado, String fotoPerfil, String descripcion, Boolean ocultarCursos) {
+        this.token = token;
+        this.id = id;
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.email = email;
+        this.rol = rol;
+        this.estado = estado;
+        this.fotoPerfil = fotoPerfil;
+        this.descripcion = descripcion;
+        this.ocultarCursos = ocultarCursos;
     }
 
     public String getToken() {
@@ -119,5 +133,13 @@ public class AuthResponse {
 
     public void setDescripcion(String descripcion) {
         this.descripcion = descripcion;
+    }
+
+    public Boolean getOcultarCursos() {
+        return ocultarCursos != null ? ocultarCursos : false;
+    }
+
+    public void setOcultarCursos(Boolean ocultarCursos) {
+        this.ocultarCursos = ocultarCursos;
     }
 }

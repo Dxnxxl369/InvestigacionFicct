@@ -49,6 +49,27 @@ public class ActividadGrupoController {
         }
     }
 
+    @PutMapping("/{actividadId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCENTE')")
+    public ResponseEntity<?> actualizarActividad(
+            @PathVariable Long convocatoriaId,
+            @PathVariable Long actividadId,
+            @RequestBody CrearActividadGrupoRequest request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            if (userDetails == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debes iniciar sesión.");
+            }
+            ActividadGrupoDTO dto = actividadGrupoService.actualizarActividad(convocatoriaId, actividadId, request, userDetails.getUsername());
+            return ResponseEntity.ok(dto);
+        } catch (Exception e) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(err);
+        }
+    }
+
     @GetMapping("/{actividadId}")
     public ResponseEntity<?> obtenerDetalle(
             @PathVariable Long convocatoriaId,

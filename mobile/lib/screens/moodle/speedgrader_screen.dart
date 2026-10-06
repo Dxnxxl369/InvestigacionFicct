@@ -1,60 +1,80 @@
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
+import '../../services/api_service.dart';
 
 class SpeedGraderScreen extends StatefulWidget {
   final VoidCallback onBack;
+  final int? tareaId;
 
-  const SpeedGraderScreen({super.key, required this.onBack});
+  const SpeedGraderScreen({super.key, required this.onBack, this.tareaId});
 
   @override
   State<SpeedGraderScreen> createState() => _SpeedGraderScreenState();
 }
 
 class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
-  final List<Map<String, dynamic>> _estudiantes = [
-    {
-      'nombre': 'Carlos Méndez Roca',
-      'email': 'cmendez@uagrm.edu.bo',
-      'inicial': 'CM',
-      'archivo': 'Propuesta_Investigacion_IA.pdf',
-      'fecha': '28 Sept 2026, 18:30 (A tiempo)',
-      'nota': '88',
-      'feedback': 'Excelente formulación del problema y marco teórico sólido. Revisar la delimitación geográfica en la pág. 4.',
-    },
-    {
-      'nombre': 'Ana Valenzuela Paz',
-      'email': 'avalenzuela@uagrm.edu.bo',
-      'inicial': 'AV',
-      'archivo': 'Sistema_Blockchain_Voto.pdf',
-      'fecha': '29 Sept 2026, 10:15 (A tiempo)',
-      'nota': '95',
-      'feedback': 'Propuesta muy completa con diagramas de flujo y arquitectura técnica detallada.',
-    },
-    {
-      'nombre': 'David Gutiérrez',
-      'email': 'dgutierrez@uagrm.edu.bo',
-      'inicial': 'DG',
-      'archivo': 'Ciberseguridad_Bancaria.pdf',
-      'fecha': '29 Sept 2026, 23:45 (A tiempo)',
-      'nota': '76',
-      'feedback': 'Falta profundizar en las referencias científicas de los últimos 3 años.',
-    },
-  ];
+  final List<Map<String, dynamic>> _estudiantes = [];
 
   int _currentIndex = 0;
   late TextEditingController _notaCtrl;
   late TextEditingController _feedbackCtrl;
+  bool _isLoadingBackend = false;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentStudent();
+    _loadBackendSubmissions();
+  }
+
+  Future<void> _loadBackendSubmissions() async {
+    if (widget.tareaId != null && widget.tareaId! > 0) {
+      setState(() => _isLoadingBackend = true);
+      final entregas = await ApiService.getEntregasPorTarea(widget.tareaId!);
+      if (entregas.isNotEmpty && mounted) {
+        setState(() {
+          _estudiantes.clear();
+          for (final e in entregas) {
+            final nombre = (e['estudianteNombre'] ?? 'Estudiante').toString();
+            final partes = nombre.split(' ');
+            final ini = partes.length >= 2
+                ? '${partes[0][0]}${partes[1][0]}'.toUpperCase()
+                : (nombre.isNotEmpty ? nombre.substring(0, 1).toUpperCase() : 'E');
+
+            _estudiantes.add({
+              'id': e['id'],
+              'nombre': nombre,
+              'email': e['estudianteEmail'] ?? '',
+              'inicial': ini,
+              'grupo': e['grupoNombre'] ?? (e['esGrupal'] == true ? 'Grupal' : 'Individual'),
+              'equipoNota': e['esGrupal'] == true
+                  ? 'Equipo: Calificarás simultáneamente a los integrantes del grupo.'
+                  : 'Entrega individual del alumno.',
+              'archivo': e['nombreArchivo'] ?? 'Entrega.pdf',
+              'fecha': e['fechaEntrega']?.toString().replaceFirst('T', ' ') ?? 'Pendiente',
+              'nota': e['calificacion'] != null ? e['calificacion'].toString() : '',
+              'feedback': e['retroalimentacion'] ?? '',
+            });
+          }
+          _currentIndex = 0;
+          _loadCurrentStudent();
+          _isLoadingBackend = false;
+        });
+      } else if (mounted) {
+        setState(() => _isLoadingBackend = false);
+      }
+    }
   }
 
   void _loadCurrentStudent() {
+    if (_estudiantes.isEmpty) {
+      _notaCtrl = TextEditingController();
+      _feedbackCtrl = TextEditingController();
+      return;
+    }
     final est = _estudiantes[_currentIndex];
-    _notaCtrl = TextEditingController(text: est['nota'] as String);
-    _feedbackCtrl = TextEditingController(text: est['feedback'] as String);
+    _notaCtrl = TextEditingController(text: (est['nota'] ?? '').toString());
+    _feedbackCtrl = TextEditingController(text: (est['feedback'] ?? '').toString());
   }
 
   void _nextStudent() {
@@ -79,24 +99,101 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
     }
   }
 
-  void _guardarCalificacion() {
-    _estudiantes[_currentIndex]['nota'] = _notaCtrl.text;
-    _estudiantes[_currentIndex]['feedback'] = _feedbackCtrl.text;
+  Future<void> _guardarCalificacion() async {
+    final est = _estudiantes[_currentIndex];
+    est['nota'] = _notaCtrl.text;
+    est['feedback'] = _feedbackCtrl.text;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF10B981),
-        content: Text('Calificación de ${_estudiantes[_currentIndex]["nombre"]} guardada con éxito'),
-      ),
-    );
+    final entregaId = est['id'] as int?;
+    final double? nota = double.tryParse(_notaCtrl.text);
 
-    _nextStudent();
+    if (entregaId != null && nota != null) {
+      await ApiService.calificarEntrega(
+        entregaId,
+        calificacion: nota,
+        retroalimentacion: _feedbackCtrl.text,
+      );
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF10B981),
+          content: Text('Calificación de ${est["nombre"]} registrada exitosamente.'),
+        ),
+      );
+      _nextStudent();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final current = _estudiantes[_currentIndex];
+    if (_isLoadingBackend) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close_rounded),
+            onPressed: widget.onBack,
+          ),
+          title: const Text('Calificación de Entregas'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(color: AppTheme.accent),
+        ),
+      );
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (_estudiantes.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close_rounded),
+            onPressed: widget.onBack,
+          ),
+          title: const Text('Calificación de Entregas'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.grading_rounded, size: 52, color: AppTheme.inkFaint),
+                const SizedBox(height: 14),
+                Text(
+                  'No hay entregas pendientes para calificar',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppTheme.darkInk : AppTheme.ink,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Los estudiantes aún no han enviado archivos en esta actividad académica.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: widget.onBack,
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Volver al Aula'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final current = _estudiantes[_currentIndex];
 
     return Scaffold(
       appBar: AppBar(
@@ -165,6 +262,29 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
                         ),
                       ],
                     ),
+                    if (current['grupo'] != 'Individual') ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentSoft,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.group_rounded, size: 16, color: AppTheme.accentDark),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                current['equipoNota'] as String,
+                                style: const TextStyle(fontSize: 11, color: AppTheme.accentDark, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
 
                     // Archivo entregado
@@ -220,7 +340,36 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            // Enunciado y Criterios Colapsables
+            Card(
+              child: ExpansionTile(
+                leading: const Icon(Icons.assignment_outlined, color: AppTheme.accent, size: 22),
+                title: Text(
+                  'Enunciado & Criterios de Evaluación',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppTheme.darkInk : AppTheme.ink,
+                  ),
+                ),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    child: Text(
+                      'Pautas de Calificación (100 Pts):\n• Claridad y justificación del problema (40 Pts)\n• Coherencia entre árbol de problemas y objetivos (40 Pts)\n• Formato y bibliografía IEEE (20 Pts)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.45,
+                        color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
 
             // Formulario de Calificación
             Card(
@@ -267,7 +416,31 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
+
+                    // Atajos rápidos de calificación
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final pts in [100, 90, 80, 70, 51]) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: ActionChip(
+                                label: Text('$pts Pts', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                backgroundColor: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
+                                onPressed: () {
+                                  setState(() {
+                                    _notaCtrl.text = pts.toString();
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
 
                     Text(
                       'Retroalimentación & Observaciones:',

@@ -261,9 +261,13 @@ public class ConvocatoriaService {
         if (userEmail != null && !userEmail.isBlank()) {
             userRepository.findByEmail(userEmail).ifPresent(user -> {
                 participanteRepository.findByConvocatoriaIdAndUsuarioId(id, user.getId())
-                        .ifPresent(p -> dto.setMiEstadoInscripcion(p.getEstadoInscripcion()));
+                        .ifPresent(p -> {
+                            dto.setMiEstadoInscripcion(p.getEstadoInscripcion());
+                            dto.setMiRol(p.getRol());
+                        });
                 if (dto.getMiEstadoInscripcion() == null && user.getRol() == Rol.DOCENTE && c.getCreador() != null && c.getCreador().getId().equals(user.getId())) {
                     dto.setMiEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+                    dto.setMiRol(Rol.DOCENTE);
                 }
             });
         }
@@ -272,6 +276,16 @@ public class ConvocatoriaService {
 
     @Transactional(readOnly = true)
     public List<ConvocatoriaDTO> listarPublicadas(TipoConvocatoria tipo, String query) {
+        return listarPublicadasConUsuario(tipo, query, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConvocatoriaDTO> listarPublicadas() {
+        return listarPublicadas(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConvocatoriaDTO> listarPublicadasConUsuario(TipoConvocatoria tipo, String query, String userEmail) {
         List<Convocatoria> list;
         if (query != null && !query.trim().isEmpty()) {
             list = convocatoriaRepository.searchPublicas(EstadoConvocatoria.PUBLICADA, query.trim());
@@ -283,12 +297,35 @@ public class ConvocatoriaService {
         } else {
             list = convocatoriaRepository.findByEstadoOrderByFechaCierreAsc(EstadoConvocatoria.PUBLICADA);
         }
-        return list.stream().map(ConvocatoriaDTO::new).collect(Collectors.toList());
-    }
 
-    @Transactional(readOnly = true)
-    public List<ConvocatoriaDTO> listarPublicadas() {
-        return listarPublicadas(null, null);
+        User user = (userEmail != null && !userEmail.isBlank())
+                ? userRepository.findByEmail(userEmail).orElse(null)
+                : null;
+
+        Map<Long, ConvocatoriaParticipante> misParts = new HashMap<>();
+        if (user != null) {
+            List<ConvocatoriaParticipante> partList = participanteRepository.findByUsuarioId(user.getId());
+            for (ConvocatoriaParticipante cp : partList) {
+                if (cp.getConvocatoria() != null) {
+                    misParts.put(cp.getConvocatoria().getId(), cp);
+                }
+            }
+        }
+
+        return list.stream().map(c -> {
+            ConvocatoriaDTO dto = new ConvocatoriaDTO(c);
+            if (user != null) {
+                ConvocatoriaParticipante cp = misParts.get(c.getId());
+                if (cp != null) {
+                    dto.setMiEstadoInscripcion(cp.getEstadoInscripcion());
+                    dto.setMiRol(cp.getRol());
+                } else if (user.getRol() == Rol.DOCENTE && c.getCreador() != null && c.getCreador().getId().equals(user.getId())) {
+                    dto.setMiEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+                    dto.setMiRol(Rol.DOCENTE);
+                }
+            }
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     // ==========================================
@@ -317,6 +354,7 @@ public class ConvocatoriaService {
                 if (cp.getEstadoInscripcion() == EstadoInscripcion.ACEPTADO && !idsAgregados.contains(convId)) {
                     ConvocatoriaDTO dto = new ConvocatoriaDTO(cp.getConvocatoria());
                     dto.setMiEstadoInscripcion(cp.getEstadoInscripcion());
+                    dto.setMiRol(cp.getRol());
                     result.add(dto);
                     idsAgregados.add(convId);
                 }
@@ -327,6 +365,7 @@ public class ConvocatoriaService {
                      cp.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO) && !idsAgregados.contains(convId)) {
                     ConvocatoriaDTO dto = new ConvocatoriaDTO(cp.getConvocatoria());
                     dto.setMiEstadoInscripcion(cp.getEstadoInscripcion());
+                    dto.setMiRol(cp.getRol());
                     result.add(dto);
                     idsAgregados.add(convId);
                 }
@@ -340,6 +379,7 @@ public class ConvocatoriaService {
                 if (c.getCreador() != null && c.getCreador().getId().equals(user.getId()) && !idsAgregados.contains(c.getId())) {
                     ConvocatoriaDTO dto = new ConvocatoriaDTO(c);
                     dto.setMiEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+                    dto.setMiRol(Rol.DOCENTE);
                     result.add(dto);
                     idsAgregados.add(c.getId());
                 }
@@ -516,6 +556,10 @@ public class ConvocatoriaService {
         Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
                 .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + convocatoriaId));
 
+        if (conv.getEstado() != EstadoConvocatoria.PUBLICADA) {
+            throw new IllegalStateException("No se pueden recibir postulaciones: la convocatoria se encuentra en estado " + conv.getEstado() + " y aún no ha sido publicada en el portal.");
+        }
+
         String nombreEquipoFinal = (request != null && request.getNombreEquipo() != null && !request.getNombreEquipo().trim().isEmpty())
                 ? request.getNombreEquipo().trim()
                 : null;
@@ -548,6 +592,7 @@ public class ConvocatoriaService {
         );
 
         ConvocatoriaParticipante saved = participanteRepository.save(cp);
+        conv.addParticipante(saved);
         return new ConvocatoriaParticipanteDTO(saved);
     }
 

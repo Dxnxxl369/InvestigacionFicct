@@ -390,6 +390,8 @@ export default function AreaMoodlePage() {
 
   // Módulo seleccionado al crear tarea
   const [tareaModuloId, setTareaModuloId] = useState<number | "">("");
+  // Actividad de grupo / Agrupamiento al crear o editar tarea (Moodle Grouping)
+  const [tareaActividadGrupoId, setTareaActividadGrupoId] = useState<number | "">("");
 
   // Vista Dedicada / Pantalla Completa de Gestión de Entregas (SpeedGrader)
   const [activeTareaParaEntregas, setActiveTareaParaEntregas] = useState<TareaDTO | null>(null);
@@ -401,11 +403,16 @@ export default function AreaMoodlePage() {
   const [filtroEntregasEstado, setFiltroEntregasEstado] = useState<"TODOS" | "PENDIENTES" | "CALIFICADOS" | "SIN_ENTREGA">("TODOS");
   const [cargandoEntregasTarea, setCargandoEntregasTarea] = useState(false);
 
+  // Estados para Libro Central de Calificaciones (Gradebook)
+  const [todasLasEntregas, setTodasLasEntregas] = useState<Record<number, EntregaTareaDTO[]>>({});
+  const [cargandoGradebook, setCargandoGradebook] = useState(false);
+  const [searchGradebookEstudiante, setSearchGradebookEstudiante] = useState("");
+
   // Tabs
-  const [activeTab, setActiveTab] = useState<"tareas" | "grupos" | "participantes" | "info">("tareas");
+  const [activeTab, setActiveTab] = useState<"tareas" | "grupos" | "participantes" | "calificaciones" | "info">("tareas");
 
   const handleCambiarTab = useCallback(
-    (tab: "tareas" | "grupos" | "participantes" | "info") => {
+    (tab: "tareas" | "grupos" | "participantes" | "calificaciones" | "info") => {
       setActiveTab(tab);
       updateUrlParams({ tab });
     },
@@ -441,15 +448,23 @@ export default function AreaMoodlePage() {
   const [generandoLote, setGenerandoLote] = useState<boolean>(false);
 
   const [showCrearActividadModal, setShowCrearActividadModal] = useState<boolean>(false);
+  const [editingActividadId, setEditingActividadId] = useState<number | null>(null);
   const [nuevaActTitulo, setNuevaActTitulo] = useState<string>("Seleccionar grupo para 1er examen parcial");
   const [nuevaActDesc, setNuevaActDesc] = useState<string>("Seleccionar número de grupo según se les asignó en la hoja que presentaron en clases.");
   const [nuevaActApertura, setNuevaActApertura] = useState<string>("");
   const [nuevaActCierre, setNuevaActCierre] = useState<string>("");
   const [nuevaActCapacidad, setNuevaActCapacidad] = useState<number>(5);
+  const [nuevaActPermitirCambio, setNuevaActPermitirCambio] = useState<boolean>(true);
+  const [nuevaActMostrarMiembros, setNuevaActMostrarMiembros] = useState<boolean>(true);
   const [nuevaActGenerarGrupos, setNuevaActGenerarGrupos] = useState<boolean>(true);
   const [nuevaActCantidadGrupos, setNuevaActCantidadGrupos] = useState<number>(10);
   const [nuevaActPrefijo, setNuevaActPrefijo] = useState<string>("Gr1erPar ");
   const [creandoActividad, setCreandoActividad] = useState<boolean>(false);
+
+  // Estados de Ficha y Perfil Académico de Participante (Moodle)
+  const [selectedPerfilUsuarioId, setSelectedPerfilUsuarioId] = useState<number | null>(null);
+  const [perfilUsuarioModalData, setPerfilUsuarioModalData] = useState<any | null>(null);
+  const [cargandoPerfilUsuario, setCargandoPerfilUsuario] = useState<boolean>(false);
 
   const [asignandoParticipanteId, setAsignandoParticipanteId] = useState<number | null>(null);
 
@@ -606,7 +621,7 @@ export default function AreaMoodlePage() {
       const urlTarea = searchParams.get("tarea");
       const urlEntregas = searchParams.get("entregas");
 
-      if (urlTab && ["tareas", "grupos", "participantes", "info"].includes(urlTab)) {
+      if (urlTab && ["tareas", "grupos", "participantes", "calificaciones", "info"].includes(urlTab)) {
         setActiveTab(urlTab as any);
       }
 
@@ -751,6 +766,7 @@ export default function AreaMoodlePage() {
     setTareaEditing(null);
     setEntregasTareaEditing([]);
     setTareaModuloId(moduloIdDefault !== undefined ? moduloIdDefault : "");
+    setTareaActividadGrupoId("");
     setTituloTarea("");
     setDescTarea("");
     setFechaHabilitacion("");
@@ -767,6 +783,7 @@ export default function AreaMoodlePage() {
   const handleAbrirEditarTarea = async (tarea: TareaDTO) => {
     setTareaEditing(tarea);
     setTareaModuloId(tarea.moduloId !== undefined && tarea.moduloId !== null ? tarea.moduloId : "");
+    setTareaActividadGrupoId(tarea.actividadGrupoId !== undefined && tarea.actividadGrupoId !== null ? tarea.actividadGrupoId : "");
     setTituloTarea(tarea.titulo || "");
     setDescTarea(tarea.descripcion || "");
     setFechaHabilitacion(formatForDateTimeLocal(tarea.fechaHabilitacion));
@@ -812,6 +829,7 @@ export default function AreaMoodlePage() {
         tamanoMaximoMb: Number(tamanoMb) || 15,
         puntajeMaximo: Number(puntajeMax) || 100,
         esGrupal: esGrupalTarea,
+        actividadGrupoId: esGrupalTarea && tareaActividadGrupoId ? Number(tareaActividadGrupoId) : undefined,
       };
 
       if (tareaEditing) {
@@ -834,6 +852,7 @@ export default function AreaMoodlePage() {
       setFechaEntrega("");
       setFechaCorte("");
       setEsGrupalTarea(false);
+      setTareaActividadGrupoId("");
 
       const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
       setTareas(updatedTareas);
@@ -970,6 +989,18 @@ export default function AreaMoodlePage() {
       toast("Por favor selecciona un grupo antes de guardar", "error");
       return;
     }
+
+    // Verificar si el estudiante ya tenía un grupo y si ya existen entregas registradas para esta actividad
+    const act = actividadesGrupo.find((a) => a.id === actividadId);
+    if (act && act.grupoSeleccionadoId && act.grupoSeleccionadoId !== selectedGrupoRadioId) {
+      const tareasVinculadas = tareas.filter((t) => t.actividadGrupoId === actividadId);
+      const tieneEntregas = tareasVinculadas.some((t) => !!t.miEntrega);
+      if (tieneEntregas) {
+        toast("No puedes cambiarte de grupo porque tu equipo ya ha registrado entregas en tareas vinculadas a esta actividad.", "error");
+        return;
+      }
+    }
+
     try {
       setProcesandoEleccion(true);
       const updatedAct = await api.elegirGrupoActividad(convocatoriaId, actividadId, selectedGrupoRadioId);
@@ -985,6 +1016,16 @@ export default function AreaMoodlePage() {
 
   // Anular elección de grupo en actividad Moodle
   const handleAnularEleccionGrupo = async (actividadId: number) => {
+    const act = actividadesGrupo.find((a) => a.id === actividadId);
+    if (act && act.grupoSeleccionadoId) {
+      const tareasVinculadas = tareas.filter((t) => t.actividadGrupoId === actividadId);
+      const tieneEntregas = tareasVinculadas.some((t) => !!t.miEntrega);
+      if (tieneEntregas) {
+        toast("No puedes anular tu elección de grupo porque tu equipo ya ha registrado entregas en tareas vinculadas a esta actividad.", "error");
+        return;
+      }
+    }
+
     if (!confirm("¿Deseas anular tu elección de grupo actual? Tu cupo quedará libre para otro estudiante.")) return;
     try {
       setProcesandoEleccion(true);
@@ -1091,7 +1132,41 @@ export default function AreaMoodlePage() {
     }
   };
 
-  // Crear Actividad de Selección de Grupo (Docente / Admin)
+  // Abrir modal de creación limpia de actividad de selección
+  const handleAbrirCrearActividad = () => {
+    setEditingActividadId(null);
+    setNuevaActTitulo("Seleccionar grupo para 1er examen parcial");
+    setNuevaActDesc("Seleccionar número de grupo según se les asignó en la hoja que presentaron en clases.");
+    const now = new Date();
+    const nowStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const nextWeekStr = new Date(nextWeek.getTime() - nextWeek.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setNuevaActApertura(nowStr);
+    setNuevaActCierre(nextWeekStr);
+    setNuevaActCapacidad(5);
+    setNuevaActPermitirCambio(true);
+    setNuevaActMostrarMiembros(true);
+    setNuevaActGenerarGrupos(true);
+    setNuevaActCantidadGrupos(10);
+    setNuevaActPrefijo("Gr1erPar ");
+    setShowCrearActividadModal(true);
+  };
+
+  // Abrir modal de edición con plazos y reglas actuales (Docente / Admin)
+  const handleAbrirEditarActividad = (act: ActividadGrupoDTO) => {
+    setEditingActividadId(act.id);
+    setNuevaActTitulo(act.titulo);
+    setNuevaActDesc(act.descripcion || "");
+    setNuevaActApertura(formatForDateTimeLocal(act.fechaApertura));
+    setNuevaActCierre(formatForDateTimeLocal(act.fechaCierre));
+    setNuevaActCapacidad(act.capacidadPorGrupo || 5);
+    setNuevaActPermitirCambio(act.permitirCambio ?? true);
+    setNuevaActMostrarMiembros(act.mostrarMiembros ?? true);
+    setNuevaActGenerarGrupos(false);
+    setShowCrearActividadModal(true);
+  };
+
+  // Guardar (Crear o Editar) Actividad de Selección de Grupo (Docente / Admin)
   const handleCrearActividadGrupo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevaActTitulo.trim()) {
@@ -1107,21 +1182,43 @@ export default function AreaMoodlePage() {
         fechaApertura: formatDateTimeForBackend(nuevaActApertura),
         fechaCierre: formatDateTimeForBackend(nuevaActCierre),
         capacidadPorGrupo: nuevaActCapacidad > 0 ? nuevaActCapacidad : 5,
-        permitirCambio: true,
-        mostrarMiembros: true,
-        generarGrupos: nuevaActGenerarGrupos,
+        permitirCambio: nuevaActPermitirCambio,
+        mostrarMiembros: nuevaActMostrarMiembros,
+        generarGrupos: editingActividadId ? false : nuevaActGenerarGrupos,
         cantidadGrupos: nuevaActCantidadGrupos,
         prefijoGrupos: nuevaActPrefijo.trim() || "Gr1erPar ",
       };
-      const creada = await api.crearActividadGrupo(convocatoriaId, req);
-      toast(`Actividad "${creada.titulo}" creada exitosamente`, "success");
+
+      if (editingActividadId) {
+        const actualizada = await api.actualizarActividadGrupo(convocatoriaId, editingActividadId, req);
+        toast(`Actividad "${actualizada.titulo}" actualizada exitosamente`, "success");
+        setActividadActiva(actualizada);
+      } else {
+        const creada = await api.crearActividadGrupo(convocatoriaId, req);
+        toast(`Actividad "${creada.titulo}" creada exitosamente`, "success");
+        setActividadActiva(creada);
+      }
       setShowCrearActividadModal(false);
-      setActividadActiva(creada);
+      setEditingActividadId(null);
       await cargarDatos();
     } catch (err: any) {
-      toast(err.message || "Error al crear actividad de selección", "error");
+      toast(err.message || "Error al guardar actividad de selección", "error");
     } finally {
       setCreandoActividad(false);
+    }
+  };
+
+  // Consultar ficha académica / perfil público de un participante
+  const handleAbrirPerfilParticipante = async (usuarioId: number) => {
+    try {
+      setSelectedPerfilUsuarioId(usuarioId);
+      setCargandoPerfilUsuario(true);
+      const data = await api.getPerfilPublico(usuarioId);
+      setPerfilUsuarioModalData(data);
+    } catch (err: any) {
+      toast(err.message || "Error al cargar la información del participante", "error");
+    } finally {
+      setCargandoPerfilUsuario(false);
     }
   };
 
@@ -1259,11 +1356,49 @@ export default function AreaMoodlePage() {
         }
       }
 
+      // Resolver grupo al que pertenece el estudiante para esta tarea (Moodle Grouping)
+      let finalGrupoId: number | undefined = undefined;
+      if (selectedTareaForEntrega.esGrupal) {
+        if (selectedTareaForEntrega.actividadGrupoId) {
+          const act = actividadesGrupo.find((a) => a.id === selectedTareaForEntrega.actividadGrupoId);
+          const grp = act?.grupos?.find(
+            (g) =>
+              g.id === act.grupoSeleccionadoId ||
+              g.miembros?.some(
+                (m) =>
+                  m.usuarioId === user?.id ||
+                  (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
+              )
+          );
+          finalGrupoId = grp?.id;
+        } else {
+          const grp =
+            gruposArea.find((g) =>
+              g.miembros?.some(
+                (m) =>
+                  m.usuarioId === user?.id ||
+                  (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
+              )
+            ) ||
+            actividadesGrupo
+              .flatMap((a) => a.grupos || [])
+              .find((g) =>
+                g.miembros?.some(
+                  (m) =>
+                    m.usuarioId === user?.id ||
+                    (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
+                )
+              );
+          finalGrupoId = grp?.id;
+        }
+      }
+
       const req: EntregaRequest = {
         documentoId: docVinculadoId ? Number(docVinculadoId) : undefined,
         nombreArchivo: finalNombreArchivo || undefined,
         archivoUrl: finalArchivoUrl,
         comentarioEstudiante: comentarioEstudiante.trim() || undefined,
+        grupoId: finalGrupoId,
       };
 
       await api.entregarTarea(selectedTareaForEntrega.id, req);
@@ -1579,6 +1714,107 @@ export default function AreaMoodlePage() {
   const selectedEstudianteObj = estudiantesAdmitidos.find((e) => e.usuarioId === selectedEstudianteId);
   const selectedEntregaObj = entregasTareaActual.find((e) => e.estudianteId === selectedEstudianteId);
 
+  // Cargar entregas de todas las tareas para el Libro Central de Calificaciones (Gradebook)
+  const cargarTodasLasEntregas = useCallback(async () => {
+    if (!tareas || tareas.length === 0) return;
+    try {
+      setCargandoGradebook(true);
+      const results = await Promise.all(
+        tareas.map(async (t) => {
+          try {
+            const ents = await api.getEntregasTarea(t.id);
+            return { tareaId: t.id, entregas: ents };
+          } catch {
+            return { tareaId: t.id, entregas: [] };
+          }
+        })
+      );
+      const mapa: Record<number, EntregaTareaDTO[]> = {};
+      results.forEach((r) => {
+        mapa[r.tareaId] = r.entregas;
+      });
+      setTodasLasEntregas(mapa);
+    } finally {
+      setCargandoGradebook(false);
+    }
+  }, [tareas]);
+
+  // Cargar calificaciones automáticamente cuando se entra a la pestaña de Calificaciones
+  useEffect(() => {
+    if (activeTab === "calificaciones" && puedeGestionarTareas && tareas.length > 0) {
+      cargarTodasLasEntregas();
+    }
+  }, [activeTab, puedeGestionarTareas, tareas, cargarTodasLasEntregas]);
+
+  // Exportar matriz de calificaciones a formato CSV
+  const handleExportarCalificacionesCSV = () => {
+    if (estudiantesAdmitidos.length === 0) {
+      toast("No hay estudiantes admitidos para exportar", "info");
+      return;
+    }
+
+    const headers = ["Estudiante", "Correo", "Equipo"];
+    tareas.forEach((t) => {
+      headers.push(`"${t.titulo.replace(/"/g, '""')} (Max: ${t.puntajeMaximo || 100})"`);
+    });
+    headers.push("Total Acumulado", "Puntaje Máximo Posible", "Porcentaje (%)", "Entregas Realizadas");
+
+    const rows = estudiantesAdmitidos.map((est) => {
+      let totalNota = 0;
+      let totalMax = 0;
+      let entregadas = 0;
+
+      const row = [
+        `"${`${est.nombre} ${est.apellidos || ""}`.trim().replace(/"/g, '""')}"`,
+        `"${est.email}"`,
+        `"${(est.nombreEquipo || "Sin equipo").replace(/"/g, '""')}"`,
+      ];
+
+      tareas.forEach((t) => {
+        const maxP = t.puntajeMaximo || 100;
+        totalMax += maxP;
+        const ent = todasLasEntregas[t.id]?.find((e) => e.estudianteId === est.usuarioId);
+        if (ent) {
+          entregadas++;
+          if (ent.calificacion !== undefined && ent.calificacion !== null) {
+            totalNota += ent.calificacion;
+            row.push(String(ent.calificacion));
+          } else {
+            row.push('"Pendiente"');
+          }
+        } else {
+          row.push('"0"');
+        }
+      });
+
+      const pct = totalMax > 0 ? Math.round((totalNota / totalMax) * 100) : 0;
+      row.push(String(totalNota), String(totalMax), `"${pct}%"`, `"${entregadas}/${tareas.length}"`);
+      return row.join(",");
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Calificaciones_${(convocatoria?.titulo || "Aula").replace(/[^a-zA-Z0-9_-]/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("Libro de calificaciones exportado exitosamente a CSV", "success");
+  };
+
+  const estudiantesFiltradosGradebook = estudiantesAdmitidos.filter((est) => {
+    if (!searchGradebookEstudiante.trim()) return true;
+    const q = searchGradebookEstudiante.toLowerCase();
+    return (
+      `${est.nombre} ${est.apellidos || ""}`.toLowerCase().includes(q) ||
+      est.email.toLowerCase().includes(q) ||
+      Boolean(est.nombreEquipo && est.nombreEquipo.toLowerCase().includes(q))
+    );
+  });
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -1612,6 +1848,56 @@ export default function AreaMoodlePage() {
   // ========================================================
   const renderModalSubirEntrega = () => {
     if (!selectedTareaForEntrega) return null;
+
+    // Resolver a qué grupo pertenece el estudiante para esta tarea específica (Moodle Grouping)
+    let miGrupoParaEstaTarea: GrupoDTO | null = null;
+    let actividadAsociada: ActividadGrupoDTO | null = null;
+
+    if (selectedTareaForEntrega.esGrupal) {
+      if (selectedTareaForEntrega.actividadGrupoId) {
+        actividadAsociada = actividadesGrupo.find((a) => a.id === selectedTareaForEntrega.actividadGrupoId) || null;
+        if (actividadAsociada) {
+          miGrupoParaEstaTarea =
+            actividadAsociada.grupos?.find(
+              (g) =>
+                g.id === actividadAsociada?.grupoSeleccionadoId ||
+                g.miembros?.some(
+                  (m) =>
+                    m.usuarioId === user?.id ||
+                    (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
+                )
+            ) || null;
+        }
+      } else {
+        miGrupoParaEstaTarea =
+          gruposArea.find((g) =>
+            g.miembros?.some(
+              (m) =>
+                m.usuarioId === user?.id ||
+                (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
+            )
+          ) || null;
+        if (!miGrupoParaEstaTarea) {
+          for (const act of actividadesGrupo) {
+            const g = act.grupos?.find(
+              (gr) =>
+                gr.id === act.grupoSeleccionadoId ||
+                gr.miembros?.some(
+                  (m) =>
+                    m.usuarioId === user?.id ||
+                    (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
+                )
+            );
+            if (g) {
+              miGrupoParaEstaTarea = g;
+              actividadAsociada = act;
+              break;
+            }
+          }
+        }
+      }
+    }
+
     return (
       <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
         <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
@@ -1655,6 +1941,53 @@ export default function AreaMoodlePage() {
               </span>
             </div>
           </div>
+
+          {/* Alerta o Información de Agrupamiento y Equipo (Moodle Grouping) */}
+          {selectedTareaForEntrega.esGrupal && (
+            miGrupoParaEstaTarea ? (
+              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-200">
+                  <Users className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>Entrega grupal en representación de: <u>{miGrupoParaEstaTarea.nombre}</u></span>
+                </div>
+                {actividadAsociada && (
+                  <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                    Actividad de agrupamiento: <strong>{actividadAsociada.titulo}</strong>
+                  </p>
+                )}
+                {miGrupoParaEstaTarea.miembros && miGrupoParaEstaTarea.miembros.length > 0 && (
+                  <p className="text-[10px] text-blue-600 dark:text-blue-400">
+                    Integrantes beneficiados: {miGrupoParaEstaTarea.miembros.map((m) => m.nombreCompleto || m.email).join(", ")}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-2">
+                <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200 font-semibold">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    Esta tarea es grupal{actividadAsociada ? ` y corresponde a la actividad "${actividadAsociada.titulo}"` : ""}. Aún no estás registrado en ningún grupo de este agrupamiento.
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
+                  Para que tu trabajo sea registrado y beneficie a tu equipo, primero debes seleccionar un grupo en la pestaña de Grupos.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTareaForEntrega(null);
+                    if (actividadAsociada) {
+                      setActividadActiva(actividadAsociada);
+                    }
+                    handleCambiarTab("grupos");
+                  }}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5" /> Ir a Seleccionar Grupo Ahora
+                </button>
+              </div>
+            )
+          )}
 
           {/* Entrega Previa Registrada si existe */}
           {selectedTareaForEntrega.miEntrega && (
@@ -1897,8 +2230,9 @@ export default function AreaMoodlePage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={enviandoEntrega}
-                  className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                  disabled={enviandoEntrega || Boolean(selectedTareaForEntrega.esGrupal && !miGrupoParaEstaTarea)}
+                  title={selectedTareaForEntrega.esGrupal && !miGrupoParaEstaTarea ? "Debes unirte a un grupo para poder realizar la entrega" : ""}
+                  className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
                 >
                   {enviandoEntrega ? (
                     <>
@@ -2341,6 +2675,30 @@ export default function AreaMoodlePage() {
                 <div className="w-9 h-5 bg-paper-sunken peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-line"></div>
               </label>
             </div>
+
+            {/* Agrupamiento / Actividad de grupos asociada (Moodle Grouping) */}
+            {esGrupalTarea && (
+              <div className="p-3 bg-paper-sunken/40 rounded-xl border border-line space-y-1.5">
+                <label className="font-semibold text-ink block text-xs">
+                  Agrupamiento / Actividad de Grupos (Moodle Grouping)
+                </label>
+                <p className="text-[11px] text-ink-soft">
+                  Asocia la tarea al conjunto de grupos de una actividad específica (ej: grupos de laboratorio vs grupos de proyecto). La entrega de un estudiante solo replicará a sus compañeros dentro de este agrupamiento.
+                </p>
+                <select
+                  value={tareaActividadGrupoId}
+                  onChange={(e) => setTareaActividadGrupoId(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent text-xs"
+                >
+                  <option value="">-- Todos los grupos generales del aula --</option>
+                  {actividadesGrupo.map((act) => (
+                    <option key={act.id} value={act.id}>
+                      {act.titulo} ({act.grupos?.length || 0} grupos)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
               <button
@@ -3147,7 +3505,7 @@ export default function AreaMoodlePage() {
                 <div
                   className={`sm:col-span-2 p-3 sm:px-4 font-medium ${
                     miEntrega
-                      ? "bg-[#cfefcf] text-[#155724] dark:bg-emerald-950/40 dark:text-emerald-300"
+                      ? "bg-accent-soft text-accent-dark"
                       : "text-ink-soft bg-paper"
                   }`}
                 >
@@ -3189,7 +3547,7 @@ export default function AreaMoodlePage() {
                 <div
                   className={`sm:col-span-2 p-3 sm:px-4 font-medium ${
                     tiempoRestante.temprano
-                      ? "bg-[#cfefcf] text-[#155724] dark:bg-emerald-950/40 dark:text-emerald-300"
+                      ? "bg-accent-soft text-accent-dark"
                       : tiempoRestante.retraso
                       ? "text-rose-700 dark:text-rose-300 bg-rose-50/50 dark:bg-rose-950/20"
                       : "text-ink-soft bg-paper"
@@ -3554,6 +3912,36 @@ export default function AreaMoodlePage() {
               </div>
             </div>
 
+            {/* Barra de Progreso Global del Aula (para Estudiante matriculado) */}
+            {user?.rol === "ESTUDIANTE" && esEstudianteInscrito && tareas.length > 0 && (
+              <div className="mt-4 p-3 bg-paper-sunken/60 border border-line rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600 shrink-0">
+                    <CheckCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-ink">Tu avance global en el aula</span>
+                    <p className="text-[11px] text-ink-soft">
+                      Has completado {tareas.filter((t) => !!t.miEntrega).length} de {tareas.length} tareas programadas
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 sm:w-52">
+                  <div className="flex-1 h-2 bg-paper border border-line rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.round((tareas.filter((t) => !!t.miEntrega).length / tareas.length) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300 shrink-0">
+                    {Math.round((tareas.filter((t) => !!t.miEntrega).length / tareas.length) * 100)}%
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Selector de Pestañas tipo Moodle */}
             <div className="flex border-b border-line mt-6 -mb-6 -mx-6 sm:-mx-8 px-6 sm:px-8 gap-6 text-xs font-semibold">
               <button
@@ -3592,6 +3980,17 @@ export default function AreaMoodlePage() {
                 }`}
               >
                 <Users className="w-4 h-4" /> Participantes ({participantes.length})
+              </button>
+
+              <button
+                onClick={() => handleCambiarTab("calificaciones")}
+                className={`py-3.5 border-b-2 flex items-center gap-2 transition-all ${
+                  activeTab === "calificaciones"
+                    ? "border-accent text-accent"
+                    : "border-transparent text-ink-faint hover:text-ink"
+                }`}
+              >
+                <Award className="w-4 h-4" /> Calificaciones
               </button>
 
               <button
@@ -3827,16 +4226,38 @@ export default function AreaMoodlePage() {
                                 <p className="text-xs text-ink-faint italic">Sin descripción complementaria.</p>
                               )}
 
-                              {/* Indicadores de Tareas */}
-                              <div className="pt-2 flex items-center justify-between text-xs text-ink-soft">
-                                <span className="flex items-center gap-1 font-medium">
-                                  <FileText className="w-3.5 h-3.5 text-accent" />
-                                  {tareasDelMod.length} {tareasDelMod.length === 1 ? "tarea" : "tareas"}
-                                </span>
-                                {user?.rol === "ESTUDIANTE" && tareasDelMod.length > 0 && (
-                                  <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                                    {entregadasDelMod}/{tareasDelMod.length} entregadas
+                              {/* Indicadores y Barra de Progreso del Módulo */}
+                              <div className="pt-2 space-y-1.5 text-xs text-ink-soft">
+                                <div className="flex items-center justify-between">
+                                  <span className="flex items-center gap-1 font-medium">
+                                    <FileText className="w-3.5 h-3.5 text-accent" />
+                                    {tareasDelMod.length} {tareasDelMod.length === 1 ? "tarea" : "tareas"}
                                   </span>
+                                  {tareasDelMod.length > 0 && (
+                                    <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                      {user?.rol === "ESTUDIANTE"
+                                        ? `${entregadasDelMod}/${tareasDelMod.length} entregadas`
+                                        : `${Math.round((tareasDelMod.filter((t) => (t.totalEntregas || 0) > 0).length / tareasDelMod.length) * 100)}% activas`}
+                                    </span>
+                                  )}
+                                </div>
+                                {tareasDelMod.length > 0 && (
+                                  <div className="h-1.5 w-full bg-paper-sunken border border-line rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                                      style={{
+                                        width: `${
+                                          user?.rol === "ESTUDIANTE"
+                                            ? Math.round((entregadasDelMod / tareasDelMod.length) * 100)
+                                            : Math.round(
+                                                (tareasDelMod.filter((t) => (t.totalEntregas || 0) > 0).length /
+                                                  tareasDelMod.length) *
+                                                  100
+                                              )
+                                        }%`,
+                                      }}
+                                    />
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -4144,6 +4565,39 @@ export default function AreaMoodlePage() {
                       </div>
                     )}
 
+                    {/* Progreso del Estudiante en este Módulo */}
+                    {user?.rol === "ESTUDIANTE" && tareasDelModulo.length > 0 && (
+                      <div className="bg-paper border border-line rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="text-xs font-semibold text-ink">
+                            Progreso en Módulo #{moduloActual.orden}:{" "}
+                            <strong>
+                              {tareasDelModulo.filter((t) => !!t.miEntrega).length} de {tareasDelModulo.length} entregadas
+                            </strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 sm:w-48">
+                          <div className="flex-1 h-2 bg-paper-sunken border border-line rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                              style={{
+                                width: `${Math.round(
+                                  (tareasDelModulo.filter((t) => !!t.miEntrega).length / tareasDelModulo.length) * 100
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
+                            {Math.round(
+                              (tareasDelModulo.filter((t) => !!t.miEntrega).length / tareasDelModulo.length) * 100
+                            )}
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Lista de Tareas en este Módulo */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -4437,6 +4891,16 @@ export default function AreaMoodlePage() {
                             >
                               {actividadActiva.abierta ? "Abierta para Registro" : "Actividad Cerrada"}
                             </span>
+                            {!actividadActiva.permitirCambio && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                                Sin cambios de grupo
+                              </span>
+                            )}
+                            {!actividadActiva.mostrarMiembros && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                                Miembros ocultos
+                              </span>
+                            )}
                           </div>
                           <h2 className="text-xl sm:text-2xl font-bold font-serif text-ink">
                             {actividadActiva.titulo}
@@ -4454,29 +4918,43 @@ export default function AreaMoodlePage() {
                         </div>
                       </div>
 
-                      {/* Selector si hay múltiples actividades de grupo */}
-                      {actividadesGrupo.length > 1 && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-ink-faint">Actividad:</span>
-                          <select
-                            value={actividadActiva.id}
-                            onChange={(e) => {
-                              const found = actividadesGrupo.find((a) => a.id === Number(e.target.value));
-                              if (found) {
-                                setActividadActiva(found);
-                                setSelectedGrupoRadioId(found.grupoSeleccionadoId || null);
-                              }
-                            }}
-                            className="bg-paper-sunken border border-line rounded-xl px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-accent"
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {puedeGestionarTareas && (
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirEditarActividad(actividadActiva)}
+                            className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                            title="Editar plazos de apertura/cierre y configuración de la actividad"
                           >
-                            {actividadesGrupo.map((act) => (
-                              <option key={act.id} value={act.id}>
-                                {act.titulo}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+                            <Pencil className="w-3.5 h-3.5" />
+                            Editar Plazos y Reglas
+                          </button>
+                        )}
+
+                        {/* Selector si hay múltiples actividades de grupo */}
+                        {actividadesGrupo.length > 1 && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-ink-faint">Actividad:</span>
+                            <select
+                              value={actividadActiva.id}
+                              onChange={(e) => {
+                                const found = actividadesGrupo.find((a) => a.id === Number(e.target.value));
+                                if (found) {
+                                  setActividadActiva(found);
+                                  setSelectedGrupoRadioId(found.grupoSeleccionadoId || null);
+                                }
+                              }}
+                              className="bg-paper-sunken border border-line rounded-xl px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-accent"
+                            >
+                              {actividadesGrupo.map((act) => (
+                                <option key={act.id} value={act.id}>
+                                  {act.titulo}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Descripción / Instrucciones de la actividad */}
@@ -4535,14 +5013,16 @@ export default function AreaMoodlePage() {
                               <th className="py-3 px-4">
                                 <div className="flex items-center justify-between">
                                   <span>Miembros del grupo</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setOcultarMiembros(!ocultarMiembros)}
-                                    className="px-2.5 py-1 rounded-lg bg-paper border border-line text-[11px] font-semibold text-ink hover:bg-paper-sunken transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                                  >
-                                    {ocultarMiembros ? <Eye className="w-3.5 h-3.5 text-accent" /> : <EyeOff className="w-3.5 h-3.5 text-ink-faint" />}
-                                    {ocultarMiembros ? "Mostrar miembros del grupo" : "Ocultar miembros del grupo"}
-                                  </button>
+                                  {(!actividadActiva || actividadActiva.mostrarMiembros || puedeGestionarTareas) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setOcultarMiembros(!ocultarMiembros)}
+                                      className="px-2.5 py-1 rounded-lg bg-paper border border-line text-[11px] font-semibold text-ink hover:bg-paper-sunken transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                    >
+                                      {ocultarMiembros ? <Eye className="w-3.5 h-3.5 text-accent" /> : <EyeOff className="w-3.5 h-3.5 text-ink-faint" />}
+                                      {ocultarMiembros ? "Mostrar miembros del grupo" : "Ocultar miembros del grupo"}
+                                    </button>
+                                  )}
                                 </div>
                               </th>
                             </tr>
@@ -4631,7 +5111,12 @@ export default function AreaMoodlePage() {
 
                                     {/* Columna 4: Miembros del Grupo */}
                                     <td className="py-3 px-4 align-middle">
-                                      {ocultarMiembros ? (
+                                      {actividadActiva && !actividadActiva.mostrarMiembros && !puedeGestionarTareas ? (
+                                        <div className="flex items-center gap-1.5 text-ink-faint italic text-xs py-1">
+                                          <EyeOff className="w-3.5 h-3.5 text-ink-faint shrink-0" />
+                                          <span>Lista de integrantes oculta por el docente</span>
+                                        </div>
+                                      ) : ocultarMiembros ? (
                                         <span className="text-ink-faint italic text-xs">
                                           Nombres ocultos por preferencia
                                         </span>
@@ -4739,7 +5224,7 @@ export default function AreaMoodlePage() {
                     </p>
                     {puedeGestionarTareas && (
                       <button
-                        onClick={() => setShowCrearActividadModal(true)}
+                        onClick={handleAbrirCrearActividad}
                         className="mt-2 px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold inline-flex items-center gap-2 cursor-pointer shadow-xs"
                       >
                         <PlusCircle className="w-4 h-4" /> Crear Actividad de Selección de Grupo
@@ -4780,7 +5265,7 @@ export default function AreaMoodlePage() {
                         </button>
 
                         <button
-                          onClick={() => setShowCrearActividadModal(true)}
+                          onClick={handleAbrirCrearActividad}
                           className="px-3.5 py-2 bg-ink hover:bg-black text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                         >
                           <ListPlus className="w-3.5 h-3.5" /> + Actividad de Registro
@@ -5153,13 +5638,18 @@ export default function AreaMoodlePage() {
                       participantesFiltrados.map((p) => (
                         <tr key={p.id} className="hover:bg-paper-sunken/30 transition-colors">
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-accent/10 text-accent font-bold flex items-center justify-center text-xs">
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirPerfilParticipante(p.usuarioId)}
+                              className="flex items-center gap-3 text-left group hover:opacity-85 transition-opacity cursor-pointer"
+                              title="Ver ficha académica y cursos del participante"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-accent/10 text-accent font-bold flex items-center justify-center text-xs group-hover:bg-accent group-hover:text-white transition-colors">
                                 {p.nombre.charAt(0)}
                                 {p.apellidos?.charAt(0)}
                               </div>
                               <div>
-                                <span className="font-semibold text-ink block">
+                                <span className="font-semibold text-ink block group-hover:text-accent transition-colors underline-offset-2 hover:underline">
                                   {p.nombre} {p.apellidos}
                                 </span>
                                 {p.asignadoPorNombre && (
@@ -5168,7 +5658,7 @@ export default function AreaMoodlePage() {
                                   </span>
                                 )}
                               </div>
-                            </div>
+                            </button>
                           </td>
                           <td className="py-3 px-4 text-ink-soft">{p.email}</td>
                           <td className="py-3 px-4 text-center">
@@ -5228,6 +5718,491 @@ export default function AreaMoodlePage() {
         )}
       </div>
     )}
+
+        {/* ==================================================== */}
+        {/* PESTAÑA: CALIFICACIONES (GRADEBOOK MOODLE)          */}
+        {/* ==================================================== */}
+        {activeTab === "calificaciones" && (
+          <div className="space-y-6">
+            {user?.rol === "ESTUDIANTE" && !esEstudianteInscrito && convocatoria.estado !== "FINALIZADA" ? (
+              <div className="bg-paper border border-line rounded-2xl p-12 text-center space-y-3 shadow-xs">
+                {esEstudianteRechazado ? (
+                  <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
+                ) : (
+                  <Lock className="w-10 h-10 text-ink-faint mx-auto" />
+                )}
+                <h3 className="text-base font-serif font-bold text-ink">
+                  {esEstudiantePendiente
+                    ? "Solicitud de admisión en revisión"
+                    : esEstudianteRechazado
+                    ? "Postulación no admitida"
+                    : "Calificaciones reservadas para estudiantes admitidos"}
+                </h3>
+                <p className="text-xs text-ink-soft max-w-md mx-auto leading-relaxed">
+                  {esEstudiantePendiente
+                    ? "Tu postulación se encuentra en revisión. Una vez admitido, podrás visualizar tus calificaciones y retroalimentaciones."
+                    : esEstudianteRechazado
+                    ? "Tu solicitud a esta área no fue admitida."
+                    : "Debes solicitar tu inscripción al área y esperar la admisión del docente encargado para consultar tus calificaciones."}
+                </p>
+              </div>
+            ) : user?.rol === "ESTUDIANTE" ? (
+              /* ==================================================== */
+              /* VISTA DE CALIFICACIONES: ESTUDIANTE (REPORTE MOODLE) */
+              /* ==================================================== */
+              (() => {
+                const tareasCalificadas = tareas.filter((t) => t.miEntrega?.estado === "CALIFICADO");
+                const tareasEntregadas = tareas.filter((t) => !!t.miEntrega);
+                const tareasPendientes = tareas.filter((t) => t.miEntrega && t.miEntrega.estado !== "CALIFICADO");
+                const puntosObtenidos = tareasCalificadas.reduce((acc, t) => acc + (t.miEntrega?.calificacion || 0), 0);
+                const puntosEvaluadosMax = tareasCalificadas.reduce((acc, t) => acc + (t.puntajeMaximo || 100), 0);
+                const puntosCursoMax = tareas.reduce((acc, t) => acc + (t.puntajeMaximo || 100), 0);
+                const promedioPct = puntosEvaluadosMax > 0 ? Math.round((puntosObtenidos / puntosEvaluadosMax) * 100) : 0;
+                const avancePct = tareas.length > 0 ? Math.round((tareasEntregadas.length / tareas.length) * 100) : 0;
+
+                return (
+                  <div className="space-y-6">
+                    {/* Header y Tarjetas KPI del Estudiante */}
+                    <div className="bg-paper border border-line rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+                      <div>
+                        <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
+                          <Award className="w-5 h-5 text-accent" /> Calificaciones del Estudiante
+                        </h3>
+                        <p className="text-xs text-ink-soft mt-0.5">
+                          Resumen oficial de entregas académicas, evaluaciones ponderadas y retroalimentación docente.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                        <div className="p-3.5 bg-paper-sunken/60 border border-line rounded-xl">
+                          <span className="text-[11px] font-semibold text-ink-faint block">Promedio Calificado</span>
+                          <span className="text-lg font-bold text-emerald-700 dark:text-emerald-300 mt-0.5 block">
+                            {puntosObtenidos.toFixed(1)} / {puntosEvaluadosMax}
+                          </span>
+                          <span className="text-[10px] text-ink-soft">{promedioPct}% de rendimiento</span>
+                        </div>
+
+                        <div className="p-3.5 bg-paper-sunken/60 border border-line rounded-xl">
+                          <span className="text-[11px] font-semibold text-ink-faint block">Avance de Entregas</span>
+                          <span className="text-lg font-bold text-ink mt-0.5 block">
+                            {tareasEntregadas.length} / {tareas.length}
+                          </span>
+                          <span className="text-[10px] text-ink-soft">{avancePct}% entregado</span>
+                        </div>
+
+                        <div className="p-3.5 bg-paper-sunken/60 border border-line rounded-xl">
+                          <span className="text-[11px] font-semibold text-ink-faint block">Tareas Calificadas</span>
+                          <span className="text-lg font-bold text-accent mt-0.5 block">
+                            {tareasCalificadas.length}
+                          </span>
+                          <span className="text-[10px] text-ink-soft">Con nota y feedback</span>
+                        </div>
+
+                        <div className="p-3.5 bg-paper-sunken/60 border border-line rounded-xl">
+                          <span className="text-[11px] font-semibold text-ink-faint block">En Revisión</span>
+                          <span className="text-lg font-bold text-blue-600 mt-0.5 block">
+                            {tareasPendientes.length}
+                          </span>
+                          <span className="text-[10px] text-ink-soft">Pendientes de calificar</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tabla Detallada de Calificaciones por Tarea */}
+                    <div className="bg-paper border border-line rounded-2xl overflow-hidden shadow-xs">
+                      <div className="p-4 border-b border-line flex items-center justify-between">
+                        <h4 className="font-serif text-sm font-bold text-ink">
+                          Detalle de Tareas y Calificaciones ({tareas.length})
+                        </h4>
+                        <span className="text-xs text-ink-soft">
+                          Total acumulable: {puntosCursoMax} pts
+                        </span>
+                      </div>
+
+                      {tareas.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-ink-faint">
+                          No hay tareas configuradas en esta convocatoria.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-paper-sunken/60 text-ink-soft uppercase text-[10px] tracking-wider border-b border-line">
+                              <tr>
+                                <th className="py-3 px-4">Actividad / Tarea</th>
+                                <th className="py-3 px-4">Modalidad</th>
+                                <th className="py-3 px-4">Fecha Límite</th>
+                                <th className="py-3 px-4">Estado</th>
+                                <th className="py-3 px-4">Calificación</th>
+                                <th className="py-3 px-4">Retroalimentación Docente</th>
+                                <th className="py-3 px-4 text-right">Acción</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-line">
+                              {tareas.map((t) => {
+                                const entrega = t.miEntrega;
+                                const fechaLim = t.fechaEntrega || t.fechaLimite;
+                                const esTardia = Boolean(
+                                  entrega?.fechaEntrega &&
+                                    fechaLim &&
+                                    new Date(entrega.fechaEntrega) > new Date(fechaLim)
+                                );
+
+                                return (
+                                  <tr key={t.id} className="hover:bg-paper-sunken/30 transition-colors">
+                                    <td className="py-3.5 px-4">
+                                      <div className="space-y-0.5">
+                                        <span className="font-bold text-ink block">{t.titulo}</span>
+                                        {t.moduloTitulo && (
+                                          <span className="text-[10px] text-ink-faint bg-paper-sunken px-1.5 py-0.5 rounded border border-line inline-block">
+                                            {t.moduloTitulo}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+
+                                    <td className="py-3.5 px-4 text-ink-soft">
+                                      {t.esGrupal ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-medium text-[11px] border border-blue-500/20">
+                                          <Users className="w-3 h-3" />
+                                          {entrega?.grupoNombre ? entrega.grupoNombre : "Grupal"}
+                                        </span>
+                                      ) : (
+                                        <span className="text-ink-faint text-[11px]">Individual</span>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3.5 px-4 text-ink-soft text-[11px]">
+                                      {fechaLim ? formatMoodleDate(fechaLim) : "Sin límite"}
+                                    </td>
+
+                                    <td className="py-3.5 px-4">
+                                      {entrega ? (
+                                        <div className="space-y-1">
+                                          <span
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                              entrega.estado === "CALIFICADO"
+                                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                                                : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20"
+                                            }`}
+                                          >
+                                            <CheckCircle2 className="w-3 h-3" />
+                                            {entrega.estado === "CALIFICADO" ? "Calificado" : "Entregado"}
+                                          </span>
+                                          {esTardia && (
+                                            <span className="block text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                              ⚠️ Con retraso
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-paper-sunken text-ink-faint border border-line">
+                                          Sin entrega
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3.5 px-4">
+                                      {entrega?.estado === "CALIFICADO" &&
+                                      entrega.calificacion !== undefined &&
+                                      entrega.calificacion !== null ? (
+                                        <div className="space-y-1">
+                                          <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                                            {entrega.calificacion} / {t.puntajeMaximo}
+                                          </span>
+                                          <div className="h-1 w-20 bg-paper-sunken border border-line rounded-full overflow-hidden">
+                                            <div
+                                              className="h-full bg-emerald-500 rounded-full"
+                                              style={{
+                                                width: `${Math.min(
+                                                  100,
+                                                  Math.round((entrega.calificacion / (t.puntajeMaximo || 100)) * 100)
+                                                )}%`,
+                                              }}
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <span className="text-ink-faint">- / {t.puntajeMaximo}</span>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3.5 px-4 max-w-xs">
+                                      {entrega?.retroalimentacion ? (
+                                        <p className="text-[11px] text-ink-soft italic bg-paper-sunken/50 p-2 rounded-lg border border-line leading-relaxed">
+                                          &ldquo;{entrega.retroalimentacion}&rdquo;
+                                        </p>
+                                      ) : (
+                                        <span className="text-ink-faint text-[11px]">-</span>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3.5 px-4 text-right">
+                                      <button
+                                        onClick={() => {
+                                          setActiveTareaDetalle(t);
+                                          updateUrlParams({ tarea: t.id, modulo: t.moduloId || null });
+                                        }}
+                                        className="px-2.5 py-1 text-xs text-accent hover:text-accent-dark font-medium border border-accent/30 hover:border-accent rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        Ver Tarea
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              /* ==================================================== */
+              /* VISTA DE CALIFICACIONES: DOCENTE / ADMIN (MATRIZ)    */
+              /* ==================================================== */
+              <div className="space-y-5">
+                {/* Header del Gradebook Docente */}
+                <div className="bg-paper border border-line rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
+                      <Award className="w-5 h-5 text-accent" /> Libro Central de Calificaciones
+                    </h3>
+                    <p className="text-xs text-ink-soft mt-0.5">
+                      Matriz global de calificaciones y avance de estudiantes admitidos ({estudiantesAdmitidos.length}) en {tareas.length} actividades académicas.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={handleExportarCalificacionesCSV}
+                      disabled={estudiantesAdmitidos.length === 0}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4" /> Exportar a CSV
+                    </button>
+                    <button
+                      onClick={cargarTodasLasEntregas}
+                      disabled={cargandoGradebook}
+                      className="px-3 py-2 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      title="Refrescar entregas"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${cargandoGradebook ? "animate-spin" : ""}`} />
+                      Actualizar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filtro de Búsqueda */}
+                <div className="bg-paper border border-line rounded-2xl p-3 shadow-xs flex items-center gap-2">
+                  <Search className="w-4 h-4 text-ink-faint shrink-0 ml-2" />
+                  <input
+                    type="text"
+                    value={searchGradebookEstudiante}
+                    onChange={(e) => setSearchGradebookEstudiante(e.target.value)}
+                    placeholder="Buscar estudiante por nombre, correo o equipo..."
+                    className="w-full bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
+                  />
+                  {searchGradebookEstudiante && (
+                    <button
+                      onClick={() => setSearchGradebookEstudiante("")}
+                      className="text-xs text-ink-faint hover:text-ink p-1 mr-1"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Matriz Tabular estilo Moodle Gradebook */}
+                <div className="bg-paper border border-line rounded-2xl overflow-hidden shadow-xs">
+                  {cargandoGradebook ? (
+                    <div className="p-12 text-center text-xs text-ink-faint space-y-2">
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-accent" />
+                      <p>Sincronizando entregas y calificaciones del aula...</p>
+                    </div>
+                  ) : estudiantesFiltradosGradebook.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-ink-faint">
+                      {estudiantesAdmitidos.length === 0
+                        ? "No hay estudiantes admitidos en esta convocatoria todavía."
+                        : "No se encontraron estudiantes con el criterio de búsqueda especificado."}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto max-h-[70vh]">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-paper-sunken/80 text-ink text-[11px] sticky top-0 z-10 border-b border-line shadow-2xs backdrop-blur-xs">
+                          <tr>
+                            <th className="py-3 px-4 font-bold sticky left-0 bg-paper-sunken z-20 min-w-[200px] border-r border-line">
+                              Estudiante
+                            </th>
+                            <th className="py-3 px-3 font-semibold text-ink-soft min-w-[120px]">
+                              Equipo
+                            </th>
+                            {tareas.map((t) => (
+                              <th
+                                key={t.id}
+                                className="py-3 px-3 font-semibold text-center min-w-[120px] max-w-[160px] truncate"
+                                title={`${t.titulo} (Máx: ${t.puntajeMaximo || 100} pts)`}
+                              >
+                                <span className="block truncate">{t.titulo}</span>
+                                <span className="text-[10px] text-ink-faint font-normal block">
+                                  Máx {t.puntajeMaximo || 100} pts
+                                </span>
+                              </th>
+                            ))}
+                            <th className="py-3 px-3 font-bold text-center min-w-[100px] bg-accent/5 text-accent">
+                              Total Acum.
+                            </th>
+                            <th className="py-3 px-3 font-bold text-center min-w-[90px]">
+                              Progreso
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-line text-xs">
+                          {estudiantesFiltradosGradebook.map((est) => {
+                            let totalNota = 0;
+                            let totalMax = 0;
+                            let entregasRealizadas = 0;
+
+                            return (
+                              <tr key={est.id} className="hover:bg-paper-sunken/30 transition-colors">
+                                {/* Estudiante (Sticky) */}
+                                <td className="py-3 px-4 sticky left-0 bg-paper hover:bg-paper-sunken/30 z-10 border-r border-line">
+                                  <div className="space-y-0.5">
+                                    <span className="font-semibold text-ink block">
+                                      {est.nombre} {est.apellidos}
+                                    </span>
+                                    <span className="text-[10px] text-ink-faint block truncate">
+                                      {est.email}
+                                    </span>
+                                  </div>
+                                </td>
+
+                                {/* Equipo */}
+                                <td className="py-3 px-3 text-ink-soft text-[11px]">
+                                  {est.nombreEquipo ? (
+                                    <span className="px-2 py-0.5 rounded-md bg-accent/10 text-accent font-medium text-[10px] border border-accent/20 truncate block max-w-[130px]">
+                                      {est.nombreEquipo}
+                                    </span>
+                                  ) : (
+                                    <span className="text-ink-faint italic text-[11px]">-</span>
+                                  )}
+                                </td>
+
+                                {/* Celdas por cada Tarea */}
+                                {tareas.map((t) => {
+                                  const maxP = t.puntajeMaximo || 100;
+                                  totalMax += maxP;
+                                  const entrega = todasLasEntregas[t.id]?.find(
+                                    (e) => e.estudianteId === est.usuarioId
+                                  );
+
+                                  if (entrega) {
+                                    entregasRealizadas++;
+                                    if (entrega.calificacion !== undefined && entrega.calificacion !== null) {
+                                      totalNota += entrega.calificacion;
+                                    }
+                                  }
+
+                                  const fechaLim = t.fechaEntrega || t.fechaLimite;
+                                  const esTardia = Boolean(
+                                    entrega?.fechaEntrega &&
+                                      fechaLim &&
+                                      new Date(entrega.fechaEntrega) > new Date(fechaLim)
+                                  );
+
+                                  return (
+                                    <td key={t.id} className="py-3 px-3 text-center">
+                                      {entrega ? (
+                                        entrega.estado === "CALIFICADO" &&
+                                        entrega.calificacion !== undefined &&
+                                        entrega.calificacion !== null ? (
+                                          <div className="inline-flex items-center gap-1">
+                                            <span className="px-2 py-0.5 rounded-md font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-500/15 border border-emerald-500/30 text-xs">
+                                              {entrega.calificacion}
+                                            </span>
+                                            {esTardia && (
+                                              <span title="Entregado con retraso" className="text-amber-600 text-[10px]">
+                                                ⚠️
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="inline-flex items-center gap-1">
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 border border-blue-500/20">
+                                              Entregado
+                                            </span>
+                                            {esTardia && (
+                                              <span title="Entregado con retraso" className="text-amber-600 text-[10px]">
+                                                ⚠️
+                                              </span>
+                                            )}
+                                          </div>
+                                        )
+                                      ) : (
+                                        <span className="text-ink-faint text-xs">-</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+
+                                {/* Total Acumulado */}
+                                <td className="py-3 px-3 text-center font-bold text-accent bg-accent/5">
+                                  {totalNota} / {totalMax}
+                                </td>
+
+                                {/* Progreso */}
+                                <td className="py-3 px-3 text-center">
+                                  <span className="text-[11px] font-semibold text-ink">
+                                    {totalMax > 0 ? Math.round((totalNota / totalMax) * 100) : 0}%
+                                  </span>
+                                  <span className="text-[9px] text-ink-faint block">
+                                    {entregasRealizadas}/{tareas.length} entr.
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+
+                        {/* Footer con Promedios Generales por Actividad */}
+                        {tareas.length > 0 && estudiantesFiltradosGradebook.length > 0 && (
+                          <tfoot className="bg-paper-sunken/90 font-semibold text-[11px] text-ink border-t-2 border-line">
+                            <tr>
+                              <td className="py-3 px-4 sticky left-0 bg-paper-sunken z-20 border-r border-line">
+                                Promedio de la Clase
+                              </td>
+                              <td className="py-3 px-3 text-ink-faint">-</td>
+                              {tareas.map((t) => {
+                                const entregasCalif = (todasLasEntregas[t.id] || []).filter(
+                                  (e) => e.calificacion !== undefined && e.calificacion !== null
+                                );
+                                const sumaNotas = entregasCalif.reduce(
+                                  (acc, e) => acc + (e.calificacion || 0),
+                                  0
+                                );
+                                const prom = entregasCalif.length > 0 ? (sumaNotas / entregasCalif.length).toFixed(1) : "-";
+
+                                return (
+                                  <td key={t.id} className="py-3 px-3 text-center text-ink-soft">
+                                    {prom !== "-" ? `${prom} pts` : "-"}
+                                  </td>
+                                );
+                              })}
+                              <td className="py-3 px-3 text-center text-accent bg-accent/5">-</td>
+                              <td className="py-3 px-3 text-center text-ink-soft">-</td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ==================================================== */}
         {/* PESTAÑA 3: INFORMACIÓN, BASES Y REQUISITOS          */}
@@ -5662,18 +6637,24 @@ export default function AreaMoodlePage() {
         )}
 
         {/* ==================================================== */}
-        {/* MODAL: CREAR ACTIVIDAD DE SELECCIÓN (MOODLE CHOICE)  */}
+        {/* MODAL: CREAR/EDITAR ACTIVIDAD DE SELECCIÓN           */}
         {/* ==================================================== */}
         {showCrearActividadModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-line pb-3">
                 <h3 className="font-serif text-base font-bold text-ink flex items-center gap-2">
-                  <ListPlus className="w-5 h-5 text-accent" /> Nueva Actividad: Selección de Grupo (Moodle Choice)
+                  <ListPlus className="w-5 h-5 text-accent" />
+                  {editingActividadId
+                    ? "Editar Plazos y Reglas de Actividad"
+                    : "Nueva Actividad: Selección de Grupo (Moodle Choice)"}
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setShowCrearActividadModal(false)}
+                  onClick={() => {
+                    setShowCrearActividadModal(false);
+                    setEditingActividadId(null);
+                  }}
                   className="text-ink-faint hover:text-ink text-sm cursor-pointer"
                 >
                   ✕
@@ -5738,53 +6719,89 @@ export default function AreaMoodlePage() {
                   />
                 </div>
 
-                {/* Generación automática de grupos iniciales */}
-                <div className="bg-paper-sunken/60 p-4 rounded-xl border border-line space-y-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                {/* Reglas de Elección de Grupo (Paridad Moodle) */}
+                <div className="space-y-2.5 pt-2 border-t border-line-soft">
+                  <span className="font-semibold text-ink block text-[11px] uppercase tracking-wider text-ink-faint">
+                    Reglas y Visibilidad
+                  </span>
+
+                  <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={nuevaActGenerarGrupos}
-                      onChange={(e) => setNuevaActGenerarGrupos(e.target.checked)}
-                      className="w-4 h-4 text-accent rounded focus:ring-accent"
+                      checked={nuevaActPermitirCambio}
+                      onChange={(e) => setNuevaActPermitirCambio(e.target.checked)}
+                      className="w-4 h-4 text-accent rounded focus:ring-accent cursor-pointer"
                     />
-                    <b className="text-ink">Generar grupos automáticamente para esta actividad</b>
+                    <span className="text-ink">
+                      Permitir a los estudiantes cambiar de grupo mientras la actividad esté abierta
+                    </span>
                   </label>
 
-                  {nuevaActGenerarGrupos && (
-                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-line-soft">
-                      <div>
-                        <label className="text-[10px] font-semibold text-ink-faint block mb-1">
-                          Cantidad de Grupos
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={50}
-                          value={nuevaActCantidadGrupos}
-                          onChange={(e) => setNuevaActCantidadGrupos(Number(e.target.value))}
-                          className="w-full px-2.5 py-1.5 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:border-accent"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-ink-faint block mb-1">
-                          Prefijo
-                        </label>
-                        <input
-                          type="text"
-                          value={nuevaActPrefijo}
-                          onChange={(e) => setNuevaActPrefijo(e.target.value)}
-                          placeholder="Gr1erPar "
-                          className="w-full px-2.5 py-1.5 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:border-accent"
-                        />
-                      </div>
-                    </div>
-                  )}
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={nuevaActMostrarMiembros}
+                      onChange={(e) => setNuevaActMostrarMiembros(e.target.checked)}
+                      className="w-4 h-4 text-accent rounded focus:ring-accent cursor-pointer"
+                    />
+                    <span className="text-ink">
+                      Mostrar los estudiantes registrados en cada grupo a sus compañeros
+                    </span>
+                  </label>
                 </div>
+
+                {/* Generación automática de grupos iniciales (sólo al crear) */}
+                {!editingActividadId && (
+                  <div className="bg-paper-sunken/60 p-4 rounded-xl border border-line space-y-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={nuevaActGenerarGrupos}
+                        onChange={(e) => setNuevaActGenerarGrupos(e.target.checked)}
+                        className="w-4 h-4 text-accent rounded focus:ring-accent cursor-pointer"
+                      />
+                      <b className="text-ink">Generar grupos automáticamente para esta actividad</b>
+                    </label>
+
+                    {nuevaActGenerarGrupos && (
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-line-soft">
+                        <div>
+                          <label className="text-[10px] font-semibold text-ink-faint block mb-1">
+                            Cantidad de Grupos
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={nuevaActCantidadGrupos}
+                            onChange={(e) => setNuevaActCantidadGrupos(Number(e.target.value))}
+                            className="w-full px-2.5 py-1.5 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:border-accent"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-ink-faint block mb-1">
+                            Prefijo
+                          </label>
+                          <input
+                            type="text"
+                            value={nuevaActPrefijo}
+                            onChange={(e) => setNuevaActPrefijo(e.target.value)}
+                            placeholder="Gr1erPar "
+                            className="w-full px-2.5 py-1.5 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:border-accent"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
                   <button
                     type="button"
-                    onClick={() => setShowCrearActividadModal(false)}
+                    onClick={() => {
+                      setShowCrearActividadModal(false);
+                      setEditingActividadId(null);
+                    }}
                     className="px-4 py-2 border border-line rounded-xl text-ink hover:bg-paper-sunken cursor-pointer"
                   >
                     Cancelar
@@ -5794,10 +6811,144 @@ export default function AreaMoodlePage() {
                     disabled={creandoActividad}
                     className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 cursor-pointer shadow-xs"
                   >
-                    {creandoActividad ? "Guardando..." : "Publicar Actividad"}
+                    {creandoActividad
+                      ? "Guardando..."
+                      : editingActividadId
+                      ? "Guardar Cambios"
+                      : "Publicar Actividad"}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* MODAL: FICHA ACADÉMICA / PERFIL PARTICIPANTE         */}
+        {/* ==================================================== */}
+        {selectedPerfilUsuarioId && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-line pb-3">
+                <h3 className="font-serif text-base font-bold text-ink flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-accent" /> Ficha Académica del Participante
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPerfilUsuarioId(null);
+                    setPerfilUsuarioModalData(null);
+                  }}
+                  className="text-ink-faint hover:text-ink text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {cargandoPerfilUsuario ? (
+                <div className="py-12 text-center space-y-3">
+                  <RefreshCw className="w-8 h-8 animate-spin text-accent mx-auto" />
+                  <p className="text-xs text-ink-soft">Consultando perfil académico...</p>
+                </div>
+              ) : perfilUsuarioModalData ? (
+                <div className="space-y-4 text-xs">
+                  {/* Encabezado del usuario */}
+                  <div className="flex items-center gap-4 bg-paper-sunken/40 border border-line rounded-xl p-4">
+                    <div className="w-14 h-14 rounded-full bg-accent/15 text-accent font-bold flex items-center justify-center text-lg shrink-0">
+                      {perfilUsuarioModalData.nombre?.charAt(0)}
+                      {perfilUsuarioModalData.apellidos?.charAt(0)}
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-base font-serif font-bold text-ink">
+                        {perfilUsuarioModalData.nombre} {perfilUsuarioModalData.apellidos}
+                      </h4>
+                      <p className="text-ink-soft">{perfilUsuarioModalData.email}</p>
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-accent/10 text-accent border border-accent/20">
+                          {perfilUsuarioModalData.rol}
+                        </span>
+                        {perfilUsuarioModalData.departamento && (
+                          <span className="text-[11px] text-ink-faint">
+                            • {perfilUsuarioModalData.departamento}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Biografía */}
+                  {perfilUsuarioModalData.biografia && (
+                    <div className="space-y-1">
+                      <b className="text-ink font-semibold">Biografía / Presentación:</b>
+                      <p className="text-ink-soft bg-paper-sunken/30 border border-line rounded-lg p-3 leading-relaxed">
+                        {perfilUsuarioModalData.biografia}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Cursos / Áreas inscritas */}
+                  <div className="space-y-2 pt-2 border-t border-line">
+                    <div className="flex items-center justify-between">
+                      <b className="text-ink font-semibold flex items-center gap-1.5">
+                        <BookOpen className="w-4 h-4 text-accent" /> Áreas y Convocatorias Académicas
+                      </b>
+                      {perfilUsuarioModalData.esPropioPerfil && perfilUsuarioModalData.ocultarCursos && (
+                        <span className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                          Visible solo para ti (Privado al público)
+                        </span>
+                      )}
+                    </div>
+
+                    {perfilUsuarioModalData.ocultarCursos && !perfilUsuarioModalData.esPropioPerfil ? (
+                      <div className="bg-paper-sunken/50 border border-line rounded-xl p-4 text-center text-ink-soft space-y-1">
+                        <Lock className="w-4 h-4 text-ink-faint mx-auto" />
+                        <p className="font-medium text-ink">Cursos en modo privado</p>
+                        <p className="text-[11px]">El usuario configuró su privacidad para no exhibir públicamente sus cursos.</p>
+                      </div>
+                    ) : perfilUsuarioModalData.cursos && perfilUsuarioModalData.cursos.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {perfilUsuarioModalData.cursos.map((c: any) => (
+                          <div
+                            key={c.id}
+                            className="bg-paper-sunken/40 border border-line rounded-xl p-3 flex items-center justify-between gap-3 shadow-2xs"
+                          >
+                            <div className="space-y-0.5">
+                              <b className="text-ink block text-xs">{c.titulo}</b>
+                              <span className="text-[10px] text-ink-faint block">
+                                {c.gestion ? `${c.gestion} - ${c.periodo || ""}` : "Gestión activa"}
+                              </span>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-paper border border-line text-ink-soft shrink-0">
+                              {c.rolEnCurso || "PARTICIPANTE"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-paper-sunken/40 border border-line rounded-xl p-4 text-center text-ink-soft">
+                        No se registran cursos o convocatorias asociados.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-6 text-center text-ink-soft">
+                  No se pudo cargar la información del usuario.
+                </div>
+              )}
+
+              <div className="flex justify-end pt-3 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPerfilUsuarioId(null);
+                    setPerfilUsuarioModalData(null);
+                  }}
+                  className="px-4 py-2 bg-paper-sunken hover:bg-paper border border-line rounded-xl text-ink font-semibold cursor-pointer text-xs"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         )}

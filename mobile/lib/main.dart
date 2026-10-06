@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'config/app_theme.dart';
 import 'services/auth_service.dart';
 import 'services/storage_service.dart';
+import 'services/api_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/main_scaffold.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await StorageService.init();
+  await ApiService.initBaseUrl();
   runApp(const FicctMobileApp());
 }
 

@@ -13,6 +13,7 @@ import 'convocatorias/convocatoria_detalle_screen.dart';
 import 'convocatorias/crear_convocatoria_screen.dart';
 import 'documentos/documentos_screen.dart';
 import 'perfil/perfil_screen.dart';
+import '../config/app_theme.dart';
 
 class MainScaffold extends StatefulWidget {
   final AuthService authService;
@@ -33,93 +34,103 @@ class MainScaffold extends StatefulWidget {
 class _MainScaffoldState extends State<MainScaffold> {
   int _currentTab = 0;
 
-  // Sub-pantallas activas
-  ConvocatoriaModel? _activeAulaCurso;
-  TareaModel? _activeTarea;
-  bool _speedGraderOpen = false;
-  ConvocatoriaModel? _activeConvocatoriaDetalle;
-  bool _crearConvocatoriaOpen = false;
-
   void _onTabTapped(int index) {
     setState(() {
       _currentTab = index;
-      // Cerrar sub-pantallas al cambiar de pestaña principal
-      _activeAulaCurso = null;
-      _activeTarea = null;
-      _speedGraderOpen = false;
-      _activeConvocatoriaDetalle = null;
-      _crearConvocatoriaOpen = false;
     });
+  }
+
+  // Navegación nativa con Navigator.push para preservar el historial completo y botón atrás de Android
+  void _abrirAula(ConvocatoriaModel curso) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => AulaVirtualScreen(
+          curso: curso,
+          onBack: () => Navigator.of(ctx).pop(),
+          onOpenTarea: _abrirTarea,
+          onOpenSpeedGrader: (int tareaId) => _abrirSpeedGrader(tareaId: tareaId),
+        ),
+      ),
+    );
+  }
+
+  void _abrirTarea(TareaModel tarea) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => TareaEntregaScreen(
+          tarea: tarea,
+          onBack: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+  }
+
+  void _abrirSpeedGrader({int? tareaId}) {
+    if (tareaId == null) {
+      _onTabTapped(1); // Redirigir a Mis Áreas para elegir materia y tarea real
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Ingresa a un área para calificar una tarea específica.'),
+          backgroundColor: AppTheme.seal,
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => SpeedGraderScreen(
+          tareaId: tareaId,
+          onBack: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+  }
+
+  void _abrirConvocatoriaDetalle(ConvocatoriaModel conv) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => ConvocatoriaDetalleScreen(
+          convocatoria: conv,
+          onBack: () => Navigator.of(ctx).pop(),
+          onOpenAula: _abrirAula,
+        ),
+      ),
+    );
+  }
+
+  void _abrirCrearConvocatoria() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => CrearConvocatoriaScreen(
+          onBack: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    // Si SpeedGrader está abierto, se muestra a pantalla completa
-    if (_speedGraderOpen) {
-      return SpeedGraderScreen(
-        onBack: () => setState(() => _speedGraderOpen = false),
-      );
-    }
-
-    // Si hay una entrega de tarea activa
-    if (_activeTarea != null) {
-      return TareaEntregaScreen(
-        tarea: _activeTarea!,
-        onBack: () => setState(() => _activeTarea = null),
-      );
-    }
-
-    // Si hay un aula virtual de curso abierta
-    if (_activeAulaCurso != null) {
-      return AulaVirtualScreen(
-        curso: _activeAulaCurso!,
-        onBack: () => setState(() => _activeAulaCurso = null),
-        onOpenTarea: (t) => setState(() => _activeTarea = t),
-        onOpenSpeedGrader: () => setState(() => _speedGraderOpen = true),
-      );
-    }
-
-    // Si hay detalle de convocatoria abierto
-    if (_activeConvocatoriaDetalle != null) {
-      return ConvocatoriaDetalleScreen(
-        convocatoria: _activeConvocatoriaDetalle!,
-        onBack: () => setState(() => _activeConvocatoriaDetalle = null),
-      );
-    }
-
-    // Si está abierta la pantalla de crear convocatoria
-    if (_crearConvocatoriaOpen) {
-      return CrearConvocatoriaScreen(
-        onBack: () => setState(() => _crearConvocatoriaOpen = false),
-      );
-    }
-
     Widget currentBody;
     switch (_currentTab) {
       case 0:
         currentBody = DashboardScreen(
           authService: widget.authService,
           onNavigateTab: _onTabTapped,
-          onOpenSpeedGrader: () => setState(() => _speedGraderOpen = true),
-          onOpenTarea: () => setState(() {
-            _activeTarea = TareaModel(
-              id: 201,
-              titulo: 'Tarea: Planteamiento del Problema',
-              descripcion: 'Subir en PDF el árbol de problemas y marco de justificación técnica.',
-              fechaLimite: '30 Septiembre 23:59',
-            );
-          }),
+          onOpenSpeedGrader: () => _abrirSpeedGrader(),
+          onOpenAula: _abrirAula,
+          onToggleTheme: widget.onToggleTheme,
         );
         break;
       case 1:
         currentBody = MisAreasScreen(
-          onOpenAula: (curso) => setState(() => _activeAulaCurso = curso),
+          onOpenAula: _abrirAula,
         );
         break;
       case 2:
         currentBody = ConvocatoriasScreen(
-          onOpenDetalle: (conv) => setState(() => _activeConvocatoriaDetalle = conv),
-          onNuevaConvocatoria: () => setState(() => _crearConvocatoriaOpen = true),
+          onOpenDetalle: _abrirConvocatoriaDetalle,
+          onNuevaConvocatoria: _abrirCrearConvocatoria,
         );
         break;
       case 3:
@@ -129,26 +140,36 @@ class _MainScaffoldState extends State<MainScaffold> {
         currentBody = PerfilScreen(
           authService: widget.authService,
           onLogout: widget.onLogout,
+          onToggleTheme: widget.onToggleTheme,
         );
         break;
       default:
         currentBody = const SizedBox.shrink();
     }
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          currentBody,
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: LiquidNavbar(
-              currentIndex: _currentTab,
-              onTap: _onTabTapped,
+    // PopScope asegura que si el usuario está en otra pestaña y presiona atrás, regrese al Inicio antes de salir
+    return PopScope(
+      canPop: _currentTab == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _currentTab != 0) {
+          setState(() => _currentTab = 0);
+        }
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            currentBody,
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: LiquidNavbar(
+                currentIndex: _currentTab,
+                onTap: _onTabTapped,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

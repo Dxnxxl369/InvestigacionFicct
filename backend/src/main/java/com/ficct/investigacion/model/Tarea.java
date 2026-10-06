@@ -53,6 +53,10 @@ public class Tarea {
     private boolean esGrupal = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actividad_grupo_id")
+    private ActividadGrupo actividadGrupo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "creador_id")
     private User creador;
 
@@ -238,5 +242,13 @@ public class Tarea {
 
     public void setEsGrupal(boolean esGrupal) {
         this.esGrupal = esGrupal;
+    }
+
+    public ActividadGrupo getActividadGrupo() {
+        return actividadGrupo;
+    }
+
+    public void setActividadGrupo(ActividadGrupo actividadGrupo) {
+        this.actividadGrupo = actividadGrupo;
     }
 }

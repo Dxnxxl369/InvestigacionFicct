@@ -1,36 +1,40 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Paleta de Colores Oficial FICCT
-  static const Color ink = Color(0xFF16243D);
-  static const Color inkSoft = Color(0xFF4B5566);
-  static const Color inkFaint = Color(0xFF8890A0);
+  // Paleta de Colores Oficial FICCT (#0B2545 & #4CA64B)
+  static const Color ink = Color(0xFF0B2545);
+  static const Color inkSoft = Color(0xFF334A66);
+  static const Color inkFaint = Color(0xFF6B829E);
 
-  static const Color paper = Color(0xFFF5F3ED);
+  static const Color paper = Color(0xFFF8FAFC);
   static const Color paperRaised = Color(0xFFFFFFFF);
-  static const Color paperSunken = Color(0xFFFBFAF6);
+  static const Color paperSunken = Color(0xFFF0F4F8);
 
-  static const Color line = Color(0xFFDEDAD0);
-  static const Color lineSoft = Color(0xFFE9E6DD);
+  static const Color line = Color(0xFFCBD8E6);
+  static const Color lineSoft = Color(0xFFE2EAF2);
 
-  static const Color accent = Color(0xFF1F6F5C);
-  static const Color accentDark = Color(0xFF154E41);
-  static const Color accentSoft = Color(0xFFE4EFE9);
+  static const Color accent = Color(0xFF4CA64B);
+  static const Color accentDark = Color(0xFF3F8B3E);
+  static const Color accentSoft = Color(0xFFEBF6EB);
 
-  static const Color seal = Color(0xFFA97C34);
-  static const Color sealSoft = Color(0xFFF4E8D2);
+  static const Color seal = Color(0xFF0B2545);
+  static const Color sealSoft = Color(0xFFF0F4F8);
 
-  static const Color danger = Color(0xFFB23A34);
-  static const Color dangerSoft = Color(0xFFF7E2DE);
+  static const Color danger = Color(0xFFDC2626);
+  static const Color dangerSoft = Color(0xFFFEF2F2);
 
-  // Modo Oscuro
-  static const Color darkInk = Color(0xFFEAEDF3);
-  static const Color darkInkSoft = Color(0xFFA7B0C2);
-  static const Color darkPaper = Color(0xFF0C1220);
-  static const Color darkPaperRaised = Color(0xFF131B2E);
-  static const Color darkPaperSunken = Color(0xFF101728);
-  static const Color darkLine = Color(0xFF232F48);
-  static const Color darkAccent = Color(0xFF49B394);
+  static const Color gold = Color(0xFFD97706);
+  static const Color goldSoft = Color(0xFFFEF3C7);
+  static const Color primary = Color(0xFF0B2545);
+
+  // Modo Oscuro Oficial FICCT
+  static const Color darkInk = Color(0xFFFFFFFF);
+  static const Color darkInkSoft = Color(0xFFCBD8E6);
+  static const Color darkPaper = Color(0xFF060D17);
+  static const Color darkPaperRaised = Color(0xFF0D1C33);
+  static const Color darkPaperSunken = Color(0xFF091526);
+  static const Color darkLine = Color(0xFF1E3A5F);
+  static const Color darkAccent = Color(0xFF4CA64B);
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,

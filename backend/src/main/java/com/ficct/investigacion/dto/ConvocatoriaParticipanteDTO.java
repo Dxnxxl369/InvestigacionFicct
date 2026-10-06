@@ -27,6 +27,7 @@ public class ConvocatoriaParticipanteDTO {
     private String asignadoPorNombre;
     private Long grupoId;
     private List<String> gruposNombres = new ArrayList<>();
+    private String fotoPerfil;
 
     public ConvocatoriaParticipanteDTO() {
     }
@@ -39,6 +40,7 @@ public class ConvocatoriaParticipanteDTO {
             this.nombre = cp.getUsuario().getNombre();
             this.apellidos = cp.getUsuario().getApellidos();
             this.email = cp.getUsuario().getEmail();
+            this.fotoPerfil = cp.getUsuario().getFotoPerfil();
         }
         this.rol = cp.getRol();
         this.estadoInscripcion = cp.getEstadoInscripcion();
@@ -193,5 +195,19 @@ public class ConvocatoriaParticipanteDTO {
 
     public void setGruposNombres(List<String> gruposNombres) {
         this.gruposNombres = gruposNombres;
+    }
+
+    public String getFotoPerfil() {
+        return fotoPerfil;
+    }
+
+    public void setFotoPerfil(String fotoPerfil) {
+        this.fotoPerfil = fotoPerfil;
+    }
+
+    public String getNombreCompleto() {
+        String n = this.nombre != null ? this.nombre : "";
+        String a = this.apellidos != null ? this.apellidos : "";
+        return (n + " " + a).trim();
     }
 }

@@ -19,6 +19,8 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
 
     List<Convocatoria> findAllByOrderByCreatedAtDesc();
 
+    List<Convocatoria> findByCreadorId(Long creadorId);
+
     @Query("SELECT c FROM Convocatoria c WHERE c.estado = :estado AND (" +
            "LOWER(c.titulo) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(c.descripcion) LIKE LOWER(CONCAT('%', :query, '%')))")

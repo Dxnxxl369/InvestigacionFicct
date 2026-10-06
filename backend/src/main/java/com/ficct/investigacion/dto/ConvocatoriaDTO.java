@@ -37,6 +37,7 @@ public class ConvocatoriaDTO {
     private long totalAdmitidos = 0;
     private long totalSolicitudesPendientes = 0;
     private EstadoInscripcion miEstadoInscripcion;
+    private Rol miRol;
 
     public ConvocatoriaDTO() {
     }
@@ -248,6 +249,14 @@ public class ConvocatoriaDTO {
 
     public void setMiEstadoInscripcion(EstadoInscripcion miEstadoInscripcion) {
         this.miEstadoInscripcion = miEstadoInscripcion;
+    }
+
+    public Rol getMiRol() {
+        return miRol;
+    }
+
+    public void setMiRol(Rol miRol) {
+        this.miRol = miRol;
     }
 
     public List<Long> getDocenteIds() {

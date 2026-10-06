@@ -4,6 +4,8 @@ import com.ficct.investigacion.dto.ConvocatoriaDTO;
 import com.ficct.investigacion.model.TipoConvocatoria;
 import com.ficct.investigacion.service.ConvocatoriaService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -26,16 +28,19 @@ public class PublicConvocatoriaController {
     @GetMapping
     public ResponseEntity<List<ConvocatoriaDTO>> listarPublicas(
             @RequestParam(required = false) TipoConvocatoria tipo,
-            @RequestParam(required = false) String query
+            @RequestParam(required = false) String query,
+            @AuthenticationPrincipal UserDetails userDetails
     ) {
-        List<ConvocatoriaDTO> list = convocatoriaService.listarPublicadas(tipo, query);
+        String email = userDetails != null ? userDetails.getUsername() : null;
+        List<ConvocatoriaDTO> list = convocatoriaService.listarPublicadasConUsuario(tipo, query, email);
         return ResponseEntity.ok(list);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getPublicById(@PathVariable Long id) {
+    public ResponseEntity<?> getPublicById(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            ConvocatoriaDTO c = convocatoriaService.getById(id);
+            String email = userDetails != null ? userDetails.getUsername() : null;
+            ConvocatoriaDTO c = convocatoriaService.obtenerPorIdConUsuario(id, email);
             return ResponseEntity.ok(c);
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();

@@ -189,6 +189,15 @@ export const authAPI = {
     });
     return handleResponse<User>(res);
   },
+
+  async getPerfilPublico(usuarioId: number): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/auth/usuarios/${usuarioId}/perfil-publico`, {
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
+    return handleResponse<any>(res);
+  },
 };
 
 // 2. Admin Users API
@@ -729,6 +738,8 @@ export interface TareaDTO {
   miEntrega?: EntregaTareaDTO;
   moduloId?: number;
   moduloTitulo?: string;
+  actividadGrupoId?: number;
+  actividadGrupoTitulo?: string;
 }
 
 export interface TareaRequest {
@@ -745,6 +756,7 @@ export interface TareaRequest {
   tamanoMaximoMb?: number;
   puntajeMaximo?: number;
   esGrupal?: boolean;
+  actividadGrupoId?: number;
 }
 
 export interface EntregaRequest {
@@ -1085,6 +1097,15 @@ export const actividadesGrupoAPI = {
     return handleResponse<ActividadGrupoDTO>(res);
   },
 
+  async actualizarActividad(convocatoriaId: number, actividadId: number, data: CrearActividadGrupoRequest): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+
   async elegirGrupo(convocatoriaId: number, actividadId: number, grupoId: number): Promise<ActividadGrupoDTO> {
     const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}/elegir`, {
       method: "POST",
@@ -1110,6 +1131,7 @@ export const api = {
   register: authAPI.register,
   getProfile: authAPI.getProfile,
   updateProfile: authAPI.updateProfile,
+  getPerfilPublico: authAPI.getPerfilPublico,
 
   // Admin Users
   getUsers: adminUsersAPI.getAll,
@@ -1193,6 +1215,7 @@ export const api = {
   getActividadesGrupo: actividadesGrupoAPI.getActividades,
   getDetalleActividadGrupo: actividadesGrupoAPI.getDetalle,
   crearActividadGrupo: actividadesGrupoAPI.crearActividad,
+  actualizarActividadGrupo: actividadesGrupoAPI.actualizarActividad,
   elegirGrupoActividad: actividadesGrupoAPI.elegirGrupo,
   anularEleccionGrupoActividad: actividadesGrupoAPI.anularEleccion,
 };

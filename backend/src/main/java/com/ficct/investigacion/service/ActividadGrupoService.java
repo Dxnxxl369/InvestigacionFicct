@@ -114,6 +114,49 @@ public class ActividadGrupoService {
         return obtenerDetalle(convocatoriaId, guardada.getId(), username);
     }
 
+    @Transactional
+    public ActividadGrupoDTO actualizarActividad(Long convocatoriaId, Long actividadId, CrearActividadGrupoRequest request, String username) {
+        Convocatoria convocatoria = convocatoriaRepository.findById(convocatoriaId)
+                .orElseThrow(() -> new IllegalArgumentException("Convocatoria no encontrada"));
+        verificarPermisoGestion(convocatoria, username);
+
+        ActividadGrupo actividad = actividadGrupoRepository.findById(actividadId)
+                .orElseThrow(() -> new IllegalArgumentException("Actividad de grupo no encontrada"));
+
+        if (!actividad.getConvocatoria().getId().equals(convocatoriaId)) {
+            throw new IllegalArgumentException("La actividad no pertenece a esta convocatoria");
+        }
+
+        if (request.getTitulo() != null && !request.getTitulo().trim().isEmpty()) {
+            actividad.setTitulo(request.getTitulo().trim());
+        }
+        if (request.getDescripcion() != null) {
+            actividad.setDescripcion(request.getDescripcion().trim());
+        }
+        if (request.getFechaApertura() != null) {
+            actividad.setFechaApertura(request.getFechaApertura());
+        }
+        if (request.getFechaCierre() != null) {
+            actividad.setFechaCierre(request.getFechaCierre());
+        }
+        if (request.getCapacidadPorGrupo() != null && request.getCapacidadPorGrupo() > 0) {
+            actividad.setCapacidadPorGrupo(request.getCapacidadPorGrupo());
+        }
+        if (request.getPermitirCambio() != null) {
+            actividad.setPermitirCambio(request.getPermitirCambio());
+        }
+        if (request.getMostrarMiembros() != null) {
+            actividad.setMostrarMiembros(request.getMostrarMiembros());
+        }
+        if (request.getModuloId() != null) {
+            Modulo modulo = moduloRepository.findById(request.getModuloId()).orElse(null);
+            actividad.setModulo(modulo);
+        }
+
+        ActividadGrupo guardada = actividadGrupoRepository.save(actividad);
+        return convertirADTO(guardada, username);
+    }
+
     @Transactional(readOnly = true)
     public List<ActividadGrupoDTO> listarActividades(Long convocatoriaId, String username) {
         List<ActividadGrupo> lista = actividadGrupoRepository.findByConvocatoriaIdOrderByFechaCreacionDesc(convocatoriaId);
@@ -254,12 +297,20 @@ public class ActividadGrupoService {
 
         Long grupoSeleccionadoId = null;
         String grupoSeleccionadoNombre = null;
+        boolean esEstudiante = false;
+        Long currentUserId = null;
 
         if (username != null) {
             Optional<User> uOpt = userRepository.findByEmail(username);
             if (uOpt.isPresent()) {
+                User u = uOpt.get();
+                currentUserId = u.getId();
+                if (u.getRol() == Rol.ESTUDIANTE) {
+                    esEstudiante = true;
+                }
+
                 Optional<ConvocatoriaParticipante> partOpt = participanteRepository
-                        .findByConvocatoriaIdAndUsuarioId(a.getConvocatoria().getId(), uOpt.get().getId());
+                        .findByConvocatoriaIdAndUsuarioId(a.getConvocatoria().getId(), u.getId());
                 if (partOpt.isPresent()) {
                     ConvocatoriaParticipante part = partOpt.get();
                     // Buscar si tiene grupo asociado a esta actividad específica
@@ -277,6 +328,19 @@ public class ActividadGrupoService {
                         grupoSeleccionadoId = part.getGrupo().getId();
                         grupoSeleccionadoNombre = part.getGrupo().getNombre();
                     }
+                }
+            }
+        }
+
+        // Si la actividad tiene mostrarMiembros = false y quien consulta es Estudiante,
+        // no exponer los datos de los demás estudiantes en cada grupo
+        if (!a.isMostrarMiembros() && esEstudiante) {
+            final Long finalCurrentUserId = currentUserId;
+            for (GrupoDTO gd : gruposDTO) {
+                if (gd.getMiembros() != null) {
+                    gd.setMiembros(gd.getMiembros().stream()
+                            .filter(m -> finalCurrentUserId != null && finalCurrentUserId.equals(m.getUsuarioId()))
+                            .collect(Collectors.toList()));
                 }
             }
         }

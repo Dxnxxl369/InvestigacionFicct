@@ -24,6 +24,7 @@ public class TareaService {
     private final DocumentoRepository documentoRepository;
     private final UserRepository userRepository;
     private final ModuloRepository moduloRepository;
+    private final ActividadGrupoRepository actividadGrupoRepository;
 
     public TareaService(TareaRepository tareaRepository,
                         EntregaTareaRepository entregaRepository,
@@ -31,7 +32,8 @@ public class TareaService {
                         ConvocatoriaParticipanteRepository participanteRepository,
                         DocumentoRepository documentoRepository,
                         UserRepository userRepository,
-                        ModuloRepository moduloRepository) {
+                        ModuloRepository moduloRepository,
+                        ActividadGrupoRepository actividadGrupoRepository) {
         this.tareaRepository = tareaRepository;
         this.entregaRepository = entregaRepository;
         this.convocatoriaRepository = convocatoriaRepository;
@@ -39,6 +41,7 @@ public class TareaService {
         this.documentoRepository = documentoRepository;
         this.userRepository = userRepository;
         this.moduloRepository = moduloRepository;
+        this.actividadGrupoRepository = actividadGrupoRepository;
     }
 
     private boolean puedeDocenteGestionarTarea(Convocatoria convocatoria, User user) {
@@ -86,6 +89,11 @@ public class TareaService {
             moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
         }
         tarea.setEsGrupal(request.isEsGrupal());
+        if (request.getActividadGrupoId() != null && request.getActividadGrupoId() > 0) {
+            actividadGrupoRepository.findById(request.getActividadGrupoId()).ifPresent(tarea::setActividadGrupo);
+        } else {
+            tarea.setActividadGrupo(null);
+        }
 
         Tarea saved = tareaRepository.save(tarea);
         return toDTO(saved, user);
@@ -131,6 +139,11 @@ public class TareaService {
             tarea.setModulo(null);
         }
         tarea.setEsGrupal(request.isEsGrupal());
+        if (request.getActividadGrupoId() != null && request.getActividadGrupoId() > 0) {
+            actividadGrupoRepository.findById(request.getActividadGrupoId()).ifPresent(tarea::setActividadGrupo);
+        } else {
+            tarea.setActividadGrupo(null);
+        }
         tarea.setUpdatedAt(LocalDateTime.now());
 
         Tarea saved = tareaRepository.save(tarea);
@@ -214,7 +227,25 @@ public class TareaService {
 
         if (partOpt.isPresent()) {
             ConvocatoriaParticipante part = partOpt.get();
-            if (request.getGrupoId() != null) {
+
+            // 1. Si la tarea está vinculada a un agrupamiento / actividad de grupo específico
+            if (tarea.getActividadGrupo() != null) {
+                Long targetActividadId = tarea.getActividadGrupo().getId();
+                if (part.getGrupos() != null) {
+                    grupoEstudiante = part.getGrupos().stream()
+                            .filter(g -> g.getActividadGrupo() != null && targetActividadId.equals(g.getActividadGrupo().getId()))
+                            .findFirst().orElse(null);
+                }
+                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getActividadGrupo() != null && targetActividadId.equals(part.getGrupo().getActividadGrupo().getId())) {
+                    grupoEstudiante = part.getGrupo();
+                }
+                if (grupoEstudiante == null && tarea.isEsGrupal()) {
+                    throw new IllegalStateException("Esta tarea es grupal para la actividad '" + tarea.getActividadGrupo().getTitulo() + "'. Aún no perteneces a ningún grupo en esta categoría.");
+                }
+            }
+
+            // 2. Si no se especificó o no se encontró por actividad, buscar por grupoId explícito enviado
+            if (grupoEstudiante == null && request.getGrupoId() != null) {
                 if (part.getGrupos() != null) {
                     grupoEstudiante = part.getGrupos().stream()
                             .filter(g -> g.getId().equals(request.getGrupoId()))
@@ -224,6 +255,8 @@ public class TareaService {
                     grupoEstudiante = part.getGrupo();
                 }
             }
+
+            // 3. Fallback a grupos generales del área
             if (grupoEstudiante == null) {
                 if (part.getGrupos() != null && !part.getGrupos().isEmpty()) {
                     grupoEstudiante = part.getGrupos().stream()
@@ -435,6 +468,10 @@ public class TareaService {
         }
 
         dto.setEsGrupal(tarea.isEsGrupal());
+        if (tarea.getActividadGrupo() != null) {
+            dto.setActividadGrupoId(tarea.getActividadGrupo().getId());
+            dto.setActividadGrupoTitulo(tarea.getActividadGrupo().getTitulo());
+        }
 
         if (currentUser.getRol() == Rol.ESTUDIANTE) {
             Optional<EntregaTarea> miEntOpt = entregaRepository.findByTareaAndEstudiante(tarea, currentUser);
@@ -446,7 +483,16 @@ public class TareaService {
                         .findByConvocatoriaIdAndUsuarioId(tarea.getConvocatoria().getId(), currentUser.getId());
                 if (partOpt.isPresent()) {
                     ConvocatoriaParticipante part = partOpt.get();
-                    Grupo miGrupo = (part.getGrupos() != null && !part.getGrupos().isEmpty()) ? part.getGrupos().get(0) : part.getGrupo();
+                    Grupo miGrupo = null;
+                    if (tarea.getActividadGrupo() != null && part.getGrupos() != null) {
+                        Long targetActId = tarea.getActividadGrupo().getId();
+                        miGrupo = part.getGrupos().stream()
+                                .filter(g -> g.getActividadGrupo() != null && targetActId.equals(g.getActividadGrupo().getId()))
+                                .findFirst().orElse(null);
+                    }
+                    if (miGrupo == null) {
+                        miGrupo = (part.getGrupos() != null && !part.getGrupos().isEmpty()) ? part.getGrupos().get(0) : part.getGrupo();
+                    }
                     if (miGrupo != null) {
                         Optional<EntregaTarea> entregaGrupo = entregaRepository.findFirstByTareaAndGrupo(tarea, miGrupo);
                         entregaGrupo.ifPresent(e -> dto.setMiEntrega(toEntregaDTO(e, currentUser)));

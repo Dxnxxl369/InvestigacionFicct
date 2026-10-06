@@ -27,6 +27,8 @@ public class TareaDTO {
     private Long moduloId;
     private String moduloTitulo;
     private boolean esGrupal;
+    private Long actividadGrupoId;
+    private String actividadGrupoTitulo;
 
     public TareaDTO() {
     }
@@ -213,5 +215,21 @@ public class TareaDTO {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Long getActividadGrupoId() {
+        return actividadGrupoId;
+    }
+
+    public void setActividadGrupoId(Long actividadGrupoId) {
+        this.actividadGrupoId = actividadGrupoId;
+    }
+
+    public String getActividadGrupoTitulo() {
+        return actividadGrupoTitulo;
+    }
+
+    public void setActividadGrupoTitulo(String actividadGrupoTitulo) {
+        this.actividadGrupoTitulo = actividadGrupoTitulo;
     }
 }

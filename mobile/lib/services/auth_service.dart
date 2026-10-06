@@ -43,44 +43,29 @@ class AuthService extends ChangeNotifier {
     return false;
   }
 
-  Future<void> switchRole(String newRole) async {
-    if (_currentUser == null) return;
-    String newEmail;
-    String newNombre;
-    String newApellido;
+  Future<bool> switchRole(String newRole) async {
+    String email;
+    String password;
 
     if (newRole == 'DOCENTE') {
-      newNombre = 'Rolando';
-      newApellido = 'Martínez';
-      newEmail = 'rmartinez@uagrm.edu.bo';
+      email = 'rmartinez@uagrm.edu.bo';
+      password = 'docente123';
     } else if (newRole == 'ESTUDIANTE') {
-      newNombre = 'Carlos';
-      newApellido = 'Méndez';
-      newEmail = 'cmendez@uagrm.edu.bo';
+      email = 'daniel.quispe@uagrm.edu.bo';
+      password = 'estudiante123';
     } else if (newRole == 'JURADO') {
-      newNombre = 'Julio';
-      newApellido = 'Cabrera';
-      newEmail = 'jcabrera@uagrm.edu.bo';
+      email = 'cfernandez@uagrm.edu.bo';
+      password = 'jurado123';
     } else {
-      newNombre = 'Admin';
-      newApellido = 'FICCT';
-      newEmail = 'admin@ficct.uagrm.edu.bo';
+      email = 'admin@uagrm.edu.bo';
+      password = 'admin369';
     }
 
-    _currentUser = UserModel(
-      id: _currentUser!.id,
-      nombre: newNombre,
-      apellido: newApellido,
-      email: newEmail,
-      rol: newRole,
-      estado: 'ACTIVO',
-      fotoPerfil: _currentUser!.fotoPerfil,
-      descripcion: _currentUser!.descripcion,
-      ocultarCursos: _currentUser!.ocultarCursos,
-    );
-
-    await StorageService.saveUser(_currentUser!);
-    notifyListeners();
+    final success = await login(email, password);
+    if (!success) {
+      debugPrint('[AuthService] Falló switchRole autenticado para $newRole ($email)');
+    }
+    return success;
   }
 
   Future<void> updateProfile({

@@ -34,6 +34,7 @@ public class TareaRequest {
     private Long moduloId;
 
     private boolean esGrupal;
+    private Long actividadGrupoId;
 
     public TareaRequest() {
     }
@@ -143,5 +144,13 @@ public class TareaRequest {
 
     public void setEsGrupal(boolean esGrupal) {
         this.esGrupal = esGrupal;
+    }
+
+    public Long getActividadGrupoId() {
+        return actividadGrupoId;
+    }
+
+    public void setActividadGrupoId(Long actividadGrupoId) {
+        this.actividadGrupoId = actividadGrupoId;
     }
 }

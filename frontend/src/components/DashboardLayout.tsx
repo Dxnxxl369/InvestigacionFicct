@@ -232,8 +232,8 @@ export default function DashboardLayout({
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
                       item.isActive
-                        ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                        : "text-ink-soft hover:bg-paper-sunken"
+                        ? "bg-accent-soft text-accent font-semibold border-l-4 border-accent shadow-xs"
+                        : "text-ink-soft hover:bg-paper-sunken hover:text-ink border-l-4 border-transparent"
                     }`}
                   >
                     <IconComponent className="w-4 h-4" />
@@ -362,7 +362,7 @@ export default function DashboardLayout({
                   title={item.label}
                   className={`flex items-center justify-center w-full h-11 rounded-xl transition-all relative group ${
                     item.isActive
-                      ? "bg-accent-soft text-accent-dark shadow-xs"
+                      ? "bg-accent-soft text-accent font-semibold border-2 border-accent/40 shadow-xs"
                       : "text-ink-soft hover:bg-paper-sunken hover:text-ink"
                   }`}
                 >
@@ -386,8 +386,8 @@ export default function DashboardLayout({
                 href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
                   item.isActive
-                    ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                    : "text-ink-soft hover:bg-paper-sunken"
+                    ? "bg-accent-soft text-accent font-semibold border-l-4 border-accent shadow-xs"
+                    : "text-ink-soft hover:bg-paper-sunken hover:text-ink border-l-4 border-transparent"
                 }`}
               >
                 <IconComponent className="w-4 h-4 flex-shrink-0" />
