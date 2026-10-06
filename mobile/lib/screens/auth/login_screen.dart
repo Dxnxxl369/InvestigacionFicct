@@ -3,6 +3,7 @@ import '../../config/app_theme.dart';
 import '../../config/constants.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
+import '../../services/storage_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final AuthService authService;
@@ -167,36 +168,93 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 10),
-              // Server status badge
-              Center(
-                child: InkWell(
-                  onTap: _showServerDialog,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _connectionSuccess == true
-                          ? AppTheme.accent.withValues(alpha: 0.12)
-                          : AppTheme.dangerSoft,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _connectionSuccess == true
-                            ? AppTheme.accent
-                            : AppTheme.danger.withValues(alpha: 0.4),
+              // Barra de Servidor: Botón directo de Nube y configuración
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Botón directo a Nube Render
+                  InkWell(
+                    onTap: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      await StorageService.saveServerUrl(AppConstants.apiBaseUrlCloud);
+                      await ApiService.initBaseUrl();
+                      await _checkServer();
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('✓ Conectado al Servidor en la Nube (Render)'),
+                          backgroundColor: AppTheme.accent,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _currentServer.contains('onrender.com')
+                            ? AppTheme.accent.withValues(alpha: 0.15)
+                            : (isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _currentServer.contains('onrender.com')
+                              ? AppTheme.accent
+                              : (isDark ? AppTheme.darkLine : AppTheme.line),
+                          width: _currentServer.contains('onrender.com') ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.cloud_done_rounded,
+                            size: 14,
+                            color: _currentServer.contains('onrender.com') ? AppTheme.accent : AppTheme.inkFaint,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _currentServer.contains('onrender.com') ? '☁️ Nube Activa' : '☁️ Usar Nube',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: _currentServer.contains('onrender.com') ? AppTheme.accent : (isDark ? AppTheme.darkInk : AppTheme.ink),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _connectionSuccess == true ? Icons.check_circle_rounded : Icons.sync_problem_rounded,
-                          size: 14,
-                          color: _connectionSuccess == true ? AppTheme.accent : AppTheme.danger,
+                  ),
+
+                  // Indicador actual con opción de editar IP
+                  InkWell(
+                    onTap: _showServerDialog,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _connectionSuccess == true
+                            ? AppTheme.accent.withValues(alpha: 0.12)
+                            : AppTheme.dangerSoft,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _connectionSuccess == true
+                              ? AppTheme.accent
+                              : AppTheme.danger.withValues(alpha: 0.4),
                         ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Servidor: ${_currentServer.replaceAll('http://', '')}',
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _connectionSuccess == true ? Icons.check_circle_rounded : Icons.sync_problem_rounded,
+                            size: 13,
+                            color: _connectionSuccess == true ? AppTheme.accent : AppTheme.danger,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _currentServer.contains('onrender.com')
+                                ? 'ficct-backend'
+                                : _currentServer.replaceAll('http://', '').replaceAll('/api', ''),
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -204,15 +262,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? (isDark ? Colors.white : AppTheme.primary)
                                   : AppTheme.danger,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.edit, size: 12, color: Colors.grey),
-                      ],
+                          const SizedBox(width: 4),
+                          const Icon(Icons.settings, size: 12, color: Colors.grey),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
               const SizedBox(height: 16),
               // Logo FICCT y Escudo
