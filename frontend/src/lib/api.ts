@@ -513,10 +513,22 @@ export interface DocumentoDTO {
   autorEmail: string;
   convocatoriaId?: number;
   convocatoriaTitulo?: string;
+  tareaId?: number;
+  tareaTitulo?: string;
   miPermiso: "OWNER" | "ADMINISTRACION" | "EDICION" | "LECTURA";
   colaboradores: DocumentoColaboradorDTO[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface DocumentoVersionDTO {
+  id: number;
+  documentoId: number;
+  titulo: string;
+  contenido: string;
+  usuarioId: number;
+  usuarioNombre: string;
+  createdAt?: string;
 }
 
 export interface DocumentoRequest {
@@ -585,6 +597,21 @@ export const documentosAPI = {
   async removeColaborador(id: number, colabId: number): Promise<DocumentoDTO> {
     const res = await fetch(`${API_BASE_URL}/documentos/${id}/colaboradores/${colabId}`, {
       method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<DocumentoDTO>(res);
+  },
+
+  async getVersiones(id: number): Promise<DocumentoVersionDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/documentos/${id}/versiones`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<DocumentoVersionDTO[]>(res);
+  },
+
+  async restaurarVersion(id: number, versionId: number): Promise<DocumentoDTO> {
+    const res = await fetch(`${API_BASE_URL}/documentos/${id}/versiones/${versionId}/restaurar`, {
+      method: "POST",
       headers: { ...getAuthHeader() },
     });
     return handleResponse<DocumentoDTO>(res);
@@ -718,6 +745,9 @@ export interface TareaDTO {
   miEntrega?: EntregaTareaDTO;
   moduloId?: number;
   moduloTitulo?: string;
+  documentoColaborativoHabilitado?: boolean;
+  documentoColaborativoId?: number;
+  documentoColaborativoTitulo?: string;
 }
 
 export interface TareaRequest {
@@ -733,6 +763,7 @@ export interface TareaRequest {
   tiposArchivosPermitidos?: string;
   tamanoMaximoMb?: number;
   puntajeMaximo?: number;
+  documentoColaborativoHabilitado?: boolean;
 }
 
 export interface EntregaRequest {
@@ -786,6 +817,13 @@ export const tareasAPI = {
       headers: { ...getAuthHeader() },
     });
     return handleResponse<EntregaTareaDTO[]>(res);
+  },
+
+  async getDocumentoColaborativo(id: number): Promise<DocumentoDTO> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${id}/documento-colaborativo`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<DocumentoDTO>(res);
   },
 
   async calificar(entregaId: number, data: CalificarEntregaRequest): Promise<EntregaTareaDTO> {
@@ -901,6 +939,8 @@ export function getMediaUrl(url?: string): string {
   return `${origin}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
+export const resolveFileUrl = getMediaUrl;
+
 // Unified api object
 export const api = {
   // Auth
@@ -960,6 +1000,8 @@ export const api = {
   deleteDocumento: documentosAPI.delete,
   assignColaborador: documentosAPI.assignColaborador,
   removeColaborador: documentosAPI.removeColaborador,
+  getVersionesDocumento: documentosAPI.getVersiones,
+  restaurarVersionDocumento: documentosAPI.restaurarVersion,
 
   // Cursos (Moodle)
   getCursos: cursosAPI.getAll,
@@ -976,6 +1018,7 @@ export const api = {
   toggleHabilitarTarea: tareasAPI.toggleHabilitar,
   entregarTarea: tareasAPI.submitEntrega,
   getEntregasTarea: tareasAPI.getEntregas,
+  getDocumentoColaborativoTarea: tareasAPI.getDocumentoColaborativo,
   calificarEntrega: tareasAPI.calificar,
 };
 

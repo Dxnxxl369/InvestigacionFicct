@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TareaRepository extends JpaRepository<Tarea, Long> {
@@ -17,4 +18,6 @@ public interface TareaRepository extends JpaRepository<Tarea, Long> {
     List<Tarea> findByConvocatoriaAndHabilitadaTrueOrderByFechaEntregaAsc(Convocatoria convocatoria);
 
     List<Tarea> findByConvocatoriaIdAndHabilitadaTrueOrderByFechaEntregaAsc(Long convocatoriaId);
+
+    Optional<Tarea> findByDocumentoColaborativoId(Long documentoId);
 }

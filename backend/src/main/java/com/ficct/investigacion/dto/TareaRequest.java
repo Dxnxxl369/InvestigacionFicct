@@ -33,6 +33,8 @@ public class TareaRequest {
 
     private Long moduloId;
 
+    private Boolean documentoColaborativoHabilitado;
+
     public TareaRequest() {
     }
 
@@ -42,6 +44,14 @@ public class TareaRequest {
 
     public void setModuloId(Long moduloId) {
         this.moduloId = moduloId;
+    }
+
+    public Boolean getDocumentoColaborativoHabilitado() {
+        return documentoColaborativoHabilitado;
+    }
+
+    public void setDocumentoColaborativoHabilitado(Boolean documentoColaborativoHabilitado) {
+        this.documentoColaborativoHabilitado = documentoColaborativoHabilitado;
     }
 
     public Long getConvocatoriaId() {

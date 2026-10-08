@@ -20,6 +20,8 @@ public class DocumentoDTO {
 
     private Long convocatoriaId;
     private String convocatoriaTitulo;
+    private Long tareaId;
+    private String tareaTitulo;
 
     private String miPermiso; // "OWNER", "ADMINISTRACION", "EDICION", "LECTURA"
     private List<DocumentoColaboradorDTO> colaboradores = new ArrayList<>();
@@ -116,6 +118,22 @@ public class DocumentoDTO {
 
     public void setConvocatoriaTitulo(String convocatoriaTitulo) {
         this.convocatoriaTitulo = convocatoriaTitulo;
+    }
+
+    public Long getTareaId() {
+        return tareaId;
+    }
+
+    public void setTareaId(Long tareaId) {
+        this.tareaId = tareaId;
+    }
+
+    public String getTareaTitulo() {
+        return tareaTitulo;
+    }
+
+    public void setTareaTitulo(String tareaTitulo) {
+        this.tareaTitulo = tareaTitulo;
     }
 
     public String getMiPermiso() {

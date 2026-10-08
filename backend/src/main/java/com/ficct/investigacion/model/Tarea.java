@@ -53,6 +53,13 @@ public class Tarea {
     @JoinColumn(name = "creador_id")
     private User creador;
 
+    @Column(name = "documento_colaborativo_habilitado", nullable = false)
+    private boolean documentoColaborativoHabilitado = false;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "documento_colaborativo_id")
+    private Documento documentoColaborativo;
+
     @OneToMany(mappedBy = "tarea", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<EntregaTarea> entregas = new ArrayList<>();
 
@@ -199,6 +206,22 @@ public class Tarea {
 
     public void setCreador(User creador) {
         this.creador = creador;
+    }
+
+    public boolean isDocumentoColaborativoHabilitado() {
+        return documentoColaborativoHabilitado;
+    }
+
+    public void setDocumentoColaborativoHabilitado(boolean documentoColaborativoHabilitado) {
+        this.documentoColaborativoHabilitado = documentoColaborativoHabilitado;
+    }
+
+    public Documento getDocumentoColaborativo() {
+        return documentoColaborativo;
+    }
+
+    public void setDocumentoColaborativo(Documento documentoColaborativo) {
+        this.documentoColaborativo = documentoColaborativo;
     }
 
     public List<EntregaTarea> getEntregas() {

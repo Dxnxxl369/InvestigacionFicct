@@ -1,6 +1,7 @@
 package com.ficct.investigacion.controller;
 
 import com.ficct.investigacion.dto.CalificarEntregaRequest;
+import com.ficct.investigacion.dto.DocumentoDTO;
 import com.ficct.investigacion.dto.EntregaRequest;
 import com.ficct.investigacion.dto.EntregaTareaDTO;
 import com.ficct.investigacion.dto.TareaDTO;
@@ -101,6 +102,16 @@ public class TareaController {
         try {
             List<EntregaTareaDTO> entregas = tareaService.listarEntregasPorTarea(id, userDetails.getUsername());
             return ResponseEntity.ok(entregas);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/tareas/{id}/documento-colaborativo")
+    public ResponseEntity<?> obtenerDocumentoColaborativo(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            DocumentoDTO documento = tareaService.obtenerDocumentoColaborativo(id, userDetails.getUsername());
+            return ResponseEntity.ok(documento);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

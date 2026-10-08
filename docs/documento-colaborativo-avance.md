@@ -1,0 +1,697 @@
+# Documento colaborativo - Avance
+
+## Rama
+
+- Trabajo en `Brandon-Vasquez`.
+- No se subiran cambios a `Daniel`.
+
+## Decisiones iniciales
+
+- Camino gratuito: Tiptap + extensiones libres para editor tipo Word.
+- Exportacion `.docx`: libreria `docx` ejecutada en el navegador.
+- Colaboracion: persistencia REST en Spring Boot y notificaciones WebSocket STOMP/SockJS.
+- Offline: cola local en `localStorage`; si falla el guardado, se reintenta al recuperar conexion.
+- No se toca `mobile/`.
+
+## Integracion funcional
+
+- El documento colaborativo sera una opcion dentro de una actividad/tarea.
+- Cada tarea tendra como maximo un documento colaborativo asociado.
+- El docente activa la opcion al crear la actividad.
+- Los participantes aceptados de la convocatoria podran abrir el documento desde la actividad.
+
+## Grupos / equipos
+
+- Se reviso el modelo actual.
+- Existe `nombreEquipo` en participantes/inscripciones, pero no hay entidad formal de grupo.
+- Las entregas son individuales por `tarea_id + estudiante_id`.
+- Por ahora no se enlaza el documento por grupo; queda pendiente para cuando exista modelo de equipos real.
+
+## Implementacion realizada
+
+- Backend:
+  - Se agrego WebSocket STOMP/SockJS en `/ws`.
+  - La tarea puede activar `documentoColaborativoHabilitado`.
+  - Al crear una tarea con la opcion activa se crea un unico `Documento` asociado.
+  - Se agrego `GET /api/tareas/{id}/documento-colaborativo`.
+  - El acceso queda permitido para admin, docentes de la convocatoria y participantes aceptados.
+  - Cada guardado REST notifica por WebSocket en `/topic/documentos/{id}`.
+- Frontend:
+  - Se agrego editor tipo Word basado en Tiptap.
+  - Controles incluidos: negrita, cursiva, subrayado, color, resaltado, fuente, tamano, titulos, alineacion, listas, numeracion, tablas, margenes y numeracion visual de titulos.
+  - Se pulio la interfaz para acercarla visualmente a Microsoft Word: barra superior azul, pestanas, cinta de opciones por grupos, regla horizontal, regla vertical, hoja A4 centrada sobre fondo gris y barra de estado inferior.
+  - Se agregaron funciones adicionales inspiradas en Word: deshacer, rehacer, limpiar formato, citas, buscar, reemplazar, tamano de papel, orientacion vertical/horizontal y zoom visual.
+  - Se agrego boton para abrir el documento desde la actividad cuando esta habilitado.
+  - Se agrego cola offline con `localStorage`; si falla el guardado se reintenta al volver la conexion.
+  - Se agrego exportacion `.docx`.
+  - Se agrego importacion `.docx` con `mammoth`, convirtiendo el archivo Word a HTML editable dentro del editor.
+  - La importacion `.docx` ahora extrae notas al pie, notas al final y comentarios que Mammoth deja como estructuras auxiliares, y los convierte a metadatos propios del editor colaborativo.
+  - La importacion `.docx` ahora conserva saltos de pagina y saltos de columna mapeando los `br[type='page']` y `br[type='column']` de Mammoth a nodos propios del editor.
+  - La importacion `.docx` ahora normaliza casillas de verificacion de Word/Mammoth (`input[type='checkbox']`) al nodo propio `checkBox`, conservando estado marcado/no marcado para editar y reexportar.
+  - Las casillas de verificacion insertadas o importadas ahora se pueden alternar con clic dentro de la hoja; el estado queda en el documento y se reexporta a `.docx`.
+  - El guardado posterior a importar `.docx` ahora persiste en una sola operacion el HTML, titulo importado, notas al pie, notas finales y comentarios, evitando que queden solo en estado local temporal.
+  - Se separaron los manejadores de importacion `.docx` e insercion de imagenes en `useDocumentFileHandlers.ts` para no seguir cargando `CollaborativeDocumentEditor.tsx`.
+  - Se separaron acciones de insercion estilo Word en `useInsertActions.ts`: saltos, secciones, portadas, cuadros, formas, campos, correspondencia, ecuaciones, simbolos y ajustes de imagen.
+  - Se separo el flujo de revisar en `useReviewActions.ts`: comentarios, resolver/quitar comentarios, sugerencias de insercion/eliminacion y aceptar/rechazar cambios.
+  - Se separo el flujo de referencias en `useReferenceActions.ts`: citas/fuentes, bibliografia, tabla de contenido, rotulos, tabla de ilustraciones, marcadores, referencias cruzadas, enlaces, notas al pie y notas finales.
+  - Las acciones de referencias ahora marcan cambios pendientes cuando insertan indices, enlaces o notas, para que autoguardado/sincronizacion no dependan solo del evento de actualizacion del editor.
+  - Se separo el flujo de formato en `useFormattingActions.ts`: estilos predefinidos, mayusculas/minusculas, interlineado, espaciado, sombreado, bordes, tabulaciones, sangrias, estilos personalizados y comandos de tabla.
+  - Las acciones de formato y tabla ahora marcan cambios pendientes al aplicar estilos o modificar estructura, reforzando autoguardado/sincronizacion.
+  - Se separo la carga/aplicacion de cambios remotos en `useRemoteDocumentActions.ts`, dejando el reemplazo por version remota fuera del componente principal.
+  - Se separo buscar/reemplazar en `useFindReplaceActions.ts`, manteniendo conteo de coincidencias y cambios marcados como pendientes cuando reemplaza contenido.
+  - `Reemplazar todo` ahora actua sobre nodos de texto ProseMirror y no sobre el HTML completo, evitando modificar etiquetas/atributos y reduciendo riesgo de romper formato.
+  - `Cambiar` dentro de buscar/reemplazar ahora tambien usa reemplazo textual con transacciones ProseMirror, evitando que valores con `<...>` se interpreten como HTML.
+  - La exportacion `.docx` de tablas ahora conserva celdas combinadas mediante `colspan` y `rowspan`, alineando mejor la opcion de unir/dividir celdas con Word.
+  - La exportacion `.docx` ahora convierte `<br>` internos en saltos de linea reales de Word mediante `TextRun({ break: 1 })`, evitando que bloques con varias lineas se aplanen.
+  - La exportacion `.docx` de hipervinculos ahora conserva mejor contenido interno compatible, como texto con formato, campos simples, casillas e imagenes, y degrada tabulaciones a texto cuando corresponde.
+  - Las imagenes ahora conservan atributo `height` cuando se importa/edita HTML y la exportacion `.docx` usa esa altura en lugar de una proporcion fija, evitando deformar logos o imagenes verticales.
+  - La sincronizacion live por WebSocket ahora envia version base del cliente, recibe version de servidor y evita aplicar snapshots antiguos como si fueran actuales.
+- No se modifico `mobile/`.
+
+## Validacion
+
+- Frontend: `npm run build` ejecutado correctamente.
+- Frontend despues de importacion `.docx` y funciones Word extra: `npm run build` ejecutado correctamente.
+- Frontend despues de revisar/interlineado/sangrias/exportacion mejorada: `npm run build` ejecutado correctamente.
+- Frontend despues de control de cambios/sugerencias: `npm run build` ejecutado correctamente.
+- Frontend despues de presencia de coautores: `npm run build` ejecutado correctamente.
+- Frontend despues de exportacion `.docx` con titulos numerados, listas anidadas, sangria e interlineado: `npm run build` ejecutado correctamente.
+- Frontend despues de exportar tabla de contenido como campo TOC de Word: `npm run build` ejecutado correctamente.
+- Frontend despues de aplicar aceptar/rechazar sugerencias sobre el contenido real: `npm run build` ejecutado correctamente.
+- Frontend despues de agregar carga manual de cambios remotos: `npm run build` ejecutado correctamente.
+- Frontend despues de convertir la cinta en pestañas reales tipo Word: `npm run build` ejecutado correctamente.
+- Frontend despues de agregar color de pagina persistente/exportable: `npm run build` ejecutado correctamente.
+- Frontend despues de exportar notas al pie como notas nativas de Word: `npm run build` ejecutado correctamente.
+- Frontend despues de exportar comentarios activos como comentarios nativos de Word: `npm run build` ejecutado correctamente.
+- Frontend despues de exportar estilos de tabla con bordes, encabezados y franjas: `npm run build` ejecutado correctamente.
+- Frontend despues de exportar borde de pagina nativo de Word: `npm run build` ejecutado correctamente.
+- Frontend despues de referencias estructuradas y metadatos `.docx`: `npm run build` ejecutado correctamente.
+- Frontend despues de exportar sugerencias como inserciones/eliminaciones nativas de Word: `npm run build` ejecutado correctamente.
+- Frontend despues de agregar columnas de pagina persistentes/exportables: `npm run build` ejecutado correctamente.
+- Frontend despues de agregar salto de columna visual/exportable: `npm run build` ejecutado correctamente.
+- Frontend despues de agregar panel de navegacion por titulos: `npm run build` ejecutado correctamente.
+- Frontend despues de agregar numeracion de lineas visual/exportable: `npm run build` ejecutado correctamente.
+- Frontend despues de agregar posiciones de numeracion de pagina: `npm run build` ejecutado correctamente.
+- Frontend despues de exportar marca de agua como caja de texto en encabezado: `npm run build` ejecutado correctamente.
+- Frontend despues de snapshots versionados y cursores remotos por WebSocket: `npm run build` ejecutado correctamente.
+- Backend despues de los cambios actuales: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend: `..\ .tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de control de cambios/presencia: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de las mejoras de exportacion/cinta/diseno: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de notas/comentarios nativos en exportacion: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de estilos de tabla/borde de pagina en exportacion: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de referencias estructuradas y metadatos `.docx`: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de revision nativa y columnas de pagina: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de salto de columna: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de panel de navegacion: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de numeracion de lineas: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de posiciones de numeracion de pagina: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 16 pruebas exitosas.
+- Backend despues de snapshots versionados, deteccion `stale` y cursores remotos: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` ejecutado correctamente con 26 pruebas exitosas.
+- Levantado backend: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd spring-boot:run` compila, pero no inicia por credenciales de PostgreSQL: `password authentication failed for user "postgres"`.
+- Levantado frontend: `npm run dev` inicia correctamente en `http://localhost:3000`.
+
+## Comandos utiles
+
+- Backend: desde `backend`, ejecutar `..\.tools\apache-maven-3.9.16\bin\mvn.cmd spring-boot:run`.
+- Frontend: desde `frontend`, ejecutar `npm run dev`.
+- Base de datos esperada por configuracion actual: PostgreSQL en `localhost:5432/investigacion_db`, usuario `postgres`, password `admin369`.
+
+## Pendientes tecnicos
+
+- La colaboracion actual sincroniza por snapshots versionados, detecta snapshots stale por WebSocket y muestra cursores/selecciones remotas en vivo; todavia no es CRDT/OT por operacion.
+- Se agrego una primera capa operacional con `steps` ProseMirror versionados por WebSocket; no reemplaza aun a un CRDT completo, pero reduce la dependencia de snapshots para cambios pequenos de edicion.
+- La importacion `.docx` prioriza texto, titulos, listas, tablas, imagenes, notas y comentarios; elementos avanzados como encabezados, pies, formas o disenos complejos pueden no conservarse al 100% en el camino gratuito.
+- Cuando exista modelo formal de equipos, se puede enlazar el mismo documento solo a integrantes del equipo asignado.
+
+## Replanteamiento por licencia comercial
+
+- El producto se planea como vendible, por lo que no conviene basarlo en un motor AGPL si se quiere mantener el codigo cerrado.
+- ONLYOFFICE Docs Community es gratis, pero usa AGPL v3; para integrarlo en un producto propietario/vendible corresponde evaluar ONLYOFFICE Developer o Enterprise con licencia comercial.
+- Collabora Online/CODE tiene otra base de licencia, pero igual requiere analisis legal si se distribuye como parte de un producto comercial y puede requerir soporte/licencia comercial segun el modelo.
+- Ruta recomendada para "todo Word" real y producto vendible: integrar un motor comercial tipo ONLYOFFICE Developer/Enterprise o Collabora comercial.
+- Ruta sin pagar licencia externa: mantener editor propio con librerias permisivas y aceptar que no sera 100% Word; se implementan funciones por prioridad, pero el alcance completo de Word no es realista sin un motor office completo.
+- Decision actual: construir un editor propio estilo Office para evitar dependencia AGPL en un producto vendible. Se prioriza que sea visualmente familiar, colaborativo, exporte/importe `.docx` y vaya incorporando funciones de Word por modulos.
+- Se agrego inventario tecnico de licencias en `docs/licencias-editor-colaborativo.md` para controlar dependencias permisivas y evitar introducir motores AGPL sin licencia comercial.
+- Se agrego `npm run license:check` en frontend para detectar dependencias directas y transitivas instaladas con licencias AGPL/GPL/LGPL sin alternativa permisiva explicita.
+- Se agrego `backend/scripts/check-licenses.ps1` para revisar dependencias runtime Maven y licencias heredadas desde parent POMs, manteniendo la misma regla de bloquear AGPL/GPL/LGPL sin alternativa permisiva explicita.
+
+## Roadmap editor propio estilo Office
+
+- Motor base: Tiptap/ProseMirror con extensiones permisivas y componentes propios.
+- Archivo: importar `.docx`, exportar `.docx`, guardado offline y sincronizacion al recuperar conexion.
+  - Se agrego atajo global `Ctrl+S`/`Cmd+S` para guardar desde el editor sin activar el guardado del navegador.
+- Inicio: fuentes, tamanos, negrita, cursiva, subrayado, color, resaltado, limpiar formato, estilos personalizados, listas, numeracion y alineacion.
+- Inicio: se agrego cambio de mayusculas/minusculas tipo Word sobre texto seleccionado.
+- Insertar: tablas, imagenes, cuadros de texto, saltos de pagina, citas rapidas y bibliografia base.
+- Insertar: portadas editables tipo Word para documento academico, informe y plantilla sobria.
+- Insertar: formas simples tipo Word, incluyendo rectangulo, ovalo, flecha y llamada con texto editable desde la cinta.
+- Insertar: bloques rapidos editables para acta, resumen ejecutivo e informe base.
+- Disposicion: margenes, tamano de papel, orientacion, regla horizontal/vertical y zoom.
+- Vista: modos Impresion, Web y Lectura con apariencia diferenciada; Lectura desactiva edicion temporalmente.
+- Pagina: encabezado, pie, numeracion visual de pagina y marca de agua.
+- Pagina: la numeracion puede ir arriba/abajo e izquierda/centro/derecha, se ve en el editor y se exporta en encabezado o pie segun corresponda.
+- Pagina: la numeracion puede mostrarse como `Pagina X` o `Pagina X de Y`, y en `.docx` usa campos nativos `PAGE` y `NUMPAGES`.
+- Tablas: estilos de tabla, franjas, encabezados y ajuste visual.
+- Pendiente avanzado: numeracion real de paginas en exportacion `.docx`, encabezados/pies por seccion, referencias bibliograficas estructuradas, comentarios/revision de cambios y paginado multipagina real.
+
+## Avance de construccion propia
+
+- Exportacion `.docx` mejorada:
+  - Saltos de pagina del editor salen como `PageBreak`.
+  - Imagenes base64 insertadas se exportan como imagenes embebidas.
+  - Pie de pagina usa campo `PAGE` de Word para numeracion.
+  - Comentarios activos se agregan como seccion de revision al exportar.
+  - Los titulos `h1/h2/h3` se exportan con numeracion automatica jerarquica nativa cuando esta activada la opcion de numerar titulos.
+  - Las listas numeradas anidadas se exportan con niveles Word hasta profundidad 8.
+  - La exportacion conserva mejor sangrias e interlineado del editor en parrafos y titulos.
+  - La exportacion conserva espaciado antes/despues de parrafos y titulos como `spacing.before/after`.
+  - La exportacion conserva sombreado y borde de parrafo/titulo como `shading` y `border`.
+  - La exportacion conserva tabulaciones de parrafo/titulo como `tabStops` nativos y los caracteres Tab como `Tab` real de Word.
+  - Las portadas insertadas se exportan como bloques editables de Word y agregan salto de pagina despues de la portada.
+  - Las formas simples se guardan como nodos propios del editor y se exportan a `.docx` como cuadros de texto compatibles con Word.
+  - Los bloques rapidos se insertan como contenido real del documento: titulos, parrafos, listas, tablas y campos dinamicos compatibles con exportacion `.docx`.
+  - Si el documento contiene tabla de contenido, la exportacion genera un campo `TOC` actualizable por Word usando titulos 1 a 3.
+  - Las notas al pie nuevas se exportan como `footnotes` nativas de Word con referencias reales dentro del texto.
+  - Las notas al final nuevas se exportan como `endnotes` nativas de Word con referencias reales dentro del texto.
+  - Los comentarios activos marcados en el documento se exportan como comentarios nativos de Word usando rangos y referencias.
+  - Las sugerencias pendientes marcadas en el texto se exportan como inserciones/eliminaciones nativas de Word y activan `trackRevisions` en el `.docx`.
+  - Los estilos de tabla del editor se reflejan mejor en `.docx`: bordes, encabezados, franjas y estilo azul.
+  - Las tablas ahora permiten repetir fila de encabezado, evitar division de fila entre paginas y aplicar fondo personalizado a celdas; se exporta como `tableHeader`, `cantSplit` y `shading`.
+  - El borde de pagina visual se exporta como borde de pagina nativo de Word cuando esta activado.
+  - La disposicion permite 1, 2 o 3 columnas, se ve en el editor, se guarda con el documento y se exporta como columnas de seccion en Word.
+  - La disposicion permite alineacion vertical de pagina y hifenacion automatica; se exporta como `verticalAlign` de seccion e `hyphenation` del documento.
+  - Se agrego salto de columna visual en el editor y exportacion como `ColumnBreak` nativo.
+  - Se agregaron saltos de seccion de pagina siguiente y continuos; la exportacion parte el `.docx` en secciones reales con `SectionType`.
+  - Se agrego numeracion de lineas: guia visual lateral en el editor, persistencia y exportacion como `lineNumbers` de seccion en Word.
+  - La numeracion de pagina ahora permite posicion superior/inferior e izquierda/centro/derecha, con exportacion al encabezado o pie correspondiente.
+  - La numeracion de pagina permite definir numero inicial y formato decimal, romano o letras; se exporta como configuracion `pageNumbers` de seccion.
+  - La numeracion de pagina permite incluir el total de paginas; el editor previsualiza `Pagina X de Y` y el `.docx` exporta campos `PAGE` + `NUMPAGES` actualizables en Word.
+  - La marca de agua visual tambien se exporta dentro del encabezado del `.docx` como caja de texto absoluta tenue y rotada.
+  - Las imagenes ahora conservan ancho, alineacion izquierda/centro/derecha y ajuste cuadrado; al exportar se usa alineacion de parrafo o imagen flotante con ajuste `SQUARE`.
+  - Se agregaron ecuaciones insertables; en `.docx` se exportan como campos `EQ` con valor visible.
+  - Se agregaron casillas de verificacion insertables; en `.docx` se exportan como controles `CheckBox` nativos.
+  - Se agregaron campos dinamicos insertables de fecha, hora, total de paginas, autor, titulo, asunto y nombre de archivo; se exportan como campos `DATE`, `TIME`, `NUMPAGES`, `AUTHOR`, `TITLE`, `SUBJECT` y `FILENAME`.
+  - Se agrego soporte de encabezado/pie distinto para primera pagina y paginas pares, exportado con `titlePage` y `evenAndOddHeaderAndFooters`.
+  - Se agregaron rotulos tipo Word para Figura, Tabla y Ecuacion; al exportar salen como campos `SEQ` actualizables.
+  - Se agrego tabla de ilustraciones exportable mediante campo `TOC` filtrado por el tipo de rotulo.
+  - Se agregaron marcadores y referencias cruzadas exportables: los marcadores salen como `Bookmark` y las referencias como campos `REF` o `PAGEREF`.
+  - La exportacion `.docx` incluye propiedades de archivo: titulo, asunto, autor, ultimo modificador, descripcion, palabras clave, revision y actualizacion de campos.
+- Editor:
+  - La cinta superior ahora funciona por pestanas reales: Archivo, Inicio, Insertar, Diseno, Disposicion, Referencias, Correspondencia, Revisar y Vista muestran solo los grupos correspondientes.
+  - Se agrego panel de navegacion desde Vista para listar titulos `h1/h2/h3` y saltar a secciones del documento.
+  - La pestana Vista ahora permite cambiar entre modo Impresion, Web y Lectura; el modo Lectura usa solo lectura temporal y una composicion visual menos cargada.
+  - Se agrego color de pagina desde Diseno, visible en el editor, persistente y exportado como `background` del `.docx`.
+  - La configuracion de Pagina ahora incluye encabezado/pie normal, primera pagina distinta y encabezado/pie para paginas pares.
+  - La configuracion de Pagina ahora incluye inicio y formato de numeracion.
+  - La disposicion permite insertar saltos de seccion visibles y exportables.
+  - La disposicion permite configurar alineacion vertical de pagina y guiones automaticos.
+  - Se agrego insertar imagen, ajustar imagen 25/50/100, alinear imagen y activar ajuste cuadrado de texto, ademas de salto de pagina y cuadro de texto.
+  - Se agrego grupo Simbolos en Insertar con caracteres matematicos comunes y entrada de ecuacion.
+  - Se agregaron botones de casilla vacia y marcada en Insertar para listas de revision/formularios simples.
+  - Se agregaron botones de campos dinamicos en Insertar: Fecha, Hora, Paginas, Autor, Titulo doc., Asunto y Archivo.
+  - Se agregaron estilos de tabla: cuadricula, simple, franjas y azul.
+  - Se agregaron opciones de tabla para repetir encabezado, mantener fila completa y sombrear celdas.
+  - Se agrego edicion de tabla: agregar/quitar filas, agregar/quitar columnas, unir/dividir celdas y borrar tabla.
+  - Se agregaron comentarios basicos de revision con panel lateral, resolver/reabrir/quitar.
+  - Se agrego tachado, superindice, subindice, sangria e interlineado.
+  - Se agrego espaciado de parrafo antes/despues desde la cinta Inicio.
+  - Se agrego sombreado y borde de parrafo/titulo desde la cinta Inicio.
+  - Las reglas responden mejor al tamano/orientacion de pagina seleccionados.
+- Segunda tanda de funciones:
+  - Se agregaron hipervinculos desde la cinta.
+  - Se agrego tabla de contenido generada a partir de titulos.
+  - Se agregaron citas estructuradas con autor, anio, titulo, fuente, tipo de fuente, editorial, ciudad, revista, volumen, numero, paginas, DOI, URL y fecha de consulta, persistentes junto al documento.
+  - La pestana Referencias permite elegir estilo APA, IEEE o MLA, insertar fuentes nuevas, reutilizar fuentes guardadas sin duplicarlas y quitar fuentes seleccionadas.
+  - La bibliografia se genera desde las citas guardadas con el estilo seleccionado y tambien se exporta al `.docx`.
+  - La bibliografia ahora se centraliza en `bibliography.ts`, ordena APA/MLA alfabeticamente por autor/anio/titulo y conserva IEEE en orden de aparicion para mantener numeracion.
+  - Las fuentes de conferencia, tesis e informe tienen formato APA mas especifico, ademas de libro, revista y web.
+  - Se agregaron notas al pie visuales y exportables.
+  - Se agrego borde de pagina.
+  - Se agregaron estilos personalizados guardables y aplicables.
+  - Los estilos personalizados ahora capturan la fuente, tamano, color, negrita, italica y subrayado activos en el editor, y al aplicarlos ajustan esos atributos de forma determinista.
+  - Los estilos personalizados ahora pueden seleccionarse y quitarse desde la cinta Inicio.
+  - Las notas al pie se muestran en pantalla y las nuevas se exportan como notas nativas dentro del `.docx`.
+  - Se agrego impresion desde la cinta con CSS de impresion centrado en la hoja.
+  - La importacion `.docx` ahora convierte imagenes embebidas a base64 para conservarlas dentro del editor.
+  - La exportacion `.docx` ahora preserva mejor hipervinculos, tachado, superindice/subindice, color de texto, resaltado y fuente/tamano inline cuando existen.
+  - Buscar/reemplazar ahora incluye reemplazar todo.
+  - La barra de estado muestra palabras y caracteres.
+  - La pestana Referencias permite insertar rotulos y tabla de ilustraciones ademas de indice, citas, bibliografia y notas al pie.
+  - La pestana Referencias permite marcar texto como destino y crear referencias cruzadas por texto o por pagina.
+- Correspondencia:
+  - Se agrego pestana `Correspondencia` en la cinta para acercar el editor al flujo completo de Word.
+  - Se agregaron campos de combinacion Nombre, Apellido, Correo, Grupo, Tema y Docente.
+  - Se agregaron bloques rapidos de linea de saludo, destinatario y datos de tarea.
+  - La exportacion `.docx` convierte esos campos en `MERGEFIELD` nativos de Word para que el archivo pueda usarse como plantilla de correspondencia.
+- Revision/control de cambios:
+  - Se agrego modo de sugerencias basico para inserciones y eliminaciones.
+  - Las inserciones sugeridas se marcan en verde y las eliminaciones sugeridas en rojo/tachado dentro del documento.
+  - El panel lateral de revision muestra comentarios y control de cambios con acciones de aceptar/rechazar.
+  - Aceptar/rechazar sugerencias ahora modifica el contenido: conserva o elimina inserciones, y conserva o borra eliminaciones sugeridas.
+  - Se agregaron acciones tipo Word para aceptar todas o rechazar todas las sugerencias pendientes desde la cinta Revisar y desde el panel lateral.
+  - Las sugerencias se guardan junto al documento y se restauran con versiones.
+  - La exportacion `.docx` agrega una seccion de control de cambios pendiente para que el revisor vea las sugerencias abiertas.
+- Colaboracion en vivo:
+  - El WebSocket ahora tambien se usa para presencia basica dentro del documento.
+  - El editor muestra coautores conectados en la barra superior y en la barra de estado.
+  - Se envian eventos de entrada, latido y salida por documento para limpiar usuarios inactivos.
+  - Cuando otro usuario guarda, el editor ofrece cargar la version remota sin pisar cambios locales sin confirmacion.
+  - Se corrigio la restauracion/persistencia de interlineado y sugerencias dentro de los metadatos compartidos del documento.
+  - Se agrego sincronizacion ligera en vivo por STOMP: cada cliente publica snapshots HTML mientras edita y otros clientes los aplican si no tienen cambios locales en conflicto.
+  - Si llega una edicion remota mientras el usuario tiene cambios locales pendientes, el editor marca estado remoto y permite aplicar el snapshot pendiente desde la accion de cargar cambios.
+  - La sincronizacion en vivo ahora pasa por backend usando `/app/documentos/{id}/live`; el servidor retransmite a `/topic/documentos/{id}/live`, dejando un punto unico para endurecer permisos y auditoria.
+  - Los snapshots en vivo ahora incluyen ajustes compartidos del documento: margenes, orientacion, encabezados/pies, numeracion, columnas, color de pagina, estilos, comentarios, citas y referencias.
+  - Al aplicar un snapshot remoto se aplican contenido y ajustes sin re-publicar el mismo cambio, evitando bucles de sincronizacion.
+  - El canal live ahora envia JWT en headers STOMP y el backend valida que el usuario tenga permiso de edicion antes de retransmitir snapshots.
+  - La presencia de coautores tambien pasa ahora por `/app/documentos/{id}/presence` con JWT; el backend valida acceso de lectura antes de retransmitir a `/topic/documentos/{id}/presence`.
+  - El backend asigna `serverVersion` a cada snapshot live y marca `stale=true` cuando el cliente publica sobre una version base antigua.
+  - El frontend envia `baseVersion` en cada snapshot, ignora snapshots viejos y deja los snapshots stale como conflicto pendiente en lugar de aplicarlos automaticamente.
+  - Se agrego awareness de cursor por WebSocket: cada cliente publica rango de seleccion y color, y los demas ven cursor/nombre dentro del documento.
+  - Los cursores remotos se dibujan con decoraciones ProseMirror, se limpian si quedan inactivos y no modifican el contenido del documento.
+  - Se agrego envio de operaciones `steps` de ProseMirror por `/app/documentos/{id}/live`, con validacion de JWT, permiso de edicion y versionado `baseVersion/serverVersion`.
+  - El frontend aplica `steps` remotos no obsoletos directamente sobre el documento cuando el esquema lo permite; si un step llega obsoleto o no se puede aplicar, se marca conflicto remoto para caer al flujo seguro de snapshot pendiente.
+  - Los `steps` remotos solo se aplican automaticamente cuando el editor local esta limpio; si hay cambios propios pendientes de guardar o sincronizar, el editor marca conflicto en lugar de mezclar operaciones sobre estados divergentes.
+  - Al publicar `steps`, el cliente usa una version live optimista temporal para que el snapshot de respaldo inmediato salga con una `baseVersion` coherente; esa version solo se confirma con eco del servidor o notificacion REST y expira si el servidor descarta el mensaje.
+  - El estado de conflicto remoto ahora distingue si hay un snapshot live pendiente para aplicar o si debe traerse la version REST guardada del servidor, mostrando una accion especifica en la barra inferior.
+  - Las notificaciones REST de guardado remoto tambien se conectan al mismo modelo de conflicto, con autor y version live cuando el backend los envia.
+  - Si el conflicto remoto ocurre mientras habia cambios locales `dirty/offline`, el editor conserva esa marca y pide confirmacion antes de aplicar snapshot o version remota, evitando pisar trabajo local en silencio.
+  - El backend ahora descarta tipos live desconocidos antes de validar permisos o retransmitir, dejando el canal limitado a `snapshot`, `steps` y `cursor`.
+  - El backend ahora limita el tamano de mensajes live: snapshots demasiado grandes, paquetes de `steps` excesivos y cursores fuera de rango se descartan antes de consultar permisos o retransmitir.
+  - El frontend replica esos limites antes de publicar por WebSocket, evitando enviar snapshots demasiado grandes, paquetes de `steps` excesivos o cursores fuera de rango que el backend descartaria.
+  - El canal de presencia tambien queda cerrado a eventos conocidos: `join`, `heartbeat` y `leave`; cualquier evento desconocido se descarta antes de consultar permisos o retransmitir.
+  - Se agrego rate limit liviano por documento, sesion y tipo de mensaje live para evitar que un cliente roto o abusivo inunde el canal con mensajes validos repetidos.
+  - El rate limit live se limpia cuando una sesion envia `leave` y tambien elimina entradas antiguas de forma oportunista si el mapa crece, evitando acumulacion indefinida de sesiones abandonadas.
+  - El canal de presencia tambien tiene rate limit para `join` y `heartbeat`; `leave` se permite siempre para no impedir limpieza de sesiones.
+  - El backend valida tamano de `sessionId`, etiqueta de usuario y color de cursor antes de consultar permisos o retransmitir, evitando metadatos de cliente excesivos o malformados.
+  - El frontend normaliza la etiqueta de usuario antes de publicar live/presencia para no enviar metadatos que el backend descartaria.
+  - El frontend tambien normaliza etiquetas remotas recibidas en cursores, presencia y snapshots para proteger la interfaz de nombres largos o vacios.
+  - La version live ahora esta centralizada en `DocumentoLiveVersionService`; los guardados/restauraciones REST tambien avanzan `serverVersion` y el frontend la sincroniza desde `/topic/documentos/{id}`.
+  - Los snapshots siguen existiendo como respaldo para cambios de ajustes globales, recuperacion de conflicto y sincronizacion completa del estado del documento.
+  - Si el usuario cierra u oculta la pestana con cambios pendientes, el editor escribe un pendiente local completo para subirlo al recuperar conexion o volver a abrir el documento.
+  - Al abrir el editor con conexion, si existe un pendiente local anterior se intenta sincronizar de inmediato, sin esperar a que ocurra otro evento `online`.
+- Historial:
+  - Se agrego entidad `DocumentoVersion` en backend.
+  - Cada guardado crea una version recuperable.
+  - Se agregaron endpoints para listar y restaurar versiones.
+  - El editor muestra panel de historial y permite restaurar versiones compartidas.
+  - Se agrego control para no crear versiones excesivas por cada autoguardado; no duplica contenido igual y aplica una ventana minima entre snapshots.
+- Persistencia:
+  - Los ajustes de pagina, encabezado, pie, marca de agua, estilos de tabla, interlineado, comentarios, notas al pie, notas al final, estilos personalizados y borde de pagina se guardan junto al contenido para que sean compartidos entre usuarios.
+  - Las tabulaciones se guardan como atributos del parrafo o titulo en el HTML compartido, por lo que tambien viajan con autoguardado, historial y restauracion.
+  - Las portadas se guardan como nodo propio del editor, con contenido interno editable y recuperable por autoguardado, historial y restauracion.
+  - Las formas se guardan dentro del HTML colaborativo con tipo, texto y color de relleno.
+  - Al restaurar una version tambien se restauran los ajustes de pagina y metadatos guardados.
+- Mantenibilidad:
+  - Se empezo a separar el editor grande en modulos bajo `frontend/src/components/collaborative-editor/`.
+  - `editorTemplates.ts` contiene plantillas de portadas, bloques rapidos y transformacion de mayusculas/minusculas.
+  - `editorTypes.ts` contiene tipos, constantes de pagina y tipos de exportacion.
+  - `editorExtensions.ts` contiene nodos, marcas y la fabrica de extensiones Tiptap del editor.
+  - `documentModel.ts` contiene serializacion de ajustes, marcadores, utilidades de citas y campos dinamicos.
+  - `docxImport.ts` contiene importacion `.docx` con Mammoth y lectura local de imagenes.
+  - `docxExport.ts` contiene el armado completo del `.docx` y la conversion HTML -> `.docx`: propiedades de documento, encabezados/pies, secciones, parrafos, listas, tablas, imagenes, notas, comentarios, referencias y campos.
+  - `editorChrome.tsx` contiene controles visuales reutilizables del ribbon.
+  - `editorSearch.ts` contiene busqueda, reemplazo y conteo de coincidencias del documento.
+  - `editorViewUtils.ts` contiene calculos de pagina, esquema de navegacion y conversiones de numeracion/vista.
+  - `bibliography.ts` contiene normalizacion de fuentes, citas en linea, orden bibliografico y formato APA/IEEE/MLA para editor y exportacion `.docx`.
+  - `reviewUtils.ts` contiene la logica de aceptar/rechazar sugerencias de control de cambios.
+  - `documentStorage.ts` contiene las claves de almacenamiento local y la lectura inicial con pendientes offline.
+  - `useDocumentAutosave.ts` contiene guardado REST, cola offline, sincronizacion al volver online y resguardo al cerrar/ocultar la pestana.
+  - `collaborationConflict.ts` contiene etiquetas y metadatos para conflictos remotos live/REST, evitando meter esa logica en el editor principal.
+  - `remoteApply.ts` contiene la aplicacion de snapshots y `steps` remotos sobre Tiptap/ProseMirror, separando la manipulacion transaccional del componente visual.
+  - `useDocumentPresence.ts` contiene presencia colaborativa por WebSocket, heartbeat y limpieza de coautores.
+  - `useDocumentRealtime.ts` contiene la sincronizacion en vivo de snapshots por WebSocket/STOMP, con manejo de conflictos locales basico.
+  - `realtimeVersion.ts` contiene la logica de version live efectiva, version optimista temporal y confirmacion de version del servidor, manteniendo el hook de WebSocket mas liviano.
+  - `DocumentoRealtimeController` centraliza la retransmision de snapshots en vivo en backend.
+  - `DocumentoLiveMessage` define el contrato de mensajes live para evitar depender de mapas sueltos.
+  - `DocumentoRealtimeControllerTest` cubre retransmision autorizada, rechazo por permiso `LECTURA`, rechazo sin JWT, mensajes incompletos y presencia validada por permisos.
+  - `useDocumentVersions.ts` contiene carga, panel y restauracion de historial de versiones.
+  - `CollaborativeDocumentEditor.tsx` bajo de tamano y queda enfocado en interfaz, estado React y comandos del editor; los ajustes globales del documento ahora se arman una sola vez y se reutilizan para live sync, autoguardado, persistencia local y exportacion `.docx`.
+- Pulido visual tipo Word:
+  - Se ajusto la barra superior, pestanas, cinta, area gris de trabajo, hoja y barra de estado para acercarse mas al aspecto de Word de escritorio.
+  - La cinta mantiene controles densos y horizontales, con desplazamiento cuando Referencias/Fuentes ocupa mas ancho que la pantalla.
+  - La pestana Vista ahora permite activar/desactivar regla, cuadricula y panel de navegacion como en Word.
+  - La cuadricula visual se dibuja sobre la hoja para ayudar a alinear contenido sin afectar exportacion `.docx`.
+  - La barra de estado ahora estima dinamicamente el total de paginas segun altura real del contenido, tamano de hoja y margenes.
+  - Se agrego `Ctrl+F`/`Cmd+F` para abrir el buscador propio del editor y enfocar el campo Buscar, manteniendo el flujo parecido a Word.
+  - Se agrego `Ctrl+H`/`Cmd+H` para enfocar Reemplazar dentro del editor, siguiendo el acceso rapido clasico de Word.
+  - Se agregaron `Ctrl+O`/`Cmd+O` para importar/abrir `.docx` y `Ctrl+P`/`Cmd+P` para imprimir desde el editor.
+  - Se agregaron atajos de zoom `Ctrl +`, `Ctrl -` y `Ctrl 0` (`Cmd` en macOS) para acercar, alejar y volver a 100%.
+  - Se agregaron `Ctrl+Shift+S`/`Cmd+Shift+S` y `F12` para exportar/guardar como `.docx` desde el editor.
+  - La barra inferior ahora incluye control de zoom tipo Word con porcentaje, botones de alejar/acercar y deslizador.
+  - La barra inferior ahora incluye accesos de vista tipo Word para lectura, diseno de impresion y diseno web.
+  - Se agregaron atajos `Ctrl+Alt+1/2/3` (`Cmd+Alt+1/2/3` en macOS) para aplicar Titulos 1, 2 y 3 como en Word.
+  - Se agregaron atajos de listas: `Ctrl+Shift+L` para viñetas y `Ctrl+Shift+7` para numeracion.
+  - Se agregaron atajos de alineacion: `Ctrl+L` izquierda, `Ctrl+E` centro, `Ctrl+R` derecha y `Ctrl+J` justificar.
+  - Se agregaron atajos de sangria: `Ctrl+M` para aumentar y `Ctrl+Shift+M` para reducir sangria.
+  - Se agregaron atajos de interlineado: `Ctrl+1` simple, `Ctrl+5` 1.5 y `Ctrl+2` doble.
+  - Se agrego `Ctrl+K`/`Cmd+K` para abrir la pestaña Insertar y enfocar el campo de hipervinculo.
+  - Se agrego `Ctrl+Alt+M`/`Cmd+Alt+M` para abrir Revisar y enfocar el campo de comentario.
+  - Se agrego `Ctrl+Enter`/`Cmd+Enter` para insertar salto de pagina exportable a `.docx`.
+  - Se agrego `Ctrl+Shift+Enter`/`Cmd+Shift+Enter` para insertar salto de columna exportable a `.docx`.
+  - Se agrego `Ctrl+Alt+F`/`Cmd+Alt+F` para abrir Referencias y enfocar Nota al pie.
+  - Se agrego `Ctrl+Alt+D`/`Cmd+Alt+D` para abrir Referencias y enfocar Nota al final.
+  - Se agrego `Ctrl+Alt+C`/`Cmd+Alt+C` para abrir Referencias y enfocar el autor de una cita.
+  - Los campos enfocados por atajos en vinculos, citas, notas y comentarios ahora ejecutan su accion principal con `Enter`.
+  - Todos los campos del formulario de cita ahora permiten insertar la cita con `Enter`, no solo el campo Autor.
+
+## Validaciones recientes
+
+- Frontend despues de completar `Enter` en todos los campos de cita: `npm run build` completado correctamente.
+- Backend despues de completar `Enter` en todos los campos de cita: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de completar `Enter` en citas: `git status --short mobile` sin cambios.
+- Frontend despues de versionar snapshots live por WebSocket: `npm run build` completado correctamente.
+- Backend despues de versionar snapshots live por WebSocket: `mvn test` con Maven portable completo correctamente, 25 pruebas exitosas.
+- Verificacion mobile despues de versionar snapshots live: `git status --short mobile` sin cambios.
+- Frontend despues de agregar `Enter` en campos de accion rapida: `npm run build` completado correctamente.
+- Backend despues de agregar `Enter` en campos de accion rapida: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de `Enter` en campos de accion rapida: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajo de cita: `npm run build` completado correctamente.
+- Backend despues de agregar atajo de cita: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajo de cita: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajo de nota al final: `npm run build` completado correctamente.
+- Backend despues de agregar atajo de nota al final: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajo de nota al final: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajo de nota al pie: `npm run build` completado correctamente.
+- Backend despues de agregar atajo de nota al pie: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajo de nota al pie: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajo de salto de columna: `npm run build` completado correctamente.
+- Backend despues de agregar atajo de salto de columna: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajo de salto de columna: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajo de salto de pagina: `npm run build` completado correctamente.
+- Backend despues de agregar atajo de salto de pagina: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajo de salto de pagina: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajo de comentario: `npm run build` completado correctamente.
+- Backend despues de agregar atajo de comentario: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajo de comentario: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajo de hipervinculo: `npm run build` completado correctamente.
+- Backend despues de agregar atajo de hipervinculo: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajo de hipervinculo: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajos de interlineado: `npm run build` completado correctamente.
+- Backend despues de agregar atajos de interlineado: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajos de interlineado: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajos de sangria: `npm run build` completado correctamente.
+- Backend despues de agregar atajos de sangria: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajos de sangria: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajos de alineacion: `npm run build` completado correctamente.
+- Backend despues de agregar atajos de alineacion: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajos de alineacion: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajos de listas: `npm run build` completado correctamente.
+- Backend despues de agregar atajos de listas: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajos de listas: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajos de titulos: `npm run build` completado correctamente.
+- Backend despues de agregar atajos de titulos: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajos de titulos: `git status --short mobile` sin cambios.
+- Frontend despues de agregar accesos de vista en barra inferior: `npm run build` completado correctamente.
+- Backend despues de agregar accesos de vista en barra inferior: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de accesos de vista inferiores: `git status --short mobile` sin cambios.
+- Frontend despues de agregar control de zoom en barra inferior: `npm run build` completado correctamente.
+- Backend despues de agregar control de zoom en barra inferior: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de control de zoom inferior: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajos de exportacion `.docx`: `npm run build` completado correctamente.
+- Backend despues de agregar atajos de exportacion `.docx`: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajos de exportacion `.docx`: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajos de zoom: `npm run build` completado correctamente.
+- Backend despues de agregar atajos de zoom: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajos de zoom: `git status --short mobile` sin cambios.
+- Frontend despues de agregar atajos `Ctrl+O`/`Cmd+O` y `Ctrl+P`/`Cmd+P`: `npm run build` completado correctamente.
+- Backend despues de agregar atajos `Ctrl+O`/`Cmd+O` y `Ctrl+P`/`Cmd+P`: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajos abrir/imprimir: `git status --short mobile` sin cambios.
+- Frontend despues de agregar `Ctrl+H`/`Cmd+H` para reemplazo interno: `npm run build` completado correctamente.
+- Backend despues de agregar `Ctrl+H`/`Cmd+H` para reemplazo interno: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de reemplazo interno: `git status --short mobile` sin cambios.
+- Frontend despues de agregar `Ctrl+F`/`Cmd+F` para busqueda interna: `npm run build` completado correctamente.
+- Backend despues de agregar `Ctrl+F`/`Cmd+F` para busqueda interna: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de busqueda interna: `git status --short mobile` sin cambios.
+- Frontend despues de ampliar bibliografia/fuentes y pulir visual Word: `npm run build` completado correctamente.
+- Backend despues de ampliar bibliografia/fuentes y pulir visual Word: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion mobile: `git status --short mobile` sin cambios.
+- Frontend despues de limpiar textos visibles y ampliar gestion de fuentes: `npm run build` completado correctamente.
+- Backend despues de limpiar textos visibles y ampliar gestion de fuentes: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion mobile despues de gestion de fuentes: `git status --short mobile` sin cambios.
+- Frontend despues de agregar Correspondencia y campos `MERGEFIELD`: `npm run build` completado correctamente.
+- Backend despues de agregar Correspondencia y campos `MERGEFIELD`: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion mobile despues de Correspondencia: `git status --short mobile` sin cambios.
+- Frontend despues de agregar sincronizacion en vivo por snapshots STOMP: `npm run build` completado correctamente.
+- Backend despues de agregar sincronizacion en vivo por snapshots STOMP: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion mobile despues de sincronizacion en vivo: `git status --short mobile` sin cambios.
+- Frontend despues de enrutar snapshots live por `/app` y backend: `npm run build` completado correctamente.
+- Backend despues de enrutar snapshots live por `/app` y backend: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion mobile despues de enrutar snapshots live por backend: `git status --short mobile` sin cambios.
+- Frontend despues de incluir ajustes del documento en snapshots live: `npm run build` completado correctamente.
+- Backend despues de incluir ajustes del documento en snapshots live: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion mobile despues de snapshots live con ajustes: `git status --short mobile` sin cambios.
+- Backend despues de validar permisos de edicion en snapshots live: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de enviar JWT en headers STOMP live: `npm run build` completado correctamente.
+- Verificacion mobile despues de permisos live: `git status --short mobile` sin cambios.
+- Backend despues de agregar pruebas del canal live: `mvn test` con Maven portable completo correctamente, 20 pruebas exitosas.
+- Frontend despues de agregar pruebas del canal live: `npm run build` completado correctamente.
+- Verificacion mobile despues de pruebas live: `git status --short mobile` sin cambios.
+- Backend despues de enrutar presencia por backend con JWT: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Frontend despues de enrutar presencia por backend con JWT: `npm run build` completado correctamente.
+- Verificacion mobile despues de presencia por backend: `git status --short mobile` sin cambios.
+- Documentacion de licencias del editor propio agregada en `docs/licencias-editor-colaborativo.md`.
+- Chequeo automatico de licencias frontend agregado: `npm run license:check`.
+- `npm run license:check` ejecutado correctamente: 32 dependencias directas frontend sin AGPL/GPL/LGPL.
+- Frontend despues del chequeo automatico de licencias: `npm run build` completado correctamente.
+- Backend despues del chequeo automatico de licencias: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues del chequeo de licencias: `git status --short mobile` sin cambios.
+- Frontend despues de aceptar/rechazar todas las sugerencias: `npm run build` completado correctamente.
+- Backend despues de aceptar/rechazar todas las sugerencias: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de acciones globales de revision: `git status --short mobile` sin cambios.
+- Frontend despues de contador dinamico de paginas en barra de estado: `npm run build` completado correctamente.
+- Backend despues de contador dinamico de paginas en barra de estado: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de contador dinamico de paginas: `git status --short mobile` sin cambios.
+- Frontend despues de mejorar estilos personalizados: `npm run build` completado correctamente.
+- Backend despues de mejorar estilos personalizados: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de estilos personalizados: `git status --short mobile` sin cambios.
+- Frontend despues de agregar subrayado a estilos personalizados: `npm run build` completado correctamente.
+- Backend despues de agregar subrayado a estilos personalizados: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de subrayado en estilos personalizados: `git status --short mobile` sin cambios.
+- Frontend despues de permitir quitar estilos personalizados: `npm run build` completado correctamente.
+- Backend despues de permitir quitar estilos personalizados: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de quitar estilos personalizados: `git status --short mobile` sin cambios.
+- Frontend despues de atajo `Ctrl+S`/`Cmd+S`: `npm run build` completado correctamente.
+- Backend despues de atajo `Ctrl+S`/`Cmd+S`: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de atajo de guardado: `git status --short mobile` sin cambios.
+- Frontend despues de controles Vista/Regla/Cuadricula: `npm run build` completado correctamente.
+- Backend despues de controles Vista/Regla/Cuadricula: `mvn test` con Maven portable completo correctamente, 24 pruebas exitosas.
+- Verificacion mobile despues de controles Vista: `git status --short mobile` sin cambios.
+- Frontend despues de exportar marca de agua como caja de texto en encabezado: `npm run build` completado correctamente.
+- Backend despues de marca de agua exportable: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de rotulos y tabla de ilustraciones: `npm run build` completado correctamente.
+- Backend despues de rotulos y tabla de ilustraciones: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues del pulido visual de Referencias: `npm run build` completado correctamente.
+- Frontend despues de marcadores y referencias cruzadas: `npm run build` completado correctamente.
+- Backend despues de marcadores y referencias cruzadas: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de encabezados/pies especiales: `npm run build` completado correctamente.
+- Backend despues de encabezados/pies especiales: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de inicio/formato de numeracion: `npm run build` completado correctamente.
+- Backend despues de inicio/formato de numeracion: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de ajuste avanzado de imagenes: `npm run build` completado correctamente.
+- Backend despues de ajuste avanzado de imagenes: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de simbolos y ecuaciones: `npm run build` completado correctamente.
+- Backend despues de simbolos y ecuaciones: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de saltos de seccion reales: `npm run build` completado correctamente.
+- Backend despues de saltos de seccion reales: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de propiedades avanzadas de tabla: `npm run build` completado correctamente.
+- Backend despues de propiedades avanzadas de tabla: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de espaciado antes/despues de parrafo: `npm run build` completado correctamente.
+- Backend despues de espaciado antes/despues de parrafo: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de sombreado/borde de parrafo: `npm run build` completado correctamente.
+- Backend despues de sombreado/borde de parrafo: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de casillas de verificacion: `npm run build` completado correctamente.
+- Backend despues de casillas de verificacion: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de alineacion vertical e hifenacion: `npm run build` completado correctamente.
+- Backend despues de alineacion vertical e hifenacion: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de campos dinamicos: `npm run build` completado correctamente.
+- Backend despues de campos dinamicos: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de notas al final nativas: `npm run build` completado correctamente.
+- Backend despues de notas al final nativas: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de tabulaciones de parrafo: `npm run build` completado correctamente.
+- Backend despues de tabulaciones de parrafo: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de portadas editables: `npm run build` completado correctamente.
+- Backend despues de portadas editables: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de cambio de mayusculas/minusculas: `npm run build` completado correctamente.
+- Backend despues de cambio de mayusculas/minusculas: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de formas simples insertables: `npm run build` completado correctamente.
+- Backend despues de formas simples insertables: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de ampliar campos dinamicos: `npm run build` completado correctamente.
+- Backend despues de ampliar campos dinamicos: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de bloques rapidos editables: `npm run build` completado correctamente.
+- Backend despues de bloques rapidos editables: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Frontend despues de modularizar plantillas/tipos/extensiones y agregar modos de vista: `npm run build` completado correctamente.
+- Backend despues de modularizar plantillas/tipos/extensiones y agregar modos de vista: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion de alcance: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar modelo de documento y exportacion `.docx`: `npm run build` completado correctamente.
+- Backend despues de separar modelo de documento y exportacion `.docx`: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar chrome, vista, revision, presencia y aplicacion de ajustes: `npm run build` completado correctamente.
+- Backend despues de separar chrome, vista, revision, presencia y aplicacion de ajustes: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de mover armado `.docx` y fabrica de extensiones Tiptap fuera del editor principal: `npm run build` completado correctamente.
+- Backend despues de mover armado `.docx` y fabrica de extensiones Tiptap fuera del editor principal: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar importacion `.docx`, lectura de imagenes e historial de versiones: `npm run build` completado correctamente.
+- Backend despues de separar importacion `.docx`, lectura de imagenes e historial de versiones: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar busqueda/reemplazo y mostrar conteo de coincidencias en el ribbon: `npm run build` completado correctamente.
+- Backend despues de separar busqueda/reemplazo y mostrar conteo de coincidencias en el ribbon: `mvn test` con Maven portable completo correctamente, 16 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de cursores remotos, versiones live y conflicto stale: `npm run build` completado correctamente.
+- Backend despues de cursores remotos, versiones live y conflicto stale: `mvn test` con Maven portable completo correctamente, 26 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de operaciones `steps` por WebSocket: `npm run build` completado correctamente.
+- Backend despues de operaciones `steps` por WebSocket: `mvn test` con Maven portable completo correctamente, 28 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de proteger `steps` remotos contra cambios locales pendientes: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de resguardar cambios pendientes al cerrar/ocultar pestana: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de version optimista para snapshots de respaldo tras `steps`: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de sincronizar pendientes locales al montar el editor: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Backend despues de restringir tipos live conocidos: `mvn test` con Maven portable completo correctamente, 29 pruebas exitosas.
+- Frontend despues de restringir tipos live conocidos en backend: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Backend despues de limitar tamano de mensajes live: `mvn test` con Maven portable completo correctamente, 32 pruebas exitosas.
+- Frontend despues de limitar tamano de mensajes live en backend: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de aplicar limites live tambien en el cliente: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Backend despues de restringir eventos de presencia conocidos: `mvn test` con Maven portable completo correctamente, 33 pruebas exitosas.
+- Frontend despues de restringir eventos de presencia conocidos: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Backend despues de rate limit live por sesion/tipo: `mvn test` con Maven portable completo correctamente, 34 pruebas exitosas.
+- Frontend despues de rate limit live por sesion/tipo: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Backend despues de limpieza del rate limit live: `mvn test` con Maven portable completo correctamente, 35 pruebas exitosas.
+- Frontend despues de limpieza del rate limit live: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Backend despues de rate limit de presencia: `mvn test` con Maven portable completo correctamente, 36 pruebas exitosas.
+- Frontend despues de rate limit de presencia: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Backend despues de validar metadatos live/presencia: `mvn test` con Maven portable completo correctamente, 41 pruebas exitosas.
+- Frontend despues de validar metadatos live/presencia: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de normalizar etiqueta de usuario live/presencia: `npm run build` completado correctamente.
+- Backend despues de normalizar etiqueta de usuario live/presencia: `mvn test` con Maven portable completo correctamente, 41 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de normalizar etiquetas remotas recibidas: `npm run build` completado correctamente.
+- Backend despues de normalizar etiquetas remotas recibidas: `mvn test` con Maven portable completo correctamente, 41 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Backend despues de centralizar version live y conectarla con guardados REST: `mvn test` con Maven portable completo correctamente, 42 pruebas exitosas.
+- Frontend despues de sincronizar version live desde notificaciones REST: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar version live optimista en `realtimeVersion.ts`: `npm run build` completado correctamente.
+- Backend despues de separar version live optimista en frontend: `mvn test` con Maven portable completo correctamente, 42 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar autoguardado/storage y unificar settings del editor: `npm run build` completado correctamente.
+- Frontend despues de diferenciar conflictos remotos live/REST en la barra de estado: `npm run build` completado correctamente.
+- Frontend despues de proteger conflictos remotos con cambios locales pendientes: `npm run build` completado correctamente.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar aplicacion de snapshots/steps remotos en `remoteApply.ts`: `npm run build` completado correctamente.
+- Licencias frontend despues de ampliar chequeo a dependencias instaladas/transitivas: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Licencias backend despues de agregar chequeo Maven runtime: `powershell -ExecutionPolicy Bypass -File scripts/check-licenses.ps1` reviso 78 dependencias runtime sin AGPL/GPL/LGPL obligatorio.
+- Backend despues de agregar chequeo de licencias runtime: `mvn test` con Maven portable completo correctamente, 42 pruebas exitosas.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de modularizar bibliografia y ordenar APA/MLA: `npm run build` completado correctamente.
+- Licencias frontend despues de modularizar bibliografia: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de agregar numeracion `Pagina X de Y` con `NUMPAGES`: `npm run build` completado correctamente.
+- Licencias frontend despues de numeracion `Pagina X de Y`: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar importacion avanzada `.docx` de notas/comentarios en `docxImport.ts`: `npm run build` completado correctamente.
+- Licencias frontend despues de importacion avanzada `.docx`: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de mover handlers de archivos a `useDocumentFileHandlers.ts`: `npm run build` completado correctamente.
+- Licencias frontend despues de separar handlers de archivos: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar acciones de insercion en `useInsertActions.ts`: `npm run build` completado correctamente.
+- Frontend despues de separar acciones de revision en `useReviewActions.ts`: `npm run build` completado correctamente.
+- Licencias frontend despues de separar insercion/revision: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar referencias en `useReferenceActions.ts`: `npm run build` completado correctamente.
+- Licencias frontend despues de separar referencias: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar formato/estilos/tablas en `useFormattingActions.ts`: `npm run build` completado correctamente.
+- Licencias frontend despues de separar formato/estilos/tablas: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de separar carga remota y buscar/reemplazar: `npm run build` completado correctamente.
+- Licencias frontend despues de separar carga remota y buscar/reemplazar: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de exportar celdas combinadas de tablas `.docx`: `npm run build` completado correctamente.
+- Licencias frontend despues de exportar celdas combinadas: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de hacer seguro `Reemplazar todo` sobre nodos de texto: `npm run build` completado correctamente.
+- Licencias frontend despues de `Reemplazar todo` seguro: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de importar saltos de pagina/columna desde `.docx`: `npm run build` completado correctamente.
+- Licencias frontend despues de importar saltos `.docx`: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de persistir metadatos importados `.docx` con override de settings: `npm run build` completado correctamente.
+- Licencias frontend despues de persistir metadatos importados: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de importar casillas de verificacion `.docx` como nodos editables/exportables: `npm run build` completado correctamente.
+- Licencias frontend despues de importar casillas `.docx`: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de habilitar clic para alternar casillas de verificacion: `npm run build` completado correctamente.
+- Licencias frontend despues de alternar casillas: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de exportar saltos de linea internos a `.docx`: `npm run build` completado correctamente.
+- Licencias frontend despues de exportar saltos de linea internos: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de hacer seguro `Cambiar` en buscar/reemplazar: `npm run build` completado correctamente.
+- Licencias frontend despues de `Cambiar` seguro: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de mejorar exportacion `.docx` de hipervinculos: `npm run build` completado correctamente.
+- Licencias frontend despues de exportar hipervinculos mejorados: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Frontend despues de conservar altura de imagenes en importacion/exportacion `.docx`: `npm run build` completado correctamente.
+- Licencias frontend despues de conservar altura de imagenes: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Se reforzo la colaboracion en vivo ante reconexion:
+  - Se agrego `realtimeQueue.ts` para mantener fuera del componente principal la cola de mensajes live.
+  - Si el WebSocket no esta conectado, el frontend conserva el ultimo snapshot live y hasta 20 lotes recientes de `steps`.
+  - Al reconectar se prioriza enviar el snapshot mas reciente porque representa el estado completo del documento; si no hay snapshot pendiente, reenvia los lotes de `steps` espaciados para no chocar con el rate limit del backend.
+  - Esto reduce perdida de cambios visuales en vivo durante cortes breves de red, manteniendo como respaldo la persistencia REST/offline ya existente.
+- Frontend despues de cola live por reconexion WebSocket: `npm run build` completado correctamente.
+- Licencias frontend despues de cola live por reconexion: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- La barra de estado del editor ahora distingue el guardado del documento del canal colaborativo live:
+  - Muestra `Live conectado` cuando el WebSocket esta activo.
+  - Muestra `Live reconectando` y la cantidad de mensajes en cola cuando el canal esta caido o reconectando.
+- Frontend despues de indicador live en barra de estado: `npm run build` completado correctamente.
+- Licencias frontend despues del indicador live: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Se mejoro la fidelidad de imagenes insertadas manualmente:
+  - Al insertar una imagen local, el editor mide su tamano natural y guarda `data-image-aspect-ratio`.
+  - La exportacion `.docx` usa esa proporcion para calcular altura cuando el usuario solo ajusto el ancho, evitando imagenes deformadas por el fallback generico.
+  - La proporcion queda en la extension de imagen y no como altura CSS fija, asi el editor conserva una vista fluida tipo Word.
+- Frontend despues de proporcion natural de imagenes insertadas: `npm run build` completado correctamente.
+- Licencias frontend despues de proporcion natural de imagenes: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Se mejoro la exportacion `.docx` de tablas:
+  - Las celdas exportadas ahora conservan anchos cuando Tiptap/ProseMirror los deja como `data-colwidth`, `colwidth`, `width` o `style.width`.
+  - Los anchos se convierten a twips/DXA para Word, manteniendo mejor las columnas ajustadas por el usuario.
+  - Esto complementa la exportacion previa de celdas combinadas, estilos de borde y sombreado.
+- Frontend despues de exportar anchos de tabla: `npm run build` completado correctamente.
+- Licencias frontend despues de exportar anchos de tabla: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Se mejoro la exportacion de contenido dentro de tablas:
+  - Las celdas ya no se exportan siempre como un unico parrafo plano.
+  - Si una celda contiene parrafos, titulos, citas o listas, se convierten como bloques internos de la celda en el `.docx`.
+  - Esto conserva mejor el comportamiento de Word para tablas con contenido academico real.
+- Frontend despues de exportar bloques internos de celdas: `npm run build` completado correctamente.
+- Licencias frontend despues de bloques internos de celdas: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+- Verificacion de alcance posterior: `git status --short mobile` no reporta cambios en `mobile/`.
+- Se ajusto el esquema de tablas para preservar `colwidth`/`data-colwidth` en celdas normales y encabezados.
+  - Esto permite que los anchos de columnas sobrevivan importacion, edicion, guardado HTML y exportacion `.docx`.
+  - Frontend despues de preservar `colwidth` en extensiones de tabla: `npm run build` completado correctamente.
+- Validacion final antes de commit local en rama `Brandon-Vasquez`:
+  - Frontend: `npm run build` completado correctamente.
+  - Frontend licencias: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL obligatorio.
+  - Backend: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` completo 42 pruebas sin fallos.
+  - Backend licencias: `powershell -ExecutionPolicy Bypass -File scripts/check-licenses.ps1` reviso 78 dependencias runtime Maven sin AGPL/GPL/LGPL obligatorio.
+  - Alcance: `git status --short mobile` no reporto cambios en `mobile/`.

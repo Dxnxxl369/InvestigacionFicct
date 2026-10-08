@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import CollaborativeDocumentEditor from "@/components/CollaborativeDocumentEditor";
 import { useAuth } from "@/context/AuthContext";
 import {
   api,
@@ -209,6 +210,8 @@ export default function AreaMoodlePage() {
   const [selectedTareaForRevision, setSelectedTareaForRevision] = useState<TareaDTO | null>(null);
   const [entregasCurrentTarea, setEntregasCurrentTarea] = useState<EntregaTareaDTO[]>([]);
   const [selectedEntregaForCalificar, setSelectedEntregaForCalificar] = useState<EntregaTareaDTO | null>(null);
+  const [documentoColaborativoActivo, setDocumentoColaborativoActivo] = useState<DocumentoDTO | null>(null);
+  const [abriendoDocumentoColaborativo, setAbriendoDocumentoColaborativo] = useState<number | null>(null);
 
   // Formulario de Nueva Tarea (con triple fecha)
   const [tituloTarea, setTituloTarea] = useState("");
@@ -219,6 +222,7 @@ export default function AreaMoodlePage() {
   const [archivosPermitidos, setArchivosPermitidos] = useState(".pdf, .docx, .zip");
   const [tamanoMb, setTamanoMb] = useState(15);
   const [puntajeMax, setPuntajeMax] = useState(100);
+  const [documentoColaborativoHabilitado, setDocumentoColaborativoHabilitado] = useState(false);
   const [creandoTarea, setCreandoTarea] = useState(false);
   const [restoredDraftTarea, setRestoredDraftTarea] = useState(false);
 
@@ -372,6 +376,9 @@ export default function AreaMoodlePage() {
         if (draft.archivosPermitidos) setArchivosPermitidos(draft.archivosPermitidos);
         if (draft.tamanoMb) setTamanoMb(draft.tamanoMb);
         if (draft.puntajeMax) setPuntajeMax(draft.puntajeMax);
+        if (typeof draft.documentoColaborativoHabilitado === "boolean") {
+          setDocumentoColaborativoHabilitado(draft.documentoColaborativoHabilitado);
+        }
         if (moduloIdDefault === undefined && draft.tareaModuloId !== undefined) {
           setTareaModuloId(draft.tareaModuloId);
         }
@@ -399,6 +406,7 @@ export default function AreaMoodlePage() {
     setArchivosPermitidos(".pdf, .docx, .zip");
     setTamanoMb(15);
     setPuntajeMax(100);
+    setDocumentoColaborativoHabilitado(false);
     toast("Borrador de tarea descartado", "info");
   };
 
@@ -419,6 +427,7 @@ export default function AreaMoodlePage() {
           archivosPermitidos,
           tamanoMb,
           puntajeMax,
+          documentoColaborativoHabilitado,
           tareaModuloId,
           updatedAt: new Date().toISOString(),
         };
@@ -437,6 +446,7 @@ export default function AreaMoodlePage() {
     archivosPermitidos,
     tamanoMb,
     puntajeMax,
+    documentoColaborativoHabilitado,
     tareaModuloId,
     convocatoriaId,
   ]);
@@ -463,6 +473,7 @@ export default function AreaMoodlePage() {
         tiposArchivosPermitidos: archivosPermitidos.trim() || ".pdf, .docx, .zip",
         tamanoMaximoMb: Number(tamanoMb) || 15,
         puntajeMaximo: Number(puntajeMax) || 100,
+        documentoColaborativoHabilitado,
       };
 
       await api.createTareaConvocatoria(convocatoriaId, payload);
@@ -480,6 +491,7 @@ export default function AreaMoodlePage() {
       setFechaHabilitacion("");
       setFechaEntrega("");
       setFechaCorte("");
+      setDocumentoColaborativoHabilitado(false);
 
       const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
       setTareas(updatedTareas);
@@ -498,6 +510,18 @@ export default function AreaMoodlePage() {
       toast(`Recepción de entregas ${updated.habilitada ? "habilitada" : "deshabilitada"} en vivo`, "success");
     } catch (err: any) {
       toast(err.message || "Error al conmutar estado de habilitación", "error");
+    }
+  };
+
+  const handleAbrirDocumentoColaborativo = async (tarea: TareaDTO) => {
+    try {
+      setAbriendoDocumentoColaborativo(tarea.id);
+      const documento = await api.getDocumentoColaborativoTarea(tarea.id);
+      setDocumentoColaborativoActivo(documento);
+    } catch (err: any) {
+      toast(err.message || "No se pudo abrir el documento colaborativo", "error");
+    } finally {
+      setAbriendoDocumentoColaborativo(null);
     }
   };
 
@@ -1735,6 +1759,15 @@ export default function AreaMoodlePage() {
   return (
     <DashboardLayout>
       <div className="max-w-6xl mx-auto space-y-6 pb-16">
+        {documentoColaborativoActivo && (
+          <CollaborativeDocumentEditor
+            documento={documentoColaborativoActivo}
+            currentUserName={user ? `${user.nombre} ${user.apellido}` : undefined}
+            onClose={() => setDocumentoColaborativoActivo(null)}
+            onSaved={(doc) => setDocumentoColaborativoActivo(doc)}
+          />
+        )}
+
         {/* Toast Flotante */}
         {toastMsg && (
           <div
@@ -2215,6 +2248,16 @@ export default function AreaMoodlePage() {
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-xs text-ink-soft">
                               <span>Archivos: {t.tiposArchivosPermitidos} • Máx: {t.tamanoMaximoMb} MB</span>
                               <div className="flex items-center gap-2">
+                                {t.documentoColaborativoHabilitado && (
+                                  <button
+                                    onClick={() => handleAbrirDocumentoColaborativo(t)}
+                                    disabled={abriendoDocumentoColaborativo === t.id}
+                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    {abriendoDocumentoColaborativo === t.id ? "Abriendo..." : "Abrir Documento"}
+                                  </button>
+                                )}
                                 {(puedeGestionarTareas || esJuradoEnEstaArea) && (
                                   <button
                                     onClick={() => handleVerEntregas(t)}
@@ -2497,6 +2540,16 @@ export default function AreaMoodlePage() {
                                 </div>
 
                                 <div className="flex items-center gap-2">
+                                  {t.documentoColaborativoHabilitado && (
+                                    <button
+                                      onClick={() => handleAbrirDocumentoColaborativo(t)}
+                                      disabled={abriendoDocumentoColaborativo === t.id}
+                                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                                    >
+                                      <FileText className="w-3.5 h-3.5" />
+                                      {abriendoDocumentoColaborativo === t.id ? "Abriendo..." : "Abrir Documento"}
+                                    </button>
+                                  )}
                                   {(puedeGestionarTareas || esJuradoEnEstaArea) && (
                                     <button
                                       onClick={() => handleVerEntregas(t)}
@@ -3108,6 +3161,22 @@ export default function AreaMoodlePage() {
                     className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"
                   />
                 </div>
+
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-blue-500/30 bg-blue-500/10 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={documentoColaborativoHabilitado}
+                    onChange={(e) => setDocumentoColaborativoHabilitado(e.target.checked)}
+                    className="mt-1 accent-blue-600"
+                  />
+                  <span>
+                    <span className="block font-bold text-ink">Activar documento colaborativo tipo Word</span>
+                    <span className="block text-[11px] text-ink-soft leading-relaxed">
+                      Crea un unico documento editable para esta actividad. Los participantes aceptados podran abrirlo desde la tarea,
+                      editarlo con formato rico y exportarlo como .docx.
+                    </span>
+                  </span>
+                </label>
 
                 {/* TRIPLE CONTROL DE FECHAS */}
                 <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line space-y-3">

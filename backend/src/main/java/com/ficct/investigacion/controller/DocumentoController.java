@@ -3,6 +3,7 @@ package com.ficct.investigacion.controller;
 import com.ficct.investigacion.dto.ColaboradorRequest;
 import com.ficct.investigacion.dto.DocumentoDTO;
 import com.ficct.investigacion.dto.DocumentoRequest;
+import com.ficct.investigacion.dto.DocumentoVersionDTO;
 import com.ficct.investigacion.service.DocumentoService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -94,6 +95,28 @@ public class DocumentoController {
             return ResponseEntity.ok(actualizado);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/versiones")
+    public ResponseEntity<?> listarVersiones(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            List<DocumentoVersionDTO> versiones = documentoService.listarVersiones(id, userDetails.getUsername());
+            return ResponseEntity.ok(versiones);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{id}/versiones/{versionId}/restaurar")
+    public ResponseEntity<?> restaurarVersion(@PathVariable Long id,
+                                              @PathVariable Long versionId,
+                                              @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            DocumentoDTO restaurado = documentoService.restaurarVersion(id, versionId, userDetails.getUsername());
+            return ResponseEntity.ok(restaurado);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
         }
     }
 }

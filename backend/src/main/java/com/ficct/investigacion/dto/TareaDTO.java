@@ -25,6 +25,9 @@ public class TareaDTO {
     private EntregaTareaDTO miEntrega;
     private Long moduloId;
     private String moduloTitulo;
+    private boolean documentoColaborativoHabilitado;
+    private Long documentoColaborativoId;
+    private String documentoColaborativoTitulo;
 
     public TareaDTO() {
     }
@@ -195,5 +198,29 @@ public class TareaDTO {
 
     public void setModuloTitulo(String moduloTitulo) {
         this.moduloTitulo = moduloTitulo;
+    }
+
+    public boolean isDocumentoColaborativoHabilitado() {
+        return documentoColaborativoHabilitado;
+    }
+
+    public void setDocumentoColaborativoHabilitado(boolean documentoColaborativoHabilitado) {
+        this.documentoColaborativoHabilitado = documentoColaborativoHabilitado;
+    }
+
+    public Long getDocumentoColaborativoId() {
+        return documentoColaborativoId;
+    }
+
+    public void setDocumentoColaborativoId(Long documentoColaborativoId) {
+        this.documentoColaborativoId = documentoColaborativoId;
+    }
+
+    public String getDocumentoColaborativoTitulo() {
+        return documentoColaborativoTitulo;
+    }
+
+    public void setDocumentoColaborativoTitulo(String documentoColaborativoTitulo) {
+        this.documentoColaborativoTitulo = documentoColaborativoTitulo;
     }
 }

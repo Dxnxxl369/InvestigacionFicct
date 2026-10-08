@@ -4,15 +4,21 @@ import com.ficct.investigacion.dto.ColaboradorRequest;
 import com.ficct.investigacion.dto.DocumentoColaboradorDTO;
 import com.ficct.investigacion.dto.DocumentoDTO;
 import com.ficct.investigacion.dto.DocumentoRequest;
+import com.ficct.investigacion.dto.DocumentoVersionDTO;
 import com.ficct.investigacion.model.*;
 import com.ficct.investigacion.repository.ConvocatoriaRepository;
 import com.ficct.investigacion.repository.DocumentoColaboradorRepository;
 import com.ficct.investigacion.repository.DocumentoRepository;
+import com.ficct.investigacion.repository.DocumentoVersionRepository;
+import com.ficct.investigacion.repository.ConvocatoriaParticipanteRepository;
+import com.ficct.investigacion.repository.TareaRepository;
 import com.ficct.investigacion.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -25,15 +31,30 @@ public class DocumentoService {
     private final DocumentoColaboradorRepository colaboradorRepository;
     private final UserRepository userRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final TareaRepository tareaRepository;
+    private final ConvocatoriaParticipanteRepository participanteRepository;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final DocumentoVersionRepository versionRepository;
+    private final DocumentoLiveVersionService liveVersionService;
 
     public DocumentoService(DocumentoRepository documentoRepository,
                             DocumentoColaboradorRepository colaboradorRepository,
                             UserRepository userRepository,
-                            ConvocatoriaRepository convocatoriaRepository) {
+                            ConvocatoriaRepository convocatoriaRepository,
+                            TareaRepository tareaRepository,
+                            ConvocatoriaParticipanteRepository participanteRepository,
+                            SimpMessagingTemplate messagingTemplate,
+                            DocumentoVersionRepository versionRepository,
+                            DocumentoLiveVersionService liveVersionService) {
         this.documentoRepository = documentoRepository;
         this.colaboradorRepository = colaboradorRepository;
         this.userRepository = userRepository;
         this.convocatoriaRepository = convocatoriaRepository;
+        this.tareaRepository = tareaRepository;
+        this.participanteRepository = participanteRepository;
+        this.messagingTemplate = messagingTemplate;
+        this.versionRepository = versionRepository;
+        this.liveVersionService = liveVersionService;
     }
 
     public DocumentoDTO crear(DocumentoRequest request, String userEmail) {
@@ -54,6 +75,42 @@ public class DocumentoService {
         );
 
         Documento saved = documentoRepository.save(doc);
+        registrarVersionSiCorresponde(saved, user);
+        notificarActualizacion(saved, user);
+        return toDTO(saved, user);
+    }
+
+    public List<DocumentoVersionDTO> listarVersiones(Long documentoId, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        Documento doc = documentoRepository.findById(documentoId)
+                .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado con ID: " + documentoId));
+        String permiso = resolverPermiso(doc, user);
+        if (permiso == null) {
+            throw new AccessDeniedException("No tiene permisos para acceder a este documento.");
+        }
+        return versionRepository.findTop30ByDocumentoOrderByCreatedAtDesc(doc).stream()
+                .map(this::toVersionDTO)
+                .collect(Collectors.toList());
+    }
+
+    public DocumentoDTO restaurarVersion(Long documentoId, Long versionId, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        Documento doc = documentoRepository.findById(documentoId)
+                .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado con ID: " + documentoId));
+        String permiso = resolverPermiso(doc, user);
+        if (permiso == null || "LECTURA".equals(permiso)) {
+            throw new AccessDeniedException("No tiene permisos de edicion en este documento.");
+        }
+        DocumentoVersion version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("Version no encontrada"));
+        if (!version.getDocumento().getId().equals(documentoId)) {
+            throw new IllegalArgumentException("La version no pertenece a este documento");
+        }
+        doc.setTitulo(version.getTitulo());
+        doc.setContenido(version.getContenido());
+        Documento saved = documentoRepository.save(doc);
+        versionRepository.save(new DocumentoVersion(saved, user, saved.getTitulo(), saved.getContenido()));
+        notificarActualizacion(saved, user);
         return toDTO(saved, user);
     }
 
@@ -111,6 +168,7 @@ public class DocumentoService {
         }
 
         Documento saved = documentoRepository.save(doc);
+        notificarActualizacion(saved, user);
         return toDTO(saved, user);
     }
 
@@ -183,6 +241,10 @@ public class DocumentoService {
         if (doc.getAutor().getId().equals(user.getId())) {
             return "OWNER";
         }
+        Optional<Tarea> tareaVinculada = tareaRepository.findByDocumentoColaborativoId(doc.getId());
+        if (tareaVinculada.isPresent() && puedeAccederDocumentoDeTarea(tareaVinculada.get(), user)) {
+            return "EDICION";
+        }
         for (DocumentoColaborador c : doc.getColaboradores()) {
             if (c.getUsuario().getId().equals(user.getId())) {
                 return c.getPermiso().name();
@@ -207,6 +269,10 @@ public class DocumentoService {
             dto.setConvocatoriaId(doc.getConvocatoria().getId());
             dto.setConvocatoriaTitulo(doc.getConvocatoria().getTitulo());
         }
+        tareaRepository.findByDocumentoColaborativoId(doc.getId()).ifPresent(t -> {
+            dto.setTareaId(t.getId());
+            dto.setTareaTitulo(t.getTitulo());
+        });
 
         dto.setMiPermiso(resolverPermiso(doc, currentUser));
         dto.setCreatedAt(doc.getCreatedAt());
@@ -227,8 +293,61 @@ public class DocumentoService {
         return dto;
     }
 
+    private DocumentoVersionDTO toVersionDTO(DocumentoVersion version) {
+        DocumentoVersionDTO dto = new DocumentoVersionDTO();
+        dto.setId(version.getId());
+        dto.setDocumentoId(version.getDocumento().getId());
+        dto.setTitulo(version.getTitulo());
+        dto.setContenido(version.getContenido());
+        dto.setUsuarioId(version.getUsuario().getId());
+        dto.setUsuarioNombre(version.getUsuario().getNombreCompleto());
+        dto.setCreatedAt(version.getCreatedAt());
+        return dto;
+    }
+
+    private void registrarVersionSiCorresponde(Documento doc, User user) {
+        Optional<DocumentoVersion> ultima = versionRepository.findFirstByDocumentoOrderByCreatedAtDesc(doc);
+        if (ultima.isPresent()) {
+            DocumentoVersion version = ultima.get();
+            boolean mismoContenido = java.util.Objects.equals(version.getContenido(), doc.getContenido())
+                    && java.util.Objects.equals(version.getTitulo(), doc.getTitulo());
+            boolean muyReciente = version.getCreatedAt() != null
+                    && Duration.between(version.getCreatedAt(), java.time.LocalDateTime.now()).toSeconds() < 90;
+            if (mismoContenido || muyReciente) {
+                return;
+            }
+        }
+        versionRepository.save(new DocumentoVersion(doc, user, doc.getTitulo(), doc.getContenido()));
+    }
+
     private User getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no autenticado"));
+    }
+
+    private boolean puedeAccederDocumentoDeTarea(Tarea tarea, User user) {
+        if (user.getRol() == Rol.ADMIN) return true;
+        if (tarea.getCreador() != null && tarea.getCreador().getId().equals(user.getId())) return true;
+        Long convocatoriaId = tarea.getConvocatoria().getId();
+        return participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndEstadoInscripcion(
+                convocatoriaId, user.getId(), EstadoInscripcion.ACEPTADO
+        );
+    }
+
+    private void notificarActualizacion(Documento doc, User user) {
+        try {
+            long liveVersion = liveVersionService.markPersistedChange(doc.getId());
+            messagingTemplate.convertAndSend(
+                    "/topic/documentos/" + doc.getId(),
+                    java.util.Map.of(
+                            "documentoId", doc.getId(),
+                            "updatedAt", doc.getUpdatedAt() != null ? doc.getUpdatedAt().toString() : "",
+                            "usuario", user.getNombreCompleto(),
+                            "serverVersion", liveVersion
+                    )
+            );
+        } catch (Exception ignored) {
+            // La persistencia del documento no depende del canal WebSocket.
+        }
     }
 }

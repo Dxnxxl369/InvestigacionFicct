@@ -86,6 +86,11 @@ public class TareaService {
             moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
         }
 
+        if (Boolean.TRUE.equals(request.getDocumentoColaborativoHabilitado())) {
+            tarea.setDocumentoColaborativoHabilitado(true);
+            tarea.setDocumentoColaborativo(crearDocumentoColaborativoParaTarea(tarea, user));
+        }
+
         Tarea saved = tareaRepository.save(tarea);
         return toDTO(saved, user);
     }
@@ -131,6 +136,12 @@ public class TareaService {
                 moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
             } else {
                 tarea.setModulo(null);
+            }
+        }
+        if (request.getDocumentoColaborativoHabilitado() != null) {
+            tarea.setDocumentoColaborativoHabilitado(request.getDocumentoColaborativoHabilitado());
+            if (request.getDocumentoColaborativoHabilitado() && tarea.getDocumentoColaborativo() == null) {
+                tarea.setDocumentoColaborativo(crearDocumentoColaborativoParaTarea(tarea, user));
             }
         }
 
@@ -272,6 +283,55 @@ public class TareaService {
         return toEntregaDTO(saved);
     }
 
+    public DocumentoDTO obtenerDocumentoColaborativo(Long tareaId, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        Tarea tarea = tareaRepository.findById(tareaId)
+                .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
+
+        if (!tarea.isDocumentoColaborativoHabilitado()) {
+            throw new IllegalStateException("Esta actividad no tiene documento colaborativo habilitado.");
+        }
+
+        if (!puedeAccederActividad(tarea, user)) {
+            throw new AccessDeniedException("No tienes acceso al documento colaborativo de esta actividad.");
+        }
+
+        if (tarea.getDocumentoColaborativo() == null) {
+            if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) {
+                throw new AccessDeniedException("El documento colaborativo aun no fue inicializado por el docente.");
+            }
+            tarea.setDocumentoColaborativo(crearDocumentoColaborativoParaTarea(tarea, user));
+            tareaRepository.save(tarea);
+        }
+
+        return toDocumentoDTO(tarea.getDocumentoColaborativo(), tarea, user);
+    }
+
+    private Documento crearDocumentoColaborativoParaTarea(Tarea tarea, User autor) {
+        String contenidoInicial = "<h1>" + escapeHtml(tarea.getTitulo()) + "</h1>"
+                + "<p>Escribe aqui el desarrollo colaborativo de la actividad.</p>"
+                + "<h2>Objetivos</h2><ol><li>Objetivo principal</li></ol>"
+                + "<h2>Desarrollo</h2><p></p>"
+                + "<h2>Conclusiones</h2><p></p>";
+        Documento doc = new Documento(
+                "Documento colaborativo - " + tarea.getTitulo(),
+                "Documento colaborativo asociado a la actividad: " + tarea.getTitulo(),
+                "ACTIVIDAD",
+                contenidoInicial,
+                autor,
+                tarea.getConvocatoria()
+        );
+        return documentoRepository.save(doc);
+    }
+
+    private boolean puedeAccederActividad(Tarea tarea, User user) {
+        if (user.getRol() == Rol.ADMIN) return true;
+        if (puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) return true;
+        return participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndEstadoInscripcion(
+                tarea.getConvocatoria().getId(), user.getId(), EstadoInscripcion.ACEPTADO
+        );
+    }
+
     private void validarExtensionArchivo(String nombreArchivo, String permitidos) {
         if (permitidos == null || permitidos.isBlank() || "*".equals(permitidos.trim())) {
             return;
@@ -314,6 +374,11 @@ public class TareaService {
         if (tarea.getModulo() != null) {
             dto.setModuloId(tarea.getModulo().getId());
             dto.setModuloTitulo(tarea.getModulo().getTitulo());
+        }
+        dto.setDocumentoColaborativoHabilitado(tarea.isDocumentoColaborativoHabilitado());
+        if (tarea.getDocumentoColaborativo() != null) {
+            dto.setDocumentoColaborativoId(tarea.getDocumentoColaborativo().getId());
+            dto.setDocumentoColaborativoTitulo(tarea.getDocumentoColaborativo().getTitulo());
         }
         dto.setTotalEntregas(tarea.getEntregas().size());
         dto.setCreatedAt(tarea.getCreatedAt());
@@ -373,5 +438,35 @@ public class TareaService {
     private User getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no autenticado"));
+    }
+
+    private DocumentoDTO toDocumentoDTO(Documento doc, Tarea tarea, User currentUser) {
+        DocumentoDTO dto = new DocumentoDTO();
+        dto.setId(doc.getId());
+        dto.setTitulo(doc.getTitulo());
+        dto.setDescripcion(doc.getDescripcion());
+        dto.setCategoria(doc.getCategoria());
+        dto.setContenido(doc.getContenido());
+        dto.setEstado(doc.getEstado());
+        dto.setAutorId(doc.getAutor().getId());
+        dto.setAutorNombre(doc.getAutor().getNombreCompleto());
+        dto.setAutorEmail(doc.getAutor().getEmail());
+        dto.setConvocatoriaId(tarea.getConvocatoria().getId());
+        dto.setConvocatoriaTitulo(tarea.getConvocatoria().getTitulo());
+        dto.setTareaId(tarea.getId());
+        dto.setTareaTitulo(tarea.getTitulo());
+        dto.setMiPermiso("EDICION");
+        dto.setCreatedAt(doc.getCreatedAt());
+        dto.setUpdatedAt(doc.getUpdatedAt());
+        return dto;
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) return "";
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
     }
 }
