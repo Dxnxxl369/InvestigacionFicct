@@ -46,4 +46,6 @@ Thumbs.db
 .idea/
 *.log
 *.zip
+*.apk
+apks/
 backend/uploads/
