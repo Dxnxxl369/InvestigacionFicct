@@ -511,6 +511,7 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                 );
               },
             ),
+          const NotificacionBadge(),
         ],
       ),
       body: SingleChildScrollView(
@@ -1041,6 +1042,13 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                               ),
                             ],
                           ),
+                          if (estado == 'RECHAZADO' && p['motivoRechazo'] != null && (p['motivoRechazo'] as String).isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Motivo: ${p['motivoRechazo']}',
+                              style: const TextStyle(fontSize: 11, color: AppTheme.danger, fontStyle: FontStyle.italic),
+                            ),
+                          ],
                           if (estado == 'PENDIENTE') ...[
                             const SizedBox(height: 10),
                             Row(

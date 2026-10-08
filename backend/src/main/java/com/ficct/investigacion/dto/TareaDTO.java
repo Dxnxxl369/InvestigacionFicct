@@ -232,4 +232,24 @@ public class TareaDTO {
     public void setActividadGrupoTitulo(String actividadGrupoTitulo) {
         this.actividadGrupoTitulo = actividadGrupoTitulo;
     }
+
+    // ---- Mejoras: rubrica y estado personal del estudiante ----
+    private java.util.List<MejorasDTOs.CriterioDTO> rubrica = new java.util.ArrayList<>();
+    private String miEstado;
+
+    public java.util.List<MejorasDTOs.CriterioDTO> getRubrica() {
+        return rubrica;
+    }
+
+    public void setRubrica(java.util.List<MejorasDTOs.CriterioDTO> rubrica) {
+        this.rubrica = rubrica;
+    }
+
+    public String getMiEstado() {
+        return miEstado;
+    }
+
+    public void setMiEstado(String miEstado) {
+        this.miEstado = miEstado;
+    }
 }

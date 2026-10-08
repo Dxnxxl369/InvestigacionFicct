@@ -8,6 +8,7 @@ import 'moodle/mis_areas_screen.dart';
 import 'moodle/aula_virtual_screen.dart';
 import 'moodle/tarea_entrega_screen.dart';
 import 'moodle/speedgrader_screen.dart';
+import 'moodle/mis_pendientes_screen.dart';
 import 'convocatorias/convocatorias_screen.dart';
 import 'convocatorias/convocatoria_detalle_screen.dart';
 import 'convocatorias/crear_convocatoria_screen.dart';
@@ -59,6 +60,16 @@ class _MainScaffoldState extends State<MainScaffold> {
       MaterialPageRoute(
         builder: (ctx) => TareaEntregaScreen(
           tarea: tarea,
+          onBack: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+  }
+
+  void _abrirMisPendientes() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => MisPendientesScreen(
           onBack: () => Navigator.of(ctx).pop(),
         ),
       ),
@@ -119,6 +130,7 @@ class _MainScaffoldState extends State<MainScaffold> {
           onNavigateTab: _onTabTapped,
           onOpenSpeedGrader: () => _abrirSpeedGrader(),
           onOpenAula: _abrirAula,
+          onOpenMisPendientes: _abrirMisPendientes,
           onToggleTheme: widget.onToggleTheme,
         );
         break;

@@ -66,6 +66,16 @@ public class EntregaTarea {
     @Column(name = "nombre_equipo", length = 300)
     private String nombreEquipo;
 
+    // Nullable en BD para no romper filas previas; null se interpreta como false
+    @Column(name = "con_retraso")
+    private Boolean conRetraso = false;
+
+    @OneToMany(mappedBy = "entrega", cascade = CascadeType.REMOVE)
+    private java.util.List<EntregaVersion> versiones = new java.util.ArrayList<>();
+
+    @OneToMany(mappedBy = "entrega", cascade = CascadeType.REMOVE)
+    private java.util.List<EntregaPuntajeCriterio> puntajesCriterios = new java.util.ArrayList<>();
+
     public EntregaTarea() {
     }
 
@@ -211,5 +221,13 @@ public class EntregaTarea {
 
     public void setNombreEquipo(String nombreEquipo) {
         this.nombreEquipo = nombreEquipo;
+    }
+
+    public boolean isConRetraso() {
+        return Boolean.TRUE.equals(conRetraso);
+    }
+
+    public void setConRetraso(boolean conRetraso) {
+        this.conRetraso = conRetraso;
     }
 }

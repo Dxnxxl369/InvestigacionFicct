@@ -235,4 +235,42 @@ public class EntregaTareaDTO {
     public void setCompanerosEquipo(List<String> companerosEquipo) {
         this.companerosEquipo = companerosEquipo;
     }
+
+    // ---- Mejoras: retraso, intentos y puntajes por criterio ----
+    private boolean conRetraso;
+    private int intentos = 1;
+    private Double puntajeMaximoTarea;
+    private java.util.List<MejorasDTOs.PuntajeDTO> puntajesCriterios = new java.util.ArrayList<>();
+
+    public boolean isConRetraso() {
+        return conRetraso;
+    }
+
+    public void setConRetraso(boolean conRetraso) {
+        this.conRetraso = conRetraso;
+    }
+
+    public int getIntentos() {
+        return intentos;
+    }
+
+    public void setIntentos(int intentos) {
+        this.intentos = intentos;
+    }
+
+    public Double getPuntajeMaximoTarea() {
+        return puntajeMaximoTarea;
+    }
+
+    public void setPuntajeMaximoTarea(Double puntajeMaximoTarea) {
+        this.puntajeMaximoTarea = puntajeMaximoTarea;
+    }
+
+    public java.util.List<MejorasDTOs.PuntajeDTO> getPuntajesCriterios() {
+        return puntajesCriterios;
+    }
+
+    public void setPuntajesCriterios(java.util.List<MejorasDTOs.PuntajeDTO> puntajesCriterios) {
+        this.puntajesCriterios = puntajesCriterios;
+    }
 }

@@ -42,6 +42,7 @@ class _MisAreasScreenState extends State<MisAreasScreen> {
       appBar: AppBar(
         title: const Text('Mis Áreas Académicas'),
         actions: [
+          const NotificacionBadge(),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualizar áreas',

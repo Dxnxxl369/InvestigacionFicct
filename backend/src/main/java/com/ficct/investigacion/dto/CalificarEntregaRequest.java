@@ -1,14 +1,10 @@
 package com.ficct.investigacion.dto;
 
-import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 
 public class CalificarEntregaRequest {
 
-    @NotNull(message = "La calificacion es obligatoria")
     @Min(value = 0, message = "La calificacion minima es 0")
-    @Max(value = 100, message = "La calificacion maxima no puede exceder 100")
     private Double calificacion;
 
     private String retroalimentacion;
@@ -35,5 +31,16 @@ public class CalificarEntregaRequest {
 
     public void setRetroalimentacion(String retroalimentacion) {
         this.retroalimentacion = retroalimentacion;
+    }
+
+    // ---- Mejoras: calificacion por rubrica ----
+    private java.util.List<MejorasDTOs.PuntajeRequest> puntajesCriterios;
+
+    public java.util.List<MejorasDTOs.PuntajeRequest> getPuntajesCriterios() {
+        return puntajesCriterios;
+    }
+
+    public void setPuntajesCriterios(java.util.List<MejorasDTOs.PuntajeRequest> puntajesCriterios) {
+        this.puntajesCriterios = puntajesCriterios;
     }
 }

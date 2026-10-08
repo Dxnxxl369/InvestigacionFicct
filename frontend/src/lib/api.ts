@@ -431,6 +431,20 @@ export const convocatoriasAPI = {
     return handleResponse<{ message: string }>(res);
   },
 
+  async responderLote(
+    convocatoriaId: number,
+    participanteIds: number[],
+    accion: "ADMITIR" | "RECHAZAR",
+    motivo?: string
+  ): Promise<{ procesados: number; errores: string[] }> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/participantes/responder-lote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ participanteIds, accion, motivo }),
+    });
+    return handleResponse<{ procesados: number; errores: string[] }>(res);
+  },
+
   async getTareas(convocatoriaId: number): Promise<TareaDTO[]> {
     const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/tareas`, {
       headers: { ...getAuthHeader() },
@@ -683,6 +697,92 @@ export const cursosAPI = {
 };
 
 // 8. Tareas y Entregas Académicas API (tipo Moodle - Sprint 2)
+
+// --- Rúbrica ---
+export interface CriterioDTO {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  puntajeMaximo: number;
+  orden: number;
+}
+
+export interface CriterioRequest {
+  id?: number;
+  nombre: string;
+  descripcion?: string;
+  puntajeMaximo: number;
+}
+
+export interface PuntajeCriterioDTO {
+  criterioId: number;
+  nombre: string;
+  puntaje: number;
+  puntajeMaximo: number;
+}
+
+export interface PuntajeCriterioRequest {
+  criterioId: number;
+  puntaje: number;
+}
+
+// --- Notificaciones ---
+export interface NotificacionDTO {
+  id: number;
+  tipo: "INSCRIPCION_ADMITIDA" | "INSCRIPCION_RECHAZADA" | "NUEVA_POSTULACION" | "NUEVA_ENTREGA" | "ENTREGA_CALIFICADA" | "NUEVA_TAREA" | "CORTE_PROXIMO" | string;
+  titulo: string;
+  mensaje: string;
+  leida: boolean;
+  createdAt: string;
+  convocatoriaId?: number;
+  tareaId?: number;
+  entregaId?: number;
+}
+
+// --- Seguimiento de tarea (SpeedGrader) ---
+export interface ItemSeguimientoDTO {
+  estudianteId: number;
+  estudianteNombre: string;
+  estudianteEmail: string;
+  fotoPerfil?: string;
+  grupoNombre?: string;
+  estadoSeguimiento: "SIN_ENTREGAR" | "ENTREGADO" | "CALIFICADO";
+  conRetraso: boolean;
+  entrega?: EntregaTareaDTO | null;
+}
+
+export interface ResumenSeguimientoDTO {
+  totalEstudiantes: number;
+  entregados: number;
+  sinEntregar: number;
+  conRetraso: number;
+  calificados: number;
+  porCalificar: number;
+}
+
+export interface SeguimientoTareaDTO {
+  tareaId: number;
+  titulo: string;
+  puntajeMaximo: number;
+  esGrupal: boolean;
+  fechaEntrega?: string;
+  fechaCorte?: string;
+  resumen: ResumenSeguimientoDTO;
+  items: ItemSeguimientoDTO[];
+}
+
+// --- Historial de versiones ---
+export interface VersionDTO {
+  id: number;
+  intento: number;
+  nombreArchivo?: string;
+  archivoUrl?: string;
+  comentario?: string;
+  fechaEntrega: string;
+  conRetraso: boolean;
+}
+
+// --- EntregaTareaDTO con campos de mejoras ---
 export interface EntregaTareaDTO {
   id: number;
   tareaId: number;
@@ -709,8 +809,14 @@ export interface EntregaTareaDTO {
   grupoId?: number;
   grupoNombre?: string;
   companerosEquipo?: string[];
+  // Mejoras
+  conRetraso?: boolean;
+  intentos?: number;
+  puntajeMaximoTarea?: number;
+  puntajesCriterios?: PuntajeCriterioDTO[];
 }
 
+// --- TareaDTO con rubrica y miEstado ---
 export interface TareaDTO {
   id: number;
   convocatoriaId?: number;
@@ -740,6 +846,9 @@ export interface TareaDTO {
   moduloTitulo?: string;
   actividadGrupoId?: number;
   actividadGrupoTitulo?: string;
+  // Mejoras
+  rubrica?: CriterioDTO[];
+  miEstado?: "PENDIENTE" | "ENTREGADO" | "ENTREGADO_CON_RETRASO" | "CALIFICADO" | "VENCIDA" | "NO_DISPONIBLE";
 }
 
 export interface TareaRequest {
@@ -757,6 +866,8 @@ export interface TareaRequest {
   puntajeMaximo?: number;
   esGrupal?: boolean;
   actividadGrupoId?: number;
+  // Mejoras: null = no tocar; [] = borrar; lista = reemplazar
+  rubrica?: CriterioRequest[] | null;
 }
 
 export interface EntregaRequest {
@@ -768,8 +879,16 @@ export interface EntregaRequest {
 }
 
 export interface CalificarEntregaRequest {
-  calificacion: number;
+  calificacion?: number;
   retroalimentacion?: string;
+  // Mejoras: calificación por rúbrica criterio a criterio
+  puntajesCriterios?: PuntajeCriterioRequest[];
+}
+
+export interface ResponderLoteRequest {
+  participanteIds: number[];
+  accion: "ADMITIR" | "RECHAZAR";
+  motivo?: string;
 }
 
 export const tareasAPI = {
@@ -820,6 +939,76 @@ export const tareasAPI = {
       body: JSON.stringify(data),
     });
     return handleResponse<EntregaTareaDTO>(res);
+  },
+
+  async getSeguimiento(tareaId: number): Promise<SeguimientoTareaDTO> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${tareaId}/seguimiento`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<SeguimientoTareaDTO>(res);
+  },
+
+  async getMisTareas(): Promise<TareaDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/tareas/mis-tareas`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<TareaDTO[]>(res);
+  },
+
+  async getHistorial(entregaId: number): Promise<VersionDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/entregas/${entregaId}/historial`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<VersionDTO[]>(res);
+  },
+
+  async exportNotasTarea(tareaId: number): Promise<Blob> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${tareaId}/export-notas`, {
+      headers: { ...getAuthHeader() },
+    });
+    if (!res.ok) throw new Error(`Error ${res.status} exportando notas`);
+    return res.blob();
+  },
+
+  async exportNotasConvocatoria(convocatoriaId: number): Promise<Blob> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/export-notas`, {
+      headers: { ...getAuthHeader() },
+    });
+    if (!res.ok) throw new Error(`Error ${res.status} exportando notas`);
+    return res.blob();
+  },
+};
+
+// 9. Notificaciones API
+export const notificacionesAPI = {
+  async listar(limite = 50): Promise<NotificacionDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/notificaciones?limite=${limite}`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<NotificacionDTO[]>(res);
+  },
+
+  async contarNoLeidas(): Promise<{ count: number }> {
+    const res = await fetch(`${API_BASE_URL}/notificaciones/no-leidas`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ count: number }>(res);
+  },
+
+  async marcarLeida(id: number): Promise<{ ok: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/notificaciones/${id}/leer`, {
+      method: "PUT",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ ok: boolean }>(res);
+  },
+
+  async marcarTodasLeidas(): Promise<{ ok: boolean; marcadas: number }> {
+    const res = await fetch(`${API_BASE_URL}/notificaciones/leer-todas`, {
+      method: "PUT",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ ok: boolean; marcadas: number }>(res);
   },
 };
 
@@ -1153,6 +1342,7 @@ export const api = {
   admitirParticipante: convocatoriasAPI.admitirParticipante,
   rechazarParticipante: convocatoriasAPI.rechazarParticipante,
   removerParticipante: convocatoriasAPI.removerParticipante,
+  responderLote: convocatoriasAPI.responderLote,
   getTareasConvocatoria: convocatoriasAPI.getTareas,
   createTareaConvocatoria: convocatoriasAPI.createTarea,
 
@@ -1201,6 +1391,14 @@ export const api = {
   entregarTarea: tareasAPI.submitEntrega,
   getEntregasTarea: tareasAPI.getEntregas,
   calificarEntrega: tareasAPI.calificar,
+  // Mejoras
+  getSeguimiento: tareasAPI.getSeguimiento,
+  getSeguimientoTarea: tareasAPI.getSeguimiento,
+  getMisTareas: tareasAPI.getMisTareas,
+  getHistorial: tareasAPI.getHistorial,
+  getHistorialEntrega: tareasAPI.getHistorial,
+  exportNotasTarea: tareasAPI.exportNotasTarea,
+  exportNotasConvocatoria: tareasAPI.exportNotasConvocatoria,
 
   // Grupos & Equipos (Moodle Style)
   getGruposArea: gruposAPI.getGrupos,
@@ -1218,6 +1416,12 @@ export const api = {
   actualizarActividadGrupo: actividadesGrupoAPI.actualizarActividad,
   elegirGrupoActividad: actividadesGrupoAPI.elegirGrupo,
   anularEleccionGrupoActividad: actividadesGrupoAPI.anularEleccion,
+
+  // Notificaciones
+  listarNotificaciones: notificacionesAPI.listar,
+  contarNotificacionesNoLeidas: notificacionesAPI.contarNoLeidas,
+  marcarNotificacionLeida: notificacionesAPI.marcarLeida,
+  marcarTodasNotificacionesLeidas: notificacionesAPI.marcarTodasLeidas,
 };
 
 export default api;

@@ -4,6 +4,7 @@ import '../../models/convocatoria_model.dart';
 import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
+import '../../widgets/moodle_widgets.dart';
 
 class ConvocatoriasScreen extends StatefulWidget {
   final Function(ConvocatoriaModel) onOpenDetalle;
@@ -116,6 +117,7 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
       appBar: AppBar(
         title: const Text('Convocatorias & Ferias'),
         actions: [
+          const NotificacionBadge(),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualizar catálogo',

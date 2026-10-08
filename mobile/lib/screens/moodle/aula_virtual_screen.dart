@@ -40,6 +40,7 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
   bool _isLoadingParticipantes = false;
   bool _isLoadingGradebook = false;
   bool _isActionLoading = false;
+  final Set<int> _selectedPendientes = {};
 
   int _currentTab = 0; // 0: Módulos & Tareas, 1: Grupos & Equipos, 2: Participantes, 3: Calificaciones
   int? _selectedGrupoIdForStudent;
@@ -371,6 +372,128 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
           );
           _loadParticipantes();
         }
+      }
+    }
+  }
+
+  // Docente: Admitir Solicitudes en Lote
+  Future<void> _handleAdmitirLote() async {
+    if (_selectedPendientes.isEmpty) return;
+    setState(() => _isActionLoading = true);
+    final ids = _selectedPendientes.toList();
+    final res = await ApiService.responderLote(widget.curso.id, ids, 'ADMITIR');
+    if (mounted) {
+      setState(() {
+        _isActionLoading = false;
+        _selectedPendientes.clear();
+      });
+      final procesados = res['procesados'] ?? 0;
+      final errores = (res['errores'] as List<dynamic>?) ?? [];
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: errores.isEmpty ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+          content: Text('$procesados estudiante(s) admitido(s)${errores.isNotEmpty ? ' (${errores.length} errores)' : ''}.'),
+        ),
+      );
+      _loadParticipantes();
+    }
+  }
+
+  // Docente: Rechazar Solicitudes en Lote con Motivo
+  Future<void> _handleRechazarLote() async {
+    if (_selectedPendientes.isEmpty) return;
+    final motivoCtrl = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Rechazar ${_selectedPendientes.length} Solicitudes'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('¿Deseas rechazar las ${_selectedPendientes.length} solicitudes seleccionadas?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: motivoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Motivo del rechazo (opcional)',
+                hintText: 'Ej. Cupos llenos, no cumple requisitos...',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Rechazar en Lote'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isActionLoading = true);
+      final ids = _selectedPendientes.toList();
+      final res = await ApiService.responderLote(
+        widget.curso.id,
+        ids,
+        'RECHAZAR',
+        motivo: motivoCtrl.text.trim(),
+      );
+      if (mounted) {
+        setState(() {
+          _isActionLoading = false;
+          _selectedPendientes.clear();
+        });
+        final procesados = res['procesados'] ?? 0;
+        final errores = (res['errores'] as List<dynamic>?) ?? [];
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppTheme.danger,
+            content: Text('$procesados solicitud(es) rechazada(s)${errores.isNotEmpty ? ' (${errores.length} errores)' : ''}.'),
+          ),
+        );
+        _loadParticipantes();
+      }
+    }
+  }
+
+  // Docente/Admin: Exportar Libro Central de Calificaciones a CSV
+  Future<void> _exportarLibroCalificacionesCSV() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Text('Descargando libro de calificaciones CSV...'),
+          ],
+        ),
+      ),
+    );
+
+    final csv = await ApiService.exportarNotasConvocatoria(widget.curso.id);
+    if (mounted) {
+      if (csv != null && csv.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF10B981),
+            content: Text('Libro de calificaciones exportado exitosamente (${csv.split('\n').length - 1} registros).'),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppTheme.danger,
+            content: const Text('No se pudo exportar el libro de calificaciones.'),
+          ),
+        );
       }
     }
   }
@@ -1389,6 +1512,7 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          const NotificacionBadge(),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
@@ -3340,15 +3464,92 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.pending_actions_rounded, color: Colors.amber, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Solicitudes de Admisión (${pendientes.length})',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      Row(
+                        children: [
+                          const Icon(Icons.pending_actions_rounded, color: Colors.amber, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Solicitudes de Admisión (${pendientes.length})',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      TextButton.icon(
+                        icon: Icon(
+                          _selectedPendientes.length == pendientes.length
+                              ? Icons.check_box_rounded
+                              : Icons.check_box_outline_blank_rounded,
+                          size: 18,
+                        ),
+                        label: Text(
+                          _selectedPendientes.length == pendientes.length ? 'Deseleccionar' : 'Seleccionar todo',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (_selectedPendientes.length == pendientes.length) {
+                              _selectedPendientes.clear();
+                            } else {
+                              _selectedPendientes.clear();
+                              for (final p in pendientes) {
+                                final id = p['id'] as int? ?? 0;
+                                if (id > 0) _selectedPendientes.add(id);
+                              }
+                            }
+                          });
+                        },
                       ),
                     ],
                   ),
+                  if (_selectedPendientes.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentSoft,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            '${_selectedPendientes.length} seleccionados',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.accentDark,
+                            ),
+                          ),
+                          const Spacer(),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              elevation: 0,
+                            ),
+                            icon: const Icon(Icons.check_rounded, size: 14),
+                            label: const Text('Admitir', style: TextStyle(fontSize: 11)),
+                            onPressed: _isActionLoading ? null : _handleAdmitirLote,
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.danger,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              elevation: 0,
+                            ),
+                            icon: const Icon(Icons.close_rounded, size: 14),
+                            label: const Text('Rechazar', style: TextStyle(fontSize: 11)),
+                            onPressed: _isActionLoading ? null : _handleRechazarLote,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   ...pendientes.map((sol) {
                     final partId = sol['id'] as int? ?? 0;
@@ -3357,17 +3558,35 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                     final foto = sol['fotoPerfil'] as String?;
                     final uId = (sol['usuarioId'] as num?)?.toInt() ?? 0;
                     final grupo = _formatGrupo(sol);
+                    final isChecked = _selectedPendientes.contains(partId);
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.lineSoft),
+                        border: Border.all(
+                          color: isChecked
+                              ? AppTheme.accent
+                              : (isDark ? AppTheme.darkLine : AppTheme.lineSoft),
+                        ),
                       ),
                       child: Row(
                         children: [
+                          Checkbox(
+                            value: isChecked,
+                            activeColor: AppTheme.accent,
+                            onChanged: (val) {
+                              setState(() {
+                                if (val == true) {
+                                  _selectedPendientes.add(partId);
+                                } else {
+                                  _selectedPendientes.remove(partId);
+                                }
+                              });
+                            },
+                          ),
                           InkWell(
                             onTap: uId > 0
                                 ? () => showPerfilParticipanteModal(
@@ -3639,10 +3858,19 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.refresh_rounded, size: 20, color: AppTheme.accent),
-                        tooltip: 'Recargar notas',
-                        onPressed: _loadGradebookData,
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.download_rounded, size: 20, color: AppTheme.accent),
+                            tooltip: 'Exportar libro de calificaciones (CSV)',
+                            onPressed: _exportarLibroCalificacionesCSV,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh_rounded, size: 20, color: AppTheme.accent),
+                            tooltip: 'Recargar notas',
+                            onPressed: _loadGradebookData,
+                          ),
+                        ],
                       ),
                     ],
                   ),

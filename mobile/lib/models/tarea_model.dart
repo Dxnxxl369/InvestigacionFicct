@@ -22,6 +22,14 @@ class TareaModel {
   final bool habilitada;
   final int? actividadGrupoId;
 
+  // Campos de mejoras
+  final String? miEstado;
+  final bool conRetraso;
+  final int intentos;
+  final int? convocatoriaId;
+  final String? convocatoriaTitulo;
+  final List<Map<String, dynamic>> rubrica;
+
   TareaModel({
     required this.id,
     required this.titulo,
@@ -44,6 +52,12 @@ class TareaModel {
     this.comentarioEstudiante,
     this.habilitada = true,
     this.actividadGrupoId,
+    this.miEstado,
+    this.conRetraso = false,
+    this.intentos = 1,
+    this.convocatoriaId,
+    this.convocatoriaTitulo,
+    this.rubrica = const [],
   });
 
   factory TareaModel.fromJson(Map<String, dynamic> json) {
@@ -74,6 +88,13 @@ class TareaModel {
 
     final int? entId = miEntrega != null ? (miEntrega['id'] as num?)?.toInt() : null;
     final String? coment = miEntrega != null ? miEntrega['comentarioEstudiante'] as String? : null;
+    final bool conRet = miEntrega != null ? (miEntrega['conRetraso'] == true) : false;
+    final int ints = miEntrega != null ? ((miEntrega['intentos'] as num?)?.toInt() ?? 1) : 1;
+
+    final rubricaRaw = json['rubrica'] as List<dynamic>?;
+    final rubricaParsed = rubricaRaw != null
+        ? rubricaRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+        : <Map<String, dynamic>>[];
 
     return TareaModel(
       id: json['id'] as int? ?? 0,
@@ -97,6 +118,12 @@ class TareaModel {
       comentarioEstudiante: coment,
       habilitada: json['habilitada'] as bool? ?? true,
       actividadGrupoId: (json['actividadGrupoId'] as num?)?.toInt(),
+      miEstado: json['miEstado'] as String?,
+      conRetraso: conRet,
+      intentos: ints,
+      convocatoriaId: (json['convocatoriaId'] as num?)?.toInt(),
+      convocatoriaTitulo: json['convocatoriaTitulo'] as String?,
+      rubrica: rubricaParsed,
     );
   }
 

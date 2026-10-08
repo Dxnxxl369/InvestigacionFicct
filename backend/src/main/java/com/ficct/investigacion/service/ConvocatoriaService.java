@@ -19,15 +19,18 @@ public class ConvocatoriaService {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final UserRepository userRepository;
     private final RequisitoRepository requisitoRepository;
+    private final NotificacionService notificacionService;
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
                                ConvocatoriaParticipanteRepository participanteRepository,
                                UserRepository userRepository,
-                               RequisitoRepository requisitoRepository) {
+                               RequisitoRepository requisitoRepository,
+                               @org.springframework.context.annotation.Lazy NotificacionService notificacionService) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.userRepository = userRepository;
         this.requisitoRepository = requisitoRepository;
+        this.notificacionService = notificacionService;
     }
 
     @Transactional
@@ -635,7 +638,21 @@ public class ConvocatoriaService {
         cp.setMotivoRechazo(null);
         cp.setAsignadoPor(solicitante);
 
-        return new ConvocatoriaParticipanteDTO(participanteRepository.save(cp));
+        ConvocatoriaParticipante saved = participanteRepository.save(cp);
+        try {
+            notificacionService.crearNotificacion(
+                    saved.getUsuario().getId(),
+                    Notificacion.INSCRIPCION_ADMITIDA,
+                    "¡Solicitud admitida!",
+                    "Tu solicitud para '" + conv.getTitulo() + "' fue admitida.",
+                    conv.getId(),
+                    null,
+                    null
+            );
+        } catch (Exception e) {
+            // Silencioso
+        }
+        return new ConvocatoriaParticipanteDTO(saved);
     }
 
     @Transactional
@@ -662,7 +679,22 @@ public class ConvocatoriaService {
         cp.setMotivoRechazo(motivo != null && !motivo.isBlank() ? motivo.trim() : "No cumple con los requisitos del área.");
         cp.setAsignadoPor(solicitante);
 
-        return new ConvocatoriaParticipanteDTO(participanteRepository.save(cp));
+        ConvocatoriaParticipante saved = participanteRepository.save(cp);
+        try {
+            String msg = saved.getMotivoRechazo() != null ? " Motivo: " + saved.getMotivoRechazo() : "";
+            notificacionService.crearNotificacion(
+                    saved.getUsuario().getId(),
+                    Notificacion.INSCRIPCION_RECHAZADA,
+                    "Solicitud rechazada",
+                    "Tu solicitud para '" + conv.getTitulo() + "' fue rechazada." + msg,
+                    conv.getId(),
+                    null,
+                    null
+            );
+        } catch (Exception e) {
+            // Silencioso
+        }
+        return new ConvocatoriaParticipanteDTO(saved);
     }
 
     @Transactional

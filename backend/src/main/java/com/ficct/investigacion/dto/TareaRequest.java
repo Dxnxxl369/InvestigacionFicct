@@ -153,4 +153,15 @@ public class TareaRequest {
     public void setActividadGrupoId(Long actividadGrupoId) {
         this.actividadGrupoId = actividadGrupoId;
     }
+
+    // ---- Mejoras: rubrica editable (null = no tocar; [] = borrar) ----
+    private java.util.List<MejorasDTOs.CriterioRequest> rubrica;
+
+    public java.util.List<MejorasDTOs.CriterioRequest> getRubrica() {
+        return rubrica;
+    }
+
+    public void setRubrica(java.util.List<MejorasDTOs.CriterioRequest> rubrica) {
+        this.rubrica = rubrica;
+    }
 }

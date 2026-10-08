@@ -28,6 +28,15 @@ import {
   ActividadGrupoDTO,
   CrearActividadGrupoRequest,
   ElegirGrupoRequest,
+  SeguimientoTareaDTO,
+  ItemSeguimientoDTO,
+  ResumenSeguimientoDTO,
+  VersionDTO,
+  CriterioDTO,
+  CriterioRequest,
+  PuntajeCriterioDTO,
+  PuntajeCriterioRequest,
+  ResponderLoteRequest,
 } from "@/lib/api";
 import {
   Calendar,
@@ -77,6 +86,9 @@ import {
   HelpCircle,
   Info,
   CheckCircle,
+  History,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 
 // Convertir base64 dataURL a File para restaurar borradores
@@ -402,6 +414,10 @@ export default function AreaMoodlePage() {
   const [searchEstudianteEntrega, setSearchEstudianteEntrega] = useState("");
   const [filtroEntregasEstado, setFiltroEntregasEstado] = useState<"TODOS" | "PENDIENTES" | "CALIFICADOS" | "SIN_ENTREGA">("TODOS");
   const [cargandoEntregasTarea, setCargandoEntregasTarea] = useState(false);
+  const [seguimientoTareaActual, setSeguimientoTareaActual] = useState<SeguimientoTareaDTO | null>(null);
+  const [historialVersionesModal, setHistorialVersionesModal] = useState<VersionDTO[] | null>(null);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [puntajesCriteriosInput, setPuntajesCriteriosInput] = useState<Record<number, number>>({});
 
   // Estados para Libro Central de Calificaciones (Gradebook)
   const [todasLasEntregas, setTodasLasEntregas] = useState<Record<number, EntregaTareaDTO[]>>({});
@@ -494,6 +510,8 @@ export default function AreaMoodlePage() {
   const [tamanoMb, setTamanoMb] = useState(15);
   const [puntajeMax, setPuntajeMax] = useState(100);
   const [esGrupalTarea, setEsGrupalTarea] = useState(false);
+  const [tieneRubricaTarea, setTieneRubricaTarea] = useState(false);
+  const [criteriosRubricaTarea, setCriteriosRubricaTarea] = useState<CriterioRequest[]>([]);
   const [creandoTarea, setCreandoTarea] = useState(false);
 
   // Estados para Edición de Tarea y Preservación de Entregas
@@ -563,6 +581,9 @@ export default function AreaMoodlePage() {
   const [selectedSolicitudForRechazo, setSelectedSolicitudForRechazo] = useState<ConvocatoriaParticipanteDTO | null>(null);
   const [motivoRechazoInput, setMotivoRechazoInput] = useState("");
   const [procesandoAdmision, setProcesandoAdmision] = useState(false);
+  const [selectedSolicitudesLote, setSelectedSolicitudesLote] = useState<number[]>([]);
+  const [showRechazoLoteModal, setShowRechazoLoteModal] = useState(false);
+  const [motivoRechazoLoteInput, setMotivoRechazoLoteInput] = useState("");
 
   // Carga inicial tolerante a fallos
   const cargarDatos = useCallback(async () => {
@@ -776,6 +797,8 @@ export default function AreaMoodlePage() {
     setTamanoMb(15);
     setPuntajeMax(100);
     setEsGrupalTarea(false);
+    setTieneRubricaTarea(false);
+    setCriteriosRubricaTarea([]);
     setShowCreateTareaModal(true);
   };
 
@@ -793,6 +816,20 @@ export default function AreaMoodlePage() {
     setTamanoMb(tarea.tamanoMaximoMb || 15);
     setPuntajeMax(tarea.puntajeMaximo || 100);
     setEsGrupalTarea(!!tarea.esGrupal);
+    if (tarea.rubrica && tarea.rubrica.length > 0) {
+      setTieneRubricaTarea(true);
+      setCriteriosRubricaTarea(
+        tarea.rubrica.map((c) => ({
+          id: c.id,
+          nombre: c.nombre,
+          descripcion: c.descripcion || "",
+          puntajeMaximo: c.puntajeMaximo,
+        }))
+      );
+    } else {
+      setTieneRubricaTarea(false);
+      setCriteriosRubricaTarea([]);
+    }
     setShowCreateTareaModal(true);
 
     try {
@@ -806,12 +843,34 @@ export default function AreaMoodlePage() {
     }
   };
 
-  // Manejador Guardar Tarea (Crear o Editar con triple fecha sin desfase de zona horaria)
+  // Manejador Guardar Tarea (Crear o Editar con triple fecha sin desfase de zona horaria y rúbrica)
   const handleCrearTarea = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tituloTarea.trim()) {
       toast("El título de la tarea es obligatorio", "error");
       return;
+    }
+
+    if (tieneRubricaTarea) {
+      if (criteriosRubricaTarea.length === 0) {
+        toast("Debes agregar al menos un criterio a la rúbrica o desactivarla.", "error");
+        return;
+      }
+      for (const crit of criteriosRubricaTarea) {
+        if (!crit.nombre.trim()) {
+          toast("Todos los criterios de la rúbrica deben tener nombre.", "error");
+          return;
+        }
+        if (Number(crit.puntajeMaximo) <= 0) {
+          toast("El puntaje máximo de cada criterio debe ser mayor a 0.", "error");
+          return;
+        }
+      }
+      const sumRubrica = criteriosRubricaTarea.reduce((acc, c) => acc + Number(c.puntajeMaximo || 0), 0);
+      if (sumRubrica > Number(puntajeMax)) {
+        toast(`La suma de los criterios de la rúbrica (${sumRubrica} pts) supera el puntaje máximo de la tarea (${puntajeMax} pts).`, "error");
+        return;
+      }
     }
 
     try {
@@ -830,6 +889,16 @@ export default function AreaMoodlePage() {
         puntajeMaximo: Number(puntajeMax) || 100,
         esGrupal: esGrupalTarea,
         actividadGrupoId: esGrupalTarea && tareaActividadGrupoId ? Number(tareaActividadGrupoId) : undefined,
+        rubrica: tieneRubricaTarea
+          ? criteriosRubricaTarea.map((c) => ({
+              id: c.id,
+              nombre: c.nombre.trim(),
+              descripcion: c.descripcion?.trim() || undefined,
+              puntajeMaximo: Number(c.puntajeMaximo),
+            }))
+          : tareaEditing
+          ? []
+          : null,
       };
 
       if (tareaEditing) {
@@ -853,6 +922,8 @@ export default function AreaMoodlePage() {
       setFechaCorte("");
       setEsGrupalTarea(false);
       setTareaActividadGrupoId("");
+      setTieneRubricaTarea(false);
+      setCriteriosRubricaTarea([]);
 
       const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
       setTareas(updatedTareas);
@@ -962,6 +1033,47 @@ export default function AreaMoodlePage() {
       await cargarDatos();
     } catch (err: any) {
       toast(err.message || "No se pudo rechazar la solicitud", "error");
+    } finally {
+      setProcesandoAdmision(false);
+    }
+  };
+
+  // Manejador Admitir en Lote
+  const handleAdmitirLote = async () => {
+    if (selectedSolicitudesLote.length === 0) return;
+    try {
+      setProcesandoAdmision(true);
+      const res = await api.responderLote(convocatoriaId, selectedSolicitudesLote, "ADMITIR");
+      toast(`Admisión en lote: ${res.procesados} estudiantes admitidos.`, "success");
+      if (res.errores && res.errores.length > 0) {
+        toast(`Errores: ${res.errores.join(", ")}`, "error");
+      }
+      setSelectedSolicitudesLote([]);
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al procesar admisiones en lote", "error");
+    } finally {
+      setProcesandoAdmision(false);
+    }
+  };
+
+  // Manejador Rechazar en Lote
+  const handleRechazarLote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedSolicitudesLote.length === 0) return;
+    try {
+      setProcesandoAdmision(true);
+      const res = await api.responderLote(convocatoriaId, selectedSolicitudesLote, "RECHAZAR", motivoRechazoLoteInput.trim() || undefined);
+      toast(`Rechazo en lote: ${res.procesados} solicitudes rechazadas.`, "success");
+      if (res.errores && res.errores.length > 0) {
+        toast(`Errores: ${res.errores.join(", ")}`, "error");
+      }
+      setShowRechazoLoteModal(false);
+      setMotivoRechazoLoteInput("");
+      setSelectedSolicitudesLote([]);
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al rechazar solicitudes en lote", "error");
     } finally {
       setProcesandoAdmision(false);
     }
@@ -1564,7 +1676,19 @@ export default function AreaMoodlePage() {
       setCargandoEntregasTarea(true);
       setActiveTareaParaEntregas(tarea);
       updateUrlParams({ entregas: tarea.id });
-      const entregas = await api.getEntregasTarea(tarea.id);
+
+      const [segData, entregas] = await Promise.all([
+        api.getSeguimiento(tarea.id).catch((err: any) => {
+          console.warn("Error al cargar seguimiento:", err);
+          return null;
+        }),
+        api.getEntregasTarea(tarea.id).catch((err: any) => {
+          console.warn("Error al cargar entregas:", err);
+          return [] as EntregaTareaDTO[];
+        }),
+      ]);
+
+      setSeguimientoTareaActual(segData);
       setEntregasTareaActual(entregas);
 
       // Si hay entregas, seleccionar al primer estudiante que haya entregado
@@ -1577,12 +1701,28 @@ export default function AreaMoodlePage() {
             : (tarea.puntajeMaximo || 100)
         );
         setFeedbackDocente(primera.retroalimentacion || "");
+
+        if (tarea.rubrica && tarea.rubrica.length > 0) {
+          const initScores: Record<number, number> = {};
+          tarea.rubrica.forEach((c) => {
+            const match = primera.puntajesCriterios?.find((pc: any) => pc.criterioId === c.id);
+            initScores[c.id] = match ? match.puntaje : c.puntajeMaximo;
+          });
+          setPuntajesCriteriosInput(initScores);
+        }
       } else {
         const primerEst = participantes.find((p) => p.rol === "ESTUDIANTE" && p.estadoInscripcion === "ACEPTADO");
         if (primerEst) {
           setSelectedEstudianteId(primerEst.usuarioId);
           setNotaCalificacion(tarea.puntajeMaximo || 100);
           setFeedbackDocente("");
+          if (tarea.rubrica && tarea.rubrica.length > 0) {
+            const initScores: Record<number, number> = {};
+            tarea.rubrica.forEach((c) => {
+              initScores[c.id] = c.puntajeMaximo;
+            });
+            setPuntajesCriteriosInput(initScores);
+          }
         } else {
           setSelectedEstudianteId(null);
         }
@@ -1604,9 +1744,25 @@ export default function AreaMoodlePage() {
           : (activeTareaParaEntregas?.puntajeMaximo || 100)
       );
       setFeedbackDocente(ent.retroalimentacion || "");
+
+      if (activeTareaParaEntregas?.rubrica && activeTareaParaEntregas.rubrica.length > 0) {
+        const scores: Record<number, number> = {};
+        activeTareaParaEntregas.rubrica.forEach((c) => {
+          const match = ent.puntajesCriterios?.find((pc) => pc.criterioId === c.id);
+          scores[c.id] = match ? match.puntaje : (ent.calificacion !== undefined && ent.calificacion !== null ? 0 : c.puntajeMaximo);
+        });
+        setPuntajesCriteriosInput(scores);
+      }
     } else {
       setNotaCalificacion(activeTareaParaEntregas?.puntajeMaximo || 100);
       setFeedbackDocente("");
+      if (activeTareaParaEntregas?.rubrica && activeTareaParaEntregas.rubrica.length > 0) {
+        const scores: Record<number, number> = {};
+        activeTareaParaEntregas.rubrica.forEach((c) => {
+          scores[c.id] = c.puntajeMaximo;
+        });
+        setPuntajesCriteriosInput(scores);
+      }
     }
   };
 
@@ -1620,23 +1776,59 @@ export default function AreaMoodlePage() {
       return;
     }
 
-    try {
-      setGuardandoNota(true);
-      const req: CalificarEntregaRequest = {
-        calificacion: Number(notaCalificacion),
+    const tieneRubrica = Boolean(activeTareaParaEntregas.rubrica && activeTareaParaEntregas.rubrica.length > 0);
+
+    let req: CalificarEntregaRequest;
+
+    if (tieneRubrica) {
+      const criterios = activeTareaParaEntregas.rubrica!;
+      for (const crit of criterios) {
+        const puntaje = puntajesCriteriosInput[crit.id] ?? 0;
+        if (puntaje < 0 || puntaje > crit.puntajeMaximo) {
+          toast(`El puntaje en '${crit.nombre}' debe estar entre 0 y ${crit.puntajeMaximo} pts.`, "error");
+          return;
+        }
+      }
+
+      req = {
+        puntajesCriterios: criterios.map((crit) => ({
+          criterioId: crit.id,
+          puntaje: Number(puntajesCriteriosInput[crit.id] ?? 0),
+        })),
         retroalimentacion: feedbackDocente.trim() || undefined,
       };
+    } else {
+      const nota = Number(notaCalificacion);
+      if (isNaN(nota) || nota < 0 || nota > (activeTareaParaEntregas.puntajeMaximo || 100)) {
+        toast(`La calificación debe estar entre 0 y ${activeTareaParaEntregas.puntajeMaximo || 100} pts.`, "error");
+        return;
+      }
 
+      req = {
+        calificacion: nota,
+        retroalimentacion: feedbackDocente.trim() || undefined,
+      };
+    }
+
+    try {
+      setGuardandoNota(true);
       const calificada = await api.calificarEntrega(ent.id, req);
       toast("Calificación guardada y sincronizada correctamente", "success");
 
-      // Refrescar lista completa de entregas para actualizar a todos los compañeros del equipo en SpeedGrader
+      // Refrescar lista completa de entregas y seguimiento para actualizar a todos los compañeros del equipo en SpeedGrader
       try {
-        const refreshedEntregas = await api.getEntregasTarea(activeTareaParaEntregas.id);
-        setEntregasTareaActual(refreshedEntregas);
-        const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
-        setTareas(updatedTareas);
-        setActiveTareaDetalle((prev) => (prev ? updatedTareas.find((t) => t.id === prev.id) || null : null));
+        const [refreshedSeg, refreshedEntregas, updatedTareas] = await Promise.all([
+          api.getSeguimiento(activeTareaParaEntregas.id).catch(() => null),
+          api.getEntregasTarea(activeTareaParaEntregas.id).catch(() => []),
+          api.getTareasConvocatoria(convocatoriaId).catch(() => []),
+        ]);
+
+        if (refreshedSeg) setSeguimientoTareaActual(refreshedSeg);
+        if (refreshedEntregas.length > 0) setEntregasTareaActual(refreshedEntregas);
+        if (updatedTareas.length > 0) {
+          setTareas(updatedTareas);
+          setActiveTareaDetalle((prev) => (prev ? updatedTareas.find((t: any) => t.id === prev.id) || null : null));
+        }
       } catch {
         setEntregasTareaActual((prev) =>
           prev.map((item) => (item.id === calificada.id ? calificada : item))
@@ -1646,6 +1838,56 @@ export default function AreaMoodlePage() {
       toast(err.message || "Error al calificar entrega", "error");
     } finally {
       setGuardandoNota(false);
+    }
+  };
+
+  // Manejador ver historial de intentos / versiones
+  const handleVerHistorialVersiones = async (entregaId: number) => {
+    try {
+      setCargandoHistorial(true);
+      const historial = await api.getHistorial(entregaId);
+      setHistorialVersionesModal(historial);
+    } catch (err: any) {
+      toast(err.message || "Error al cargar historial de versiones", "error");
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
+  // Manejador exportar CSV de una tarea
+  const handleExportNotasTareaCSV = async (tareaId: number, titulo: string) => {
+    try {
+      const blob = await api.exportNotasTarea(tareaId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Notas_${titulo.replace(/[^a-zA-Z0-9_-]/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Notas exportadas exitosamente a CSV", "success");
+    } catch (err: any) {
+      toast(err.message || "Error al exportar notas", "error");
+    }
+  };
+
+  // Manejador descarga directa autenticada de archivo de entrega
+  const handleDescargarArchivoEntrega = async (archivoUrl: string, nombreArchivo: string) => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const fullUrl = getMediaUrl(archivoUrl);
+      const res = await fetch(fullUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Error HTTP " + res.status);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = nombreArchivo;
+      a.click();
+      URL.revokeObjectURL(objUrl);
+    } catch {
+      window.open(getMediaUrl(archivoUrl), "_blank");
     }
   };
 
@@ -2700,6 +2942,133 @@ export default function AreaMoodlePage() {
               </div>
             )}
 
+            {/* Sección de Rúbrica de Evaluación */}
+            <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="font-bold text-ink block text-xs flex items-center gap-1.5 cursor-pointer">
+                    <Award className="w-4 h-4 text-accent" />
+                    Rúbrica de Evaluación Pedagógica
+                  </label>
+                  <p className="text-[10px] text-ink-faint mt-0.5">
+                    Define criterios específicos con puntajes parciales. El SpeedGrader permitirá calificar criterio por criterio.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={tieneRubricaTarea}
+                    onChange={(e) => {
+                      const activar = e.target.checked;
+                      setTieneRubricaTarea(activar);
+                      if (activar && criteriosRubricaTarea.length === 0) {
+                        setCriteriosRubricaTarea([
+                          { nombre: "Criterio 1", descripcion: "", puntajeMaximo: Math.round(puntajeMax / 2) || 50 },
+                          { nombre: "Criterio 2", descripcion: "", puntajeMaximo: puntajeMax - (Math.round(puntajeMax / 2) || 50) },
+                        ]);
+                      }
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-paper-sunken peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-line"></div>
+                </label>
+              </div>
+
+              {tieneRubricaTarea && (
+                <div className="space-y-3 pt-2 border-t border-line">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-ink">Criterios definidos ({criteriosRubricaTarea.length})</span>
+                    {(() => {
+                      const suma = criteriosRubricaTarea.reduce((acc, c) => acc + (Number(c.puntajeMaximo) || 0), 0);
+                      const excede = suma > Number(puntajeMax);
+                      return (
+                        <span className={`font-bold ${excede ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"}`}>
+                          Total rúbrica: {suma} / {puntajeMax} pts {excede ? "⚠️ (Excede el máximo)" : ""}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
+                    {criteriosRubricaTarea.map((crit, idx) => (
+                      <div key={idx} className="p-2.5 bg-paper rounded-xl border border-line space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            required
+                            placeholder={`Nombre del criterio #${idx + 1}`}
+                            value={crit.nombre}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCriteriosRubricaTarea((prev) =>
+                                prev.map((c, i) => (i === idx ? { ...c, nombre: val } : c))
+                              );
+                            }}
+                            className="flex-1 px-2.5 py-1.5 bg-paper-sunken border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-accent"
+                          />
+                          <div className="flex items-center gap-1 shrink-0">
+                            <input
+                              type="number"
+                              min={1}
+                              max={puntajeMax}
+                              required
+                              placeholder="Pts"
+                              value={crit.puntajeMaximo}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setCriteriosRubricaTarea((prev) =>
+                                  prev.map((c, i) => (i === idx ? { ...c, puntajeMaximo: val } : c))
+                                );
+                              }}
+                              className="w-16 px-2 py-1.5 bg-paper-sunken border border-line rounded-lg text-xs font-bold text-center text-ink focus:outline-none focus:border-accent"
+                            />
+                            <span className="text-[10px] text-ink-faint font-semibold">pts</span>
+                          </div>
+                          {criteriosRubricaTarea.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCriteriosRubricaTarea((prev) => prev.filter((_, i) => i !== idx));
+                              }}
+                              className="p-1.5 text-ink-faint hover:text-rose-600 transition-colors"
+                              title="Eliminar criterio"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Descripción u orientación de evaluación (opcional)..."
+                          value={crit.descripcion || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCriteriosRubricaTarea((prev) =>
+                              prev.map((c, i) => (i === idx ? { ...c, descripcion: val } : c))
+                            );
+                          }}
+                          className="w-full px-2.5 py-1 bg-paper-sunken/60 border border-line rounded-lg text-[11px] text-ink-soft focus:outline-none focus:border-accent"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCriteriosRubricaTarea((prev) => [
+                        ...prev,
+                        { nombre: `Criterio #${prev.length + 1}`, descripcion: "", puntajeMaximo: 10 },
+                      ]);
+                    }}
+                    className="w-full py-1.5 border border-dashed border-line hover:border-accent rounded-xl text-xs font-semibold text-ink-soft hover:text-accent flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" /> Agregar Criterio a la Rúbrica
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
               <button
                 type="button"
@@ -2722,6 +3091,155 @@ export default function AreaMoodlePage() {
                   : tareaEditing
                   ? "Guardar Cambios de Tarea"
                   : "Publicar Tarea"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  const renderModalHistorialVersiones = () => {
+    if (!historialVersionesModal) return null;
+    return (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-line pb-3">
+            <div className="flex items-center gap-2">
+              <History className="w-5 h-5 text-accent" />
+              <h3 className="font-serif text-lg font-bold text-ink">Historial de Intentos de Entrega</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHistorialVersionesModal(null)}
+              className="text-ink-faint hover:text-ink cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {historialVersionesModal.length === 0 ? (
+              <p className="text-xs text-ink-faint text-center py-6">No hay versiones registradas para esta entrega.</p>
+            ) : (
+              historialVersionesModal.map((ver) => (
+                <div key={ver.id} className="p-3.5 bg-paper-sunken border border-line rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-ink flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded-md bg-accent/15 text-accent font-bold text-[11px]">
+                        Intento #{ver.intento}
+                      </span>
+                      {ver.conRetraso && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                          Con retraso
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[10px] text-ink-faint">
+                      {new Date(ver.fechaEntrega).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {ver.nombreArchivo && (
+                    <div className="flex items-center justify-between gap-2 p-2 bg-paper rounded-lg border border-line">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {renderArchivoIcon(ver.nombreArchivo, "w-4 h-4 shrink-0")}
+                        <span className="font-medium text-ink truncate text-xs">{ver.nombreArchivo}</span>
+                      </div>
+                      {ver.archivoUrl && (
+                        <a
+                          href={getMediaUrl(ver.archivoUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent hover:underline text-[11px] font-semibold flex items-center gap-1 shrink-0"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Ver
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {ver.comentario && (
+                    <p className="text-[11px] text-ink-soft italic bg-paper p-2 rounded-lg border border-line">
+                      &ldquo;{ver.comentario}&rdquo;
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-line">
+            <button
+              type="button"
+              onClick={() => setHistorialVersionesModal(null)}
+              className="px-4 py-2 bg-accent text-white rounded-xl text-xs font-semibold hover:bg-accent-dark transition-colors cursor-pointer"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderModalRechazoLote = () => {
+    if (!showRechazoLoteModal) return null;
+    return (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="bg-paper border border-line rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between border-b border-line pb-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-rose-600" />
+              <h3 className="font-serif text-base font-bold text-ink">Rechazar Solicitudes en Lote</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowRechazoLoteModal(false);
+                setMotivoRechazoLoteInput("");
+              }}
+              className="text-ink-faint hover:text-ink cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+
+          <p className="text-xs text-ink-soft">
+            Estás a punto de rechazar <strong>{selectedSolicitudesLote.length}</strong> solicitudes seleccionadas. Puedes indicar un motivo general opcional que los postulantes podrán visualizar.
+          </p>
+
+          <form onSubmit={handleRechazarLote} className="space-y-4">
+            <div>
+              <label className="font-semibold text-ink block text-xs mb-1">
+                Motivo del Rechazo (Opcional)
+              </label>
+              <textarea
+                rows={3}
+                value={motivoRechazoLoteInput}
+                onChange={(e) => setMotivoRechazoLoteInput(e.target.value)}
+                placeholder="Ej. Cupos completados para este periodo o no cumple con los requisitos mínimos..."
+                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-xs text-ink focus:outline-none focus:border-accent resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRechazoLoteModal(false);
+                  setMotivoRechazoLoteInput("");
+                }}
+                className="px-4 py-2 border border-line rounded-xl text-xs text-ink hover:bg-paper-sunken cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={procesandoAdmision}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {procesandoAdmision ? "Procesando..." : `Confirmar Rechazo (${selectedSolicitudesLote.length})`}
               </button>
             </div>
           </form>
@@ -2817,6 +3335,15 @@ export default function AreaMoodlePage() {
                   <span className="text-[10px] text-ink-faint uppercase font-semibold block">Calificadas</span>
                   <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">{totalCalificadas}</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleExportNotasTareaCSV(activeTareaParaEntregas.id, activeTareaParaEntregas.titulo)}
+                  className="px-3.5 py-2.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-xl font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs self-stretch sm:self-auto justify-center"
+                  title="Exportar archivo CSV con las calificaciones de esta tarea"
+                >
+                  <Download className="w-4 h-4 text-accent" />
+                  <span>Exportar CSV</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2890,6 +3417,42 @@ export default function AreaMoodlePage() {
                     Sin Entrega ({Math.max(0, totalSinEntrega)})
                   </button>
                 </div>
+
+                {/* Barra de progreso de calificación */}
+                <div className="space-y-1 pt-1 border-t border-line">
+                  <div className="flex items-center justify-between text-[11px] text-ink-soft">
+                    <span>Progreso:</span>
+                    <strong className="text-ink">
+                      {seguimientoTareaActual?.resumen
+                        ? `${seguimientoTareaActual.resumen.calificados}/${seguimientoTareaActual.resumen.totalEstudiantes}`
+                        : `${totalCalificadas}/${estudiantesAdmitidos.length}`} ({
+                        estudiantesAdmitidos.length > 0
+                          ? Math.round(
+                              ((seguimientoTareaActual?.resumen.calificados ?? totalCalificadas) /
+                                ((seguimientoTareaActual?.resumen.totalEstudiantes ?? estudiantesAdmitidos.length) || 1)) *
+                                100
+                            )
+                          : 0
+                      }%)
+                    </strong>
+                  </div>
+                  <div className="w-full h-1.5 bg-paper-sunken border border-line rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${
+                          estudiantesAdmitidos.length > 0
+                            ? Math.round(
+                                ((seguimientoTareaActual?.resumen.calificados ?? totalCalificadas) /
+                                  ((seguimientoTareaActual?.resumen.totalEstudiantes ?? estudiantesAdmitidos.length) || 1)) *
+                                  100
+                              )
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Lista Scrollable de Estudiantes */}
@@ -2945,7 +3508,12 @@ export default function AreaMoodlePage() {
                         </div>
 
                         {/* Estado Badge del estudiante */}
-                        <div className="shrink-0 text-right">
+                        <div className="shrink-0 text-right space-y-1">
+                          {ent?.conRetraso && (
+                            <span className="block px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                              Con retraso
+                            </span>
+                          )}
                           {esCalificada ? (
                             <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
                               {ent.calificacion}/{activeTareaParaEntregas.puntajeMaximo} pts
@@ -3093,27 +3661,62 @@ export default function AreaMoodlePage() {
 
                       {/* Archivo adjunto */}
                       {selectedEntregaObj.nombreArchivo && (
-                        <div className="p-3.5 bg-paper rounded-xl border border-line flex items-center justify-between gap-3">
+                        <div className="p-3.5 bg-paper rounded-xl border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
-                              <FileText className="w-5 h-5" />
+                            <div className="w-10 h-10 rounded-lg bg-paper-sunken border border-line flex items-center justify-center shrink-0">
+                              {renderArchivoIcon(selectedEntregaObj.nombreArchivo, "w-5 h-5")}
                             </div>
                             <div className="min-w-0">
                               <span className="text-xs font-bold text-ink block truncate">
                                 {selectedEntregaObj.nombreArchivo}
                               </span>
-                              <span className="text-[10px] text-ink-faint">Archivo de entrega del estudiante</span>
+                              <span className="text-[10px] text-ink-faint">
+                                Archivo de entrega del estudiante
+                                {selectedEntregaObj.intentos && selectedEntregaObj.intentos > 1
+                                  ? ` • Intento #${selectedEntregaObj.intentos}`
+                                  : ""}
+                              </span>
                             </div>
                           </div>
 
-                          <a
-                            href={getMediaUrl(selectedEntregaObj.archivoUrl || selectedEntregaObj.nombreArchivo)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 transition-colors"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" /> Ver / Descargar
-                          </a>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const url = selectedEntregaObj.archivoUrl || selectedEntregaObj.nombreArchivo;
+                                if (url) window.open(getMediaUrl(url), "_blank");
+                              }}
+                              disabled={!selectedEntregaObj.archivoUrl && !selectedEntregaObj.nombreArchivo}
+                              className="px-3 py-1.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                              title="Abrir archivo en nueva pestaña"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 text-accent" /> Ver Archivo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const url = selectedEntregaObj.archivoUrl || selectedEntregaObj.nombreArchivo || "";
+                                const nom = selectedEntregaObj.nombreArchivo || "entrega";
+                                handleDescargarArchivoEntrega(url, nom);
+                              }}
+                              className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                              title="Descargar archivo"
+                            >
+                              <Download className="w-3.5 h-3.5" /> Descargar
+                            </button>
+                            {selectedEntregaObj.intentos && selectedEntregaObj.intentos > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleVerHistorialVersiones(selectedEntregaObj.id)}
+                                disabled={cargandoHistorial}
+                                className="px-3 py-1.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                                title="Ver todos los intentos y versiones de entrega"
+                              >
+                                <History className="w-3.5 h-3.5 text-accent" />
+                                {cargandoHistorial ? "Cargando..." : "Historial"}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -3175,33 +3778,84 @@ export default function AreaMoodlePage() {
                           </div>
                         )}
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="font-bold text-ink block mb-1">
-                              Calificación Obtenida (0 a {activeTareaParaEntregas.puntajeMaximo}) *
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={0}
-                                max={activeTareaParaEntregas.puntajeMaximo}
-                                required
-                                value={notaCalificacion}
-                                onChange={(e) => setNotaCalificacion(Number(e.target.value))}
-                                className="w-28 px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink font-bold text-lg text-center focus:outline-none focus:border-accent"
-                              />
-                              <span className="text-xs text-ink-faint font-semibold">
-                                / {activeTareaParaEntregas.puntajeMaximo} puntos
+                        {activeTareaParaEntregas.rubrica && activeTareaParaEntregas.rubrica.length > 0 ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between pb-1 border-b border-line">
+                              <span className="font-bold text-ink text-xs">
+                                Calificación por Criterios de Rúbrica
+                              </span>
+                              <span className="text-xs font-bold text-accent">
+                                Total: {activeTareaParaEntregas.rubrica.reduce((acc, c) => acc + (Number(puntajesCriteriosInput[c.id]) || 0), 0)} / {activeTareaParaEntregas.puntajeMaximo} pts
+                              </span>
+                            </div>
+
+                            <div className="space-y-3">
+                              {activeTareaParaEntregas.rubrica.map((crit) => {
+                                const val = puntajesCriteriosInput[crit.id] ?? 0;
+                                return (
+                                  <div key={crit.id} className="p-3 bg-paper-sunken border border-line rounded-xl space-y-1.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div>
+                                        <span className="font-bold text-ink text-xs block">{crit.nombre}</span>
+                                        {crit.descripcion && (
+                                          <p className="text-[11px] text-ink-soft leading-relaxed mt-0.5">{crit.descripcion}</p>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={crit.puntajeMaximo}
+                                          step={0.5}
+                                          value={val}
+                                          onChange={(e) => {
+                                            const num = Number(e.target.value);
+                                            setPuntajesCriteriosInput((prev) => ({
+                                              ...prev,
+                                              [crit.id]: num,
+                                            }));
+                                          }}
+                                          className="w-20 px-2.5 py-1.5 bg-paper border border-line rounded-lg text-ink font-bold text-sm text-center focus:outline-none focus:border-accent"
+                                        />
+                                        <span className="text-[11px] text-ink-faint font-semibold">
+                                          / {crit.puntajeMaximo} pts
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="font-bold text-ink block mb-1">
+                                Calificación Obtenida (0 a {activeTareaParaEntregas.puntajeMaximo}) *
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={activeTareaParaEntregas.puntajeMaximo}
+                                  required
+                                  value={notaCalificacion}
+                                  onChange={(e) => setNotaCalificacion(Number(e.target.value))}
+                                  className="w-28 px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink font-bold text-lg text-center focus:outline-none focus:border-accent"
+                                />
+                                <span className="text-xs text-ink-faint font-semibold">
+                                  / {activeTareaParaEntregas.puntajeMaximo} puntos
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col justify-end">
+                              <span className="text-[11px] text-ink-soft">
+                                Al guardar, la nota y retroalimentación serán visibles inmediatamente para el estudiante en su panel de calificaciones.
                               </span>
                             </div>
                           </div>
-
-                          <div className="flex flex-col justify-end">
-                            <span className="text-[11px] text-ink-soft">
-                              Al guardar, la nota y retroalimentación serán visibles inmediatamente para el estudiante en su panel de calificaciones.
-                            </span>
-                          </div>
-                        </div>
+                        )}
 
                         <div>
                           <label className="font-bold text-ink block mb-1">
@@ -3243,6 +3897,7 @@ export default function AreaMoodlePage() {
           {/* Modales disponibles en SpeedGrader */}
           {renderModalSubirEntrega()}
           {renderModalCreateTarea()}
+          {renderModalHistorialVersiones()}
         </div>
       </DashboardLayout>
     );
@@ -3394,6 +4049,44 @@ export default function AreaMoodlePage() {
                 </>
               )}
             </div>
+
+            {/* Rúbrica de evaluación pedagógica si aplica */}
+            {activeTareaDetalle.rubrica && activeTareaDetalle.rubrica.length > 0 && (
+              <div className="pt-3 border-t border-line-soft space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-accent" /> Rúbrica de Evaluación ({activeTareaDetalle.rubrica.length} criterios)
+                  </h4>
+                  <span className="text-[11px] font-semibold text-accent">
+                    Total: {activeTareaDetalle.rubrica.reduce((acc, c) => acc + (c.puntajeMaximo || 0), 0)} pts
+                  </span>
+                </div>
+                <div className="border border-line rounded-xl overflow-hidden bg-paper">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-paper-sunken border-b border-line text-[10px] text-ink-faint uppercase font-bold">
+                      <tr>
+                        <th className="py-2.5 px-3.5">Criterio</th>
+                        <th className="py-2.5 px-3.5">Descripción u Orientaciones</th>
+                        <th className="py-2.5 px-3.5 text-right">Puntaje Máximo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line text-ink">
+                      {activeTareaDetalle.rubrica.map((crit) => (
+                        <tr key={crit.id || crit.orden} className="hover:bg-paper-sunken/40">
+                          <td className="py-2.5 px-3.5 font-bold text-ink">{crit.nombre}</td>
+                          <td className="py-2.5 px-3.5 text-ink-soft text-[11px] leading-relaxed">
+                            {crit.descripcion || <span className="text-ink-faint italic">-</span>}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-bold text-accent whitespace-nowrap">
+                            {crit.puntajeMaximo} pts
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sumario de Calificaciones para Docentes / Jurados */}
@@ -3503,13 +4196,35 @@ export default function AreaMoodlePage() {
                   Estado de la entrega
                 </div>
                 <div
-                  className={`sm:col-span-2 p-3 sm:px-4 font-medium ${
+                  className={`sm:col-span-2 p-3 sm:px-4 font-medium flex items-center justify-between flex-wrap gap-2 ${
                     miEntrega
                       ? "bg-accent-soft text-accent-dark"
                       : "text-ink-soft bg-paper"
                   }`}
                 >
-                  {miEntrega ? "Enviado para calificar" : "No entregado"}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span>
+                      {miEntrega
+                        ? miEntrega.conRetraso
+                          ? "Enviado para calificar (con retraso)"
+                          : "Enviado para calificar"
+                        : "No entregado"}
+                    </span>
+                    {miEntrega?.intentos && miEntrega.intentos > 1 && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-paper border border-line font-bold text-ink">
+                        Intento #{miEntrega.intentos}
+                      </span>
+                    )}
+                  </div>
+                  {miEntrega && miEntrega.intentos && miEntrega.intentos > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleVerHistorialVersiones(miEntrega.id)}
+                      className="text-xs text-accent hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                    >
+                      <History className="w-3.5 h-3.5" /> Ver historial
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -3520,9 +4235,21 @@ export default function AreaMoodlePage() {
                 </div>
                 <div className="sm:col-span-2 p-3 sm:px-4 text-ink-soft bg-paper">
                   {miEntrega?.estado === "CALIFICADO" ? (
-                    <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                      Calificado ({miEntrega.calificacion} / {activeTareaDetalle.puntajeMaximo} pts)
-                    </span>
+                    <div className="space-y-1.5">
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-300 block">
+                        Calificado ({miEntrega.calificacion} / {activeTareaDetalle.puntajeMaximo} pts)
+                      </span>
+                      {miEntrega.puntajesCriterios && miEntrega.puntajesCriterios.length > 0 && (
+                        <div className="pt-1 border-t border-line space-y-1">
+                          {miEntrega.puntajesCriterios.map((pc) => (
+                            <div key={pc.criterioId} className="flex items-center justify-between text-[11px] text-ink-soft">
+                              <span>• {pc.nombre}:</span>
+                              <strong className="text-ink">{pc.puntaje} / {pc.puntajeMaximo} pts</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     "Sin calificar"
                   )}
@@ -3734,6 +4461,7 @@ export default function AreaMoodlePage() {
           {renderModalSubirEntrega()}
           {renderModalCreateTarea()}
           {renderModalModulo()}
+          {renderModalHistorialVersiones()}
         </div>
       </DashboardLayout>
     );
@@ -5520,55 +6248,127 @@ export default function AreaMoodlePage() {
                 {/* BANDEJA DE SOLICITUDES DE ADMISIÓN (Solo para Docentes y Admin) */}
                 {puedeAdmitirEstudiantes && solicitudesPendientes.length > 0 && (
                   <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-amber-600" />
                         <h4 className="text-sm font-semibold text-ink">
                           Bandeja de Solicitudes de Admisión ({solicitudesPendientes.length})
                         </h4>
+                        <span className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full font-semibold border border-amber-500/30">
+                          Por revisar
+                        </span>
                       </div>
-                      <span className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full font-semibold border border-amber-500/30">
-                        Por revisar
-                      </span>
+
+                      {/* Botones de acción en lote */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedSolicitudesLote.length === solicitudesPendientes.length) {
+                              setSelectedSolicitudesLote([]);
+                            } else {
+                              setSelectedSolicitudesLote(solicitudesPendientes.map((s) => s.id));
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg border border-line bg-paper text-ink text-xs font-medium hover:bg-paper-sunken flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          {selectedSolicitudesLote.length === solicitudesPendientes.length ? (
+                            <CheckSquare className="w-3.5 h-3.5 text-accent" />
+                          ) : (
+                            <Square className="w-3.5 h-3.5 text-ink-faint" />
+                          )}
+                          <span>
+                            {selectedSolicitudesLote.length === solicitudesPendientes.length
+                              ? "Deseleccionar todos"
+                              : "Seleccionar todos"}
+                          </span>
+                        </button>
+
+                        {selectedSolicitudesLote.length > 0 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleAdmitirLote}
+                              disabled={procesandoAdmision}
+                              className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-all cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
+                            >
+                              ✓ Admitir ({selectedSolicitudesLote.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMotivoRechazoLoteInput("");
+                                setShowRechazoLoteModal(true);
+                              }}
+                              disabled={procesandoAdmision}
+                              className="px-3 py-1 rounded-lg border border-danger/40 bg-danger/10 text-danger text-xs font-semibold hover:bg-danger/20 transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                            >
+                              ✕ Rechazar ({selectedSolicitudesLote.length})
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                      {solicitudesPendientes.map((sol) => (
-                        <div key={sol.id} className="bg-paper border border-line rounded-xl p-4 flex flex-col justify-between gap-3 shadow-xs">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <b className="text-xs text-ink">{sol.nombre} {sol.apellidos}</b>
-                              <span className="text-[10px] text-ink-faint">
-                                {sol.fechaSolicitud ? new Date(sol.fechaSolicitud).toLocaleDateString() : ""}
-                              </span>
+                      {solicitudesPendientes.map((sol) => {
+                        const isChecked = selectedSolicitudesLote.includes(sol.id);
+                        return (
+                          <div
+                            key={sol.id}
+                            className={`bg-paper border rounded-xl p-4 flex flex-col justify-between gap-3 shadow-xs transition-all ${
+                              isChecked ? "border-accent ring-1 ring-accent/30 bg-accent/5" : "border-line"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedSolicitudesLote((prev) => [...prev, sol.id]);
+                                  } else {
+                                    setSelectedSolicitudesLote((prev) => prev.filter((id) => id !== sol.id));
+                                  }
+                                }}
+                                className="mt-0.5 rounded border-line text-accent focus:ring-accent cursor-pointer"
+                              />
+                              <div className="space-y-1 flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <b className="text-xs text-ink truncate">{sol.nombre} {sol.apellidos}</b>
+                                  <span className="text-[10px] text-ink-faint shrink-0">
+                                    {sol.fechaSolicitud ? new Date(sol.fechaSolicitud).toLocaleDateString() : ""}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-ink-soft truncate">{sol.email}</p>
+                                <div className="text-[11px] text-ink-faint pt-0.5">
+                                  Equipo: <b>{sol.nombreEquipo || "Individual"}</b>
+                                </div>
+                              </div>
                             </div>
-                            <p className="text-[11px] text-ink-soft">{sol.email}</p>
-                            <div className="text-[11px] text-ink-faint pt-1">
-                              Equipo: <b>{sol.nombreEquipo || "Individual"}</b>
-                            </div>
-                          </div>
 
-                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-line-soft">
-                            <button
-                              onClick={() => {
-                                setSelectedSolicitudForRechazo(sol);
-                                setMotivoRechazoInput("");
-                              }}
-                              disabled={procesandoAdmision}
-                              className="px-2.5 py-1 rounded-lg border border-danger/30 text-danger text-[11px] font-semibold hover:bg-danger-soft/20 transition-all cursor-pointer disabled:opacity-50"
-                            >
-                              ✕ Rechazar
-                            </button>
-                            <button
-                              onClick={() => handleAdmitir(sol.id, `${sol.nombre} ${sol.apellidos}`)}
-                              disabled={procesandoAdmision}
-                              className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 transition-all cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
-                            >
-                              ✓ Admitir al Aula
-                            </button>
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-line-soft">
+                              <button
+                                onClick={() => {
+                                  setSelectedSolicitudForRechazo(sol);
+                                  setMotivoRechazoInput("");
+                                }}
+                                disabled={procesandoAdmision}
+                                className="px-2.5 py-1 rounded-lg border border-danger/30 text-danger text-[11px] font-semibold hover:bg-danger-soft/20 transition-all cursor-pointer disabled:opacity-50"
+                              >
+                                ✕ Rechazar
+                              </button>
+                              <button
+                                onClick={() => handleAdmitir(sol.id, `${sol.nombre} ${sol.apellidos}`)}
+                                disabled={procesandoAdmision}
+                                className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 transition-all cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
+                              >
+                                ✓ Admitir al Aula
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -6409,6 +7209,8 @@ export default function AreaMoodlePage() {
         {/* MODAL: SUBIR ENTREGA (ESTUDIANTE - MOODLE LMS UX)   */}
         {/* ==================================================== */}
         {renderModalSubirEntrega()}
+        {renderModalHistorialVersiones()}
+        {renderModalRechazoLote()}
 
 
         {/* ==================================================== */}

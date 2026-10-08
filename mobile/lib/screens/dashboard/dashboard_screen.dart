@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import '../../widgets/moodle_widgets.dart';
 import '../usuarios/usuarios_screen.dart';
+import '../moodle/mis_pendientes_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final AuthService authService;
@@ -12,6 +13,7 @@ class DashboardScreen extends StatefulWidget {
   final VoidCallback onOpenSpeedGrader;
   final Function(ConvocatoriaModel) onOpenAula;
   final VoidCallback onToggleTheme;
+  final VoidCallback? onOpenMisPendientes;
 
   const DashboardScreen({
     super.key,
@@ -20,6 +22,7 @@ class DashboardScreen extends StatefulWidget {
     required this.onOpenSpeedGrader,
     required this.onOpenAula,
     required this.onToggleTheme,
+    this.onOpenMisPendientes,
   });
 
   @override
@@ -69,6 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
+          const NotificacionBadge(),
           IconButton(
             icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
             tooltip: isDark ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro',
@@ -298,6 +302,73 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
+            if (user?.rol == 'ESTUDIANTE') ...[
+              const SizedBox(height: 12),
+              Card(
+                color: isDark ? AppTheme.darkPaperSunken : const Color(0xFFEFF6FF),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: isDark ? AppTheme.darkLine : const Color(0xFFBFDBFE),
+                  ),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    if (widget.onOpenMisPendientes != null) {
+                      widget.onOpenMisPendientes!();
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (ctx) => MisPendientesScreen(
+                            onBack: () => Navigator.of(ctx).pop(),
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.assignment_late_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Mis Tareas & Pendientes',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? AppTheme.darkInk : AppTheme.ink,
+                                ),
+                              ),
+                              Text(
+                                'Revisa entregas, fechas límite y calificaciones',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: AppTheme.accent),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 22),
 
             // Actividad Reciente Académica

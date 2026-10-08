@@ -63,6 +63,10 @@ public class Tarea {
     @OneToMany(mappedBy = "tarea", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<EntregaTarea> entregas = new ArrayList<>();
 
+    @OneToMany(mappedBy = "tarea", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orden ASC")
+    private List<RubricaCriterio> rubrica = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -206,6 +210,14 @@ public class Tarea {
 
     public void setCreador(User creador) {
         this.creador = creador;
+    }
+
+    public List<RubricaCriterio> getRubrica() {
+        return rubrica;
+    }
+
+    public void setRubrica(List<RubricaCriterio> rubrica) {
+        this.rubrica = rubrica;
     }
 
     public List<EntregaTarea> getEntregas() {

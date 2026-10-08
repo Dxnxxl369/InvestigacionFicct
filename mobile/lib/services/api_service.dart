@@ -333,6 +333,43 @@ class ApiService {
     }
   }
 
+  // Docente/Admin: Responder solicitudes en lote (Admitir o Rechazar)
+  static Future<Map<String, dynamic>> responderLote(
+    int convocatoriaId,
+    List<int> participanteIds,
+    String accion, {
+    String? motivo,
+  }) async {
+    try {
+      final headers = await _headers();
+      final body = {
+        'participanteIds': participanteIds,
+        'accion': accion,
+        if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId/participantes/responder-lote'),
+        headers: headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      } else {
+        try {
+          final err = jsonDecode(utf8.decode(res.bodyBytes));
+          return {'procesados': 0, 'errores': [err['error'] ?? 'Error ${res.statusCode}']};
+        } catch (_) {
+          return {'procesados': 0, 'errores': ['Error ${res.statusCode}']};
+        }
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al responder en lote: $e');
+      return {'procesados': 0, 'errores': [e.toString()]};
+    }
+  }
+
   // Admin/Docente: Asignar / Designar Docente o Jurado a la Convocatoria
   static Future<bool> designarParticipante(int convocatoriaId, {required int usuarioId, required String rol}) async {
     try {
@@ -644,6 +681,25 @@ class ApiService {
     return [];
   }
 
+  // Obtener Tarea por ID con Rúbrica completa y detalles (PostgreSQL)
+  static Future<TareaModel?> getTareaById(int tareaId) async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/tareas/$tareaId'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        return TareaModel.fromJson(data);
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al obtener tarea $tareaId: $e');
+    }
+    return null;
+  }
+
   // Estudiante: Entregar Tarea en PostgreSQL
   static Future<bool> entregarTarea(
     int tareaId, {
@@ -694,7 +750,7 @@ class ApiService {
   }
 
   // Docente: Calificar Entrega en SpeedGrader (Persiste en PostgreSQL)
-  static Future<bool> calificarEntrega(
+  static Future<Map<String, dynamic>> calificarEntrega(
     int entregaId, {
     required double calificacion,
     String? retroalimentacion,
@@ -712,11 +768,153 @@ class ApiService {
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 6));
 
-      return res.statusCode == 200;
+      if (res.statusCode == 200) {
+        return {
+          'ok': true,
+          'data': jsonDecode(utf8.decode(res.bodyBytes)),
+        };
+      } else {
+        try {
+          final err = jsonDecode(utf8.decode(res.bodyBytes));
+          return {'ok': false, 'error': err['error'] ?? 'Error ${res.statusCode}'};
+        } catch (_) {
+          return {'ok': false, 'error': 'Error ${res.statusCode}'};
+        }
+      }
     } catch (e) {
       debugPrint('[ApiService] Error al calificar entrega $entregaId: $e');
-      return false;
+      return {'ok': false, 'error': e.toString()};
     }
+  }
+
+  // Docente: Calificar Entrega evaluando criterios de rúbrica
+  static Future<Map<String, dynamic>> calificarEntregaConRubrica(
+    int entregaId, {
+    required List<Map<String, dynamic>> puntajesCriterios,
+    String? retroalimentacion,
+  }) async {
+    try {
+      final headers = await _headers();
+      final body = {
+        'puntajesCriterios': puntajesCriterios,
+        if (retroalimentacion != null) 'retroalimentacion': retroalimentacion,
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/entregas/$entregaId/calificar'),
+        headers: headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        return {
+          'ok': true,
+          'data': jsonDecode(utf8.decode(res.bodyBytes)),
+        };
+      } else {
+        try {
+          final err = jsonDecode(utf8.decode(res.bodyBytes));
+          return {'ok': false, 'error': err['error'] ?? 'Error ${res.statusCode}'};
+        } catch (_) {
+          return {'ok': false, 'error': 'Error ${res.statusCode}'};
+        }
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al calificar con rúbrica entrega $entregaId: $e');
+      return {'ok': false, 'error': e.toString()};
+    }
+  }
+
+  // Docente/Jurado/Admin: Obtener Seguimiento completo de Tarea (todos los estudiantes, con/sin entrega)
+  static Future<Map<String, dynamic>?> getSeguimientoTarea(int tareaId) async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/tareas/$tareaId/seguimiento'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al obtener seguimiento de tarea $tareaId: $e');
+    }
+    return null;
+  }
+
+  // Estudiante: Obtener "Mis Tareas" ordenadas cronológicamente con estados
+  static Future<List<Map<String, dynamic>>> getMisTareas() async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/tareas/mis-tareas'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al obtener mis tareas: $e');
+    }
+    return [];
+  }
+
+  // Estudiante/Docente: Historial de versiones y reintentos de una entrega
+  static Future<List<Map<String, dynamic>>> getHistorialEntrega(int entregaId) async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/entregas/$entregaId/historial'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al obtener historial de entrega $entregaId: $e');
+    }
+    return [];
+  }
+
+  // Docente/Admin: Exportar notas de tarea a CSV
+  static Future<String?> exportarNotasTarea(int tareaId) async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/tareas/$tareaId/export-notas'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        return utf8.decode(res.bodyBytes);
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al exportar notas de tarea $tareaId: $e');
+    }
+    return null;
+  }
+
+  // Docente/Admin: Exportar libro de calificaciones del área a CSV
+  static Future<String?> exportarNotasConvocatoria(int convocatoriaId) async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId/export-notas'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        return utf8.decode(res.bodyBytes);
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al exportar libro de notas de convocatoria $convocatoriaId: $e');
+    }
+    return null;
   }
 
   // ==========================================
@@ -1185,6 +1383,80 @@ class ApiService {
       return res.statusCode == 200;
     } catch (e) {
       debugPrint('[ApiService] Error al actualizar permiso $rol / $modulo: $e');
+      return false;
+    }
+  }
+
+  // ==========================================
+  // NOTIFICACIONES IN-APP (/api/notificaciones)
+  // ==========================================
+
+  // Listar notificaciones del usuario
+  static Future<List<Map<String, dynamic>>> listarNotificaciones({int limite = 30}) async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/notificaciones?limite=$limite'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al listar notificaciones: $e');
+    }
+    return [];
+  }
+
+  // Contar cantidad de notificaciones no leídas (para campanita / badge)
+  static Future<int> contarNotificacionesNoLeidas() async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/notificaciones/no-leidas'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        return (data['count'] as num?)?.toInt() ?? 0;
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al contar notificaciones no leídas: $e');
+    }
+    return 0;
+  }
+
+  // Marcar una notificación como leída
+  static Future<bool> marcarNotificacionLeida(int id) async {
+    try {
+      final headers = await _headers();
+      final res = await http.put(
+        Uri.parse('$baseUrl/notificaciones/$id/leer'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 4));
+
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('[ApiService] Error al marcar leída notificación $id: $e');
+      return false;
+    }
+  }
+
+  // Marcar todas las notificaciones como leídas
+  static Future<bool> marcarTodasNotificacionesLeidas() async {
+    try {
+      final headers = await _headers();
+      final res = await http.put(
+        Uri.parse('$baseUrl/notificaciones/leer-todas'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 4));
+
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('[ApiService] Error al marcar todas las notificaciones como leídas: $e');
       return false;
     }
   }
