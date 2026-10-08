@@ -35,7 +35,9 @@ scrum-engine/
 /*.html
 !/mobile.html
 /*.txt
+!/usuarios.txt
 /*.ps1
+/*.png
 
 # OS and IDE Files
 .DS_Store
@@ -44,5 +46,7 @@ Thumbs.db
 .idea/
 *.log
 *.zip
+*.apk
+apks/
 backend/uploads/
 .tools/

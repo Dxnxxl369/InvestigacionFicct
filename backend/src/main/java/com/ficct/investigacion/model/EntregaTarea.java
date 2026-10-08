@@ -26,10 +26,10 @@ public class EntregaTarea {
     @JoinColumn(name = "documento_id")
     private Documento documento;
 
-    @Column(name = "nombre_archivo", length = 255)
+    @Column(name = "nombre_archivo", columnDefinition = "TEXT")
     private String nombreArchivo;
 
-    @Column(name = "archivo_url", length = 500)
+    @Column(name = "archivo_url", columnDefinition = "TEXT")
     private String archivoUrl;
 
     @Column(name = "comentario_estudiante", columnDefinition = "TEXT")
@@ -54,6 +54,27 @@ public class EntregaTarea {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "calificado_por_id")
     private User calificadoPor;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "entregado_por_id")
+    private User entregadoPor;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "grupo_id")
+    private Grupo grupo;
+
+    @Column(name = "nombre_equipo", length = 300)
+    private String nombreEquipo;
+
+    // Nullable en BD para no romper filas previas; null se interpreta como false
+    @Column(name = "con_retraso")
+    private Boolean conRetraso = false;
+
+    @OneToMany(mappedBy = "entrega", cascade = CascadeType.REMOVE)
+    private java.util.List<EntregaVersion> versiones = new java.util.ArrayList<>();
+
+    @OneToMany(mappedBy = "entrega", cascade = CascadeType.REMOVE)
+    private java.util.List<EntregaPuntajeCriterio> puntajesCriterios = new java.util.ArrayList<>();
 
     public EntregaTarea() {
     }
@@ -176,5 +197,37 @@ public class EntregaTarea {
 
     public void setCalificadoPor(User calificadoPor) {
         this.calificadoPor = calificadoPor;
+    }
+
+    public User getEntregadoPor() {
+        return entregadoPor;
+    }
+
+    public void setEntregadoPor(User entregadoPor) {
+        this.entregadoPor = entregadoPor;
+    }
+
+    public Grupo getGrupo() {
+        return grupo;
+    }
+
+    public void setGrupo(Grupo grupo) {
+        this.grupo = grupo;
+    }
+
+    public String getNombreEquipo() {
+        return nombreEquipo;
+    }
+
+    public void setNombreEquipo(String nombreEquipo) {
+        this.nombreEquipo = nombreEquipo;
+    }
+
+    public boolean isConRetraso() {
+        return Boolean.TRUE.equals(conRetraso);
+    }
+
+    public void setConRetraso(boolean conRetraso) {
+        this.conRetraso = conRetraso;
     }
 }

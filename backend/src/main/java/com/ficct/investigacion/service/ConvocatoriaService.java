@@ -19,15 +19,18 @@ public class ConvocatoriaService {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final UserRepository userRepository;
     private final RequisitoRepository requisitoRepository;
+    private final NotificacionService notificacionService;
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
                                ConvocatoriaParticipanteRepository participanteRepository,
                                UserRepository userRepository,
-                               RequisitoRepository requisitoRepository) {
+                               RequisitoRepository requisitoRepository,
+                               @org.springframework.context.annotation.Lazy NotificacionService notificacionService) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.userRepository = userRepository;
         this.requisitoRepository = requisitoRepository;
+        this.notificacionService = notificacionService;
     }
 
     @Transactional
@@ -56,10 +59,19 @@ public class ConvocatoriaService {
 
         Convocatoria saved = convocatoriaRepository.save(c);
 
+        // Si el creador tiene rol DOCENTE, registrarlo como docente a cargo del área
+        if (creador.getRol() == Rol.DOCENTE) {
+            ConvocatoriaParticipante part = new ConvocatoriaParticipante(
+                    saved, creador, Rol.DOCENTE, EstadoInscripcion.ACEPTADO, null, creador
+            );
+            participanteRepository.save(part);
+            saved.addParticipante(part);
+        }
+
         // Asignar docentes encargados iniciales
         if (request.getDocenteIds() != null && !request.getDocenteIds().isEmpty()) {
             for (Long docId : request.getDocenteIds()) {
-                if (docId != null) {
+                if (docId != null && !docId.equals(creador.getId())) {
                     userRepository.findById(docId).ifPresent(docente -> {
                         ConvocatoriaParticipante part = new ConvocatoriaParticipante(
                                 saved, docente, Rol.DOCENTE, EstadoInscripcion.ACEPTADO, null, creador
@@ -236,9 +248,7 @@ public class ConvocatoriaService {
 
     @Transactional(readOnly = true)
     public ConvocatoriaDTO obtenerPorId(Long id) {
-        Convocatoria c = convocatoriaRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Convocatoria no encontrada con ID: " + id));
-        return new ConvocatoriaDTO(c);
+        return obtenerPorIdConUsuario(id, null);
     }
 
     @Transactional(readOnly = true)
@@ -247,7 +257,38 @@ public class ConvocatoriaService {
     }
 
     @Transactional(readOnly = true)
+    public ConvocatoriaDTO obtenerPorIdConUsuario(Long id, String userEmail) {
+        Convocatoria c = convocatoriaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Convocatoria no encontrada con ID: " + id));
+        ConvocatoriaDTO dto = new ConvocatoriaDTO(c);
+        if (userEmail != null && !userEmail.isBlank()) {
+            userRepository.findByEmail(userEmail).ifPresent(user -> {
+                participanteRepository.findByConvocatoriaIdAndUsuarioId(id, user.getId())
+                        .ifPresent(p -> {
+                            dto.setMiEstadoInscripcion(p.getEstadoInscripcion());
+                            dto.setMiRol(p.getRol());
+                        });
+                if (dto.getMiEstadoInscripcion() == null && user.getRol() == Rol.DOCENTE && c.getCreador() != null && c.getCreador().getId().equals(user.getId())) {
+                    dto.setMiEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+                    dto.setMiRol(Rol.DOCENTE);
+                }
+            });
+        }
+        return dto;
+    }
+
+    @Transactional(readOnly = true)
     public List<ConvocatoriaDTO> listarPublicadas(TipoConvocatoria tipo, String query) {
+        return listarPublicadasConUsuario(tipo, query, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConvocatoriaDTO> listarPublicadas() {
+        return listarPublicadas(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConvocatoriaDTO> listarPublicadasConUsuario(TipoConvocatoria tipo, String query, String userEmail) {
         List<Convocatoria> list;
         if (query != null && !query.trim().isEmpty()) {
             list = convocatoriaRepository.searchPublicas(EstadoConvocatoria.PUBLICADA, query.trim());
@@ -259,12 +300,35 @@ public class ConvocatoriaService {
         } else {
             list = convocatoriaRepository.findByEstadoOrderByFechaCierreAsc(EstadoConvocatoria.PUBLICADA);
         }
-        return list.stream().map(ConvocatoriaDTO::new).collect(Collectors.toList());
-    }
 
-    @Transactional(readOnly = true)
-    public List<ConvocatoriaDTO> listarPublicadas() {
-        return listarPublicadas(null, null);
+        User user = (userEmail != null && !userEmail.isBlank())
+                ? userRepository.findByEmail(userEmail).orElse(null)
+                : null;
+
+        Map<Long, ConvocatoriaParticipante> misParts = new HashMap<>();
+        if (user != null) {
+            List<ConvocatoriaParticipante> partList = participanteRepository.findByUsuarioId(user.getId());
+            for (ConvocatoriaParticipante cp : partList) {
+                if (cp.getConvocatoria() != null) {
+                    misParts.put(cp.getConvocatoria().getId(), cp);
+                }
+            }
+        }
+
+        return list.stream().map(c -> {
+            ConvocatoriaDTO dto = new ConvocatoriaDTO(c);
+            if (user != null) {
+                ConvocatoriaParticipante cp = misParts.get(c.getId());
+                if (cp != null) {
+                    dto.setMiEstadoInscripcion(cp.getEstadoInscripcion());
+                    dto.setMiRol(cp.getRol());
+                } else if (user.getRol() == Rol.DOCENTE && c.getCreador() != null && c.getCreador().getId().equals(user.getId())) {
+                    dto.setMiEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+                    dto.setMiRol(Rol.DOCENTE);
+                }
+            }
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     // ==========================================
@@ -293,6 +357,7 @@ public class ConvocatoriaService {
                 if (cp.getEstadoInscripcion() == EstadoInscripcion.ACEPTADO && !idsAgregados.contains(convId)) {
                     ConvocatoriaDTO dto = new ConvocatoriaDTO(cp.getConvocatoria());
                     dto.setMiEstadoInscripcion(cp.getEstadoInscripcion());
+                    dto.setMiRol(cp.getRol());
                     result.add(dto);
                     idsAgregados.add(convId);
                 }
@@ -303,6 +368,7 @@ public class ConvocatoriaService {
                      cp.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO) && !idsAgregados.contains(convId)) {
                     ConvocatoriaDTO dto = new ConvocatoriaDTO(cp.getConvocatoria());
                     dto.setMiEstadoInscripcion(cp.getEstadoInscripcion());
+                    dto.setMiRol(cp.getRol());
                     result.add(dto);
                     idsAgregados.add(convId);
                 }
@@ -316,6 +382,7 @@ public class ConvocatoriaService {
                 if (c.getCreador() != null && c.getCreador().getId().equals(user.getId()) && !idsAgregados.contains(c.getId())) {
                     ConvocatoriaDTO dto = new ConvocatoriaDTO(c);
                     dto.setMiEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+                    dto.setMiRol(Rol.DOCENTE);
                     result.add(dto);
                     idsAgregados.add(c.getId());
                 }
@@ -329,6 +396,35 @@ public class ConvocatoriaService {
     // GESTIÓN DE PARTICIPANTES (DOCENTES, JURADOS, ESTUDIANTES)
     // ==========================================
 
+    public boolean puedeGestionarConvocatoria(Convocatoria conv, User solicitante) {
+        if (solicitante == null || conv == null) return false;
+        if (solicitante.getRol() == Rol.ADMIN) return true;
+
+        if (solicitante.getRol() == Rol.DOCENTE) {
+            // Es el creador de la convocatoria
+            if (conv.getCreador() != null && conv.getCreador().getId().equals(solicitante.getId())) {
+                return true;
+            }
+            // Está asignado formalmente como docente en el área
+            return participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRol(
+                    conv.getId(), solicitante.getId(), Rol.DOCENTE
+            );
+        }
+        return false;
+    }
+
+    public void asegurarDocenteEnParticipantes(Convocatoria conv, User docente) {
+        if (conv == null || docente == null || docente.getRol() != Rol.DOCENTE) return;
+        boolean exists = participanteRepository.existsByConvocatoriaIdAndUsuarioId(conv.getId(), docente.getId());
+        if (!exists) {
+            ConvocatoriaParticipante part = new ConvocatoriaParticipante(
+                    conv, docente, Rol.DOCENTE, EstadoInscripcion.ACEPTADO, null, docente
+            );
+            participanteRepository.save(part);
+            conv.addParticipante(part);
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<ConvocatoriaParticipanteDTO> listarParticipantes(Long convocatoriaId, String solicitanteEmail) {
         Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
@@ -340,6 +436,7 @@ public class ConvocatoriaService {
         }
 
         boolean esAdmin = solicitante != null && solicitante.getRol() == Rol.ADMIN;
+        boolean puedeGestionar = solicitante != null && puedeGestionarConvocatoria(conv, solicitante);
         boolean esDocenteOJurado = solicitante != null && (solicitante.getRol() == Rol.DOCENTE || solicitante.getRol() == Rol.JURADO);
 
         Optional<ConvocatoriaParticipante> miPart = solicitante != null
@@ -350,8 +447,8 @@ public class ConvocatoriaService {
         boolean esFinalizada = conv.getEstado() == EstadoConvocatoria.FINALIZADA;
 
         // Reglas de visibilidad:
-        // 1. Admin y Docentes/Jurados ven todo (incluyendo pendientes para poder admitir).
-        if (esAdmin || esDocenteOJurado) {
+        // 1. Admin y Docentes/Jurados encargados ven todo (incluyendo pendientes para poder admitir).
+        if (esAdmin || puedeGestionar || esDocenteOJurado) {
             return participanteRepository.findByConvocatoriaIdOrderByFechaAsignacionAsc(convocatoriaId).stream()
                     .map(ConvocatoriaParticipanteDTO::new)
                     .collect(Collectors.toList());
@@ -365,7 +462,12 @@ public class ConvocatoriaService {
                     .collect(Collectors.toList());
         }
 
-        // 3. Usuarios no inscritos solo pueden ver si la actividad ya culminó (FINALIZADA)
+        // 3. Si el estudiante tiene su postulación (ej. PENDIENTE o RECHAZADO), debe poder ver al menos su propio registro
+        if (miPart.isPresent()) {
+            return Collections.singletonList(new ConvocatoriaParticipanteDTO(miPart.get()));
+        }
+
+        // 4. Usuarios no inscritos solo pueden ver si la actividad ya culminó (FINALIZADA)
         if (esFinalizada) {
             return participanteRepository.findByConvocatoriaIdAndEstadoInscripcionOrderByFechaAsignacionAsc(convocatoriaId, EstadoInscripcion.ACEPTADO)
                     .stream()
@@ -395,16 +497,14 @@ public class ConvocatoriaService {
         }
 
         boolean esAdmin = solicitante.getRol() == Rol.ADMIN;
-        boolean esDocenteAsignado = participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
-                convocatoriaId, solicitante.getId(), Rol.DOCENTE, EstadoInscripcion.ACEPTADO
-        );
+        boolean puedeGestionar = puedeGestionarConvocatoria(conv, solicitante);
 
         if (rolAsignar == Rol.DOCENTE) {
             if (!esAdmin) {
                 throw new AccessDeniedException("Solo los Administradores pueden designar docentes al área.");
             }
         } else if (rolAsignar == Rol.JURADO) {
-            if (!esAdmin && !esDocenteAsignado) {
+            if (!puedeGestionar) {
                 throw new AccessDeniedException("Solo los Administradores o los Docentes de esta área pueden designar jurados evaluadores.");
             }
         } else {
@@ -459,6 +559,14 @@ public class ConvocatoriaService {
         Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
                 .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + convocatoriaId));
 
+        if (conv.getEstado() != EstadoConvocatoria.PUBLICADA) {
+            throw new IllegalStateException("No se pueden recibir postulaciones: la convocatoria se encuentra en estado " + conv.getEstado() + " y aún no ha sido publicada en el portal.");
+        }
+
+        String nombreEquipoFinal = (request != null && request.getNombreEquipo() != null && !request.getNombreEquipo().trim().isEmpty())
+                ? request.getNombreEquipo().trim()
+                : null;
+
         Optional<ConvocatoriaParticipante> existente = participanteRepository.findByConvocatoriaIdAndUsuarioId(convocatoriaId, estudiante.getId());
         if (existente.isPresent()) {
             ConvocatoriaParticipante cp = existente.get();
@@ -473,9 +581,7 @@ public class ConvocatoriaService {
             cp.setFechaSolicitud(LocalDateTime.now());
             cp.setFechaRespuesta(null);
             cp.setMotivoRechazo(null);
-            if (request != null && request.getNombreEquipo() != null && !request.getNombreEquipo().isBlank()) {
-                cp.setNombreEquipo(request.getNombreEquipo().trim());
-            }
+            cp.setNombreEquipo(nombreEquipoFinal);
             return new ConvocatoriaParticipanteDTO(participanteRepository.save(cp));
         }
 
@@ -484,11 +590,12 @@ public class ConvocatoriaService {
                 estudiante,
                 Rol.ESTUDIANTE,
                 EstadoInscripcion.PENDIENTE,
-                (request != null && request.getNombreEquipo() != null) ? request.getNombreEquipo().trim() : null,
+                nombreEquipoFinal,
                 estudiante
         );
 
         ConvocatoriaParticipante saved = participanteRepository.save(cp);
+        conv.addParticipante(saved);
         return new ConvocatoriaParticipanteDTO(saved);
     }
 
@@ -511,15 +618,13 @@ public class ConvocatoriaService {
     public ConvocatoriaParticipanteDTO admitirEstudiante(Long convocatoriaId, Long participanteId, String solicitanteEmail) {
         User solicitante = userRepository.findByEmail(solicitanteEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
+                .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + convocatoriaId));
 
-        boolean esAdmin = solicitante.getRol() == Rol.ADMIN;
-        boolean esDocenteAsignado = participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
-                convocatoriaId, solicitante.getId(), Rol.DOCENTE, EstadoInscripcion.ACEPTADO
-        );
-
-        if (!esAdmin && !esDocenteAsignado) {
+        if (!puedeGestionarConvocatoria(conv, solicitante)) {
             throw new AccessDeniedException("Solo los Administradores o los Docentes a cargo de esta área pueden admitir postulantes.");
         }
+        asegurarDocenteEnParticipantes(conv, solicitante);
 
         ConvocatoriaParticipante cp = participanteRepository.findById(participanteId)
                 .orElseThrow(() -> new IllegalArgumentException("Participante no encontrado con ID: " + participanteId));
@@ -533,22 +638,34 @@ public class ConvocatoriaService {
         cp.setMotivoRechazo(null);
         cp.setAsignadoPor(solicitante);
 
-        return new ConvocatoriaParticipanteDTO(participanteRepository.save(cp));
+        ConvocatoriaParticipante saved = participanteRepository.save(cp);
+        try {
+            notificacionService.crearNotificacion(
+                    saved.getUsuario().getId(),
+                    Notificacion.INSCRIPCION_ADMITIDA,
+                    "¡Solicitud admitida!",
+                    "Tu solicitud para '" + conv.getTitulo() + "' fue admitida.",
+                    conv.getId(),
+                    null,
+                    null
+            );
+        } catch (Exception e) {
+            // Silencioso
+        }
+        return new ConvocatoriaParticipanteDTO(saved);
     }
 
     @Transactional
     public ConvocatoriaParticipanteDTO rechazarEstudiante(Long convocatoriaId, Long participanteId, String motivo, String solicitanteEmail) {
         User solicitante = userRepository.findByEmail(solicitanteEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
+                .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + convocatoriaId));
 
-        boolean esAdmin = solicitante.getRol() == Rol.ADMIN;
-        boolean esDocenteAsignado = participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
-                convocatoriaId, solicitante.getId(), Rol.DOCENTE, EstadoInscripcion.ACEPTADO
-        );
-
-        if (!esAdmin && !esDocenteAsignado) {
+        if (!puedeGestionarConvocatoria(conv, solicitante)) {
             throw new AccessDeniedException("Solo los Administradores o los Docentes a cargo de esta área pueden rechazar postulantes.");
         }
+        asegurarDocenteEnParticipantes(conv, solicitante);
 
         ConvocatoriaParticipante cp = participanteRepository.findById(participanteId)
                 .orElseThrow(() -> new IllegalArgumentException("Participante no encontrado con ID: " + participanteId));
@@ -562,13 +679,30 @@ public class ConvocatoriaService {
         cp.setMotivoRechazo(motivo != null && !motivo.isBlank() ? motivo.trim() : "No cumple con los requisitos del área.");
         cp.setAsignadoPor(solicitante);
 
-        return new ConvocatoriaParticipanteDTO(participanteRepository.save(cp));
+        ConvocatoriaParticipante saved = participanteRepository.save(cp);
+        try {
+            String msg = saved.getMotivoRechazo() != null ? " Motivo: " + saved.getMotivoRechazo() : "";
+            notificacionService.crearNotificacion(
+                    saved.getUsuario().getId(),
+                    Notificacion.INSCRIPCION_RECHAZADA,
+                    "Solicitud rechazada",
+                    "Tu solicitud para '" + conv.getTitulo() + "' fue rechazada." + msg,
+                    conv.getId(),
+                    null,
+                    null
+            );
+        } catch (Exception e) {
+            // Silencioso
+        }
+        return new ConvocatoriaParticipanteDTO(saved);
     }
 
     @Transactional
     public void removerParticipante(Long convocatoriaId, Long participanteId, String solicitanteEmail) {
         User solicitante = userRepository.findByEmail(solicitanteEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario solicitante no encontrado"));
+        Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
+                .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + convocatoriaId));
         ConvocatoriaParticipante cp = participanteRepository.findById(participanteId)
                 .orElseThrow(() -> new IllegalArgumentException("Participante no encontrado con ID: " + participanteId));
 
@@ -577,13 +711,13 @@ public class ConvocatoriaService {
         }
 
         boolean esAdmin = solicitante.getRol() == Rol.ADMIN;
-        boolean esDocenteAsignado = participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
-                convocatoriaId, solicitante.getId(), Rol.DOCENTE, EstadoInscripcion.ACEPTADO
-        );
+        boolean puedeGestionar = puedeGestionarConvocatoria(conv, solicitante);
 
         if (!esAdmin) {
-            if (cp.getRol() == Rol.JURADO && esDocenteAsignado) {
-                // Docente asignado puede remover a un jurado
+            if (cp.getRol() == Rol.JURADO && puedeGestionar) {
+                // Docente a cargo puede remover a un jurado
+            } else if (cp.getRol() == Rol.ESTUDIANTE && puedeGestionar) {
+                // Docente a cargo puede remover a un estudiante
             } else if (cp.getUsuario().getId().equals(solicitante.getId())) {
                 // El propio usuario puede desinscribirse si es estudiante
             } else {

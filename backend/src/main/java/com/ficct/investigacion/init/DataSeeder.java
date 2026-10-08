@@ -7,6 +7,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
@@ -21,6 +22,8 @@ public class DataSeeder implements CommandLineRunner {
     private final TareaRepository tareaRepository;
     private final EntregaTareaRepository entregaTareaRepository;
     private final ModuloRepository moduloRepository;
+    private final GrupoRepository grupoRepository;
+    private final ActividadGrupoRepository actividadGrupoRepository;
 
     public DataSeeder(UserRepository userRepository,
                       ConvocatoriaRepository convocatoriaRepository,
@@ -31,7 +34,9 @@ public class DataSeeder implements CommandLineRunner {
                       ConvocatoriaParticipanteRepository participanteRepository,
                       TareaRepository tareaRepository,
                       EntregaTareaRepository entregaTareaRepository,
-                      ModuloRepository moduloRepository) {
+                      ModuloRepository moduloRepository,
+                      GrupoRepository grupoRepository,
+                      ActividadGrupoRepository actividadGrupoRepository) {
         this.userRepository = userRepository;
         this.convocatoriaRepository = convocatoriaRepository;
         this.rolPermisoRepository = rolPermisoRepository;
@@ -42,6 +47,8 @@ public class DataSeeder implements CommandLineRunner {
         this.tareaRepository = tareaRepository;
         this.entregaTareaRepository = entregaTareaRepository;
         this.moduloRepository = moduloRepository;
+        this.grupoRepository = grupoRepository;
+        this.actividadGrupoRepository = actividadGrupoRepository;
     }
 
     @Override
@@ -142,6 +149,31 @@ public class DataSeeder implements CommandLineRunner {
             userRepository.save(brandon);
             System.out.println(">> [DataSeeder] Estudiante creado: brandon.vasquez@uagrm.edu.bo / estudiante123");
         }
+
+        // 5 Estudiantes adicionales para pruebas y asignación de grupos
+        String passAlumnos = passwordEncoder.encode("Alumno123!");
+
+        if (!userRepository.existsByEmail("nataly@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Nataly", "Rojas", "nataly@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: nataly@ficct.uagrm.edu.bo / Alumno123!");
+        }
+        if (!userRepository.existsByEmail("lucas@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Lucas", "Gutiérrez", "lucas@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: lucas@ficct.uagrm.edu.bo / Alumno123!");
+        }
+        if (!userRepository.existsByEmail("mateo@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Mateo", "Salazar", "mateo@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: mateo@ficct.uagrm.edu.bo / Alumno123!");
+        }
+        if (!userRepository.existsByEmail("camila@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Camila", "Vargas", "camila@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: camila@ficct.uagrm.edu.bo / Alumno123!");
+        }
+        if (!userRepository.existsByEmail("sebastian@ficct.uagrm.edu.bo")) {
+            userRepository.save(new User("Sebastián", "Castro", "sebastian@ficct.uagrm.edu.bo", passAlumnos, Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
+            System.out.println(">> [DataSeeder] Estudiante creado: sebastian@ficct.uagrm.edu.bo / Alumno123!");
+        }
+
 
         // 2. Sembrar Convocatorias Iniciales
         if (convocatoriaRepository.count() == 0) {
@@ -298,16 +330,16 @@ public class DataSeeder implements CommandLineRunner {
                 if (jurado != null) {
                     participanteRepository.save(new ConvocatoriaParticipante(feria, jurado, Rol.JURADO, EstadoInscripcion.ACEPTADO, null, admin));
                 }
-                // Inscribir Estudiantes Admitidos en la Feria
+                // Inscribir Estudiantes Admitidos en la Feria (individuales sin equipo por defecto)
                 if (daniel != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, daniel, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, "Equipo ByteWarriors", daniel));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, daniel, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, null, daniel));
                 }
                 if (brandon != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, brandon, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, "Equipo ByteWarriors", brandon));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, brandon, Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO, null, brandon));
                 }
                 // Sembrar solicitud pendiente de prueba para que docente/admin puedan probar admisión
                 if (estGen != null) {
-                    participanteRepository.save(new ConvocatoriaParticipante(feria, estGen, Rol.ESTUDIANTE, EstadoInscripcion.PENDIENTE, "Grupo Sigma FICCT", estGen));
+                    participanteRepository.save(new ConvocatoriaParticipante(feria, estGen, Rol.ESTUDIANTE, EstadoInscripcion.PENDIENTE, null, estGen));
                 }
 
                 // Sembrar Módulos de Aprendizaje estilo LMS
@@ -380,6 +412,41 @@ public class DataSeeder implements CommandLineRunner {
                 );
                 tarea2.setModulo(mod2);
                 tareaRepository.save(tarea2);
+
+                // Sembrar Actividad de Selección de Grupo (Moodle Style como image.png)
+                if (actividadGrupoRepository.count() == 0) {
+                    ActividadGrupo actGrupo = new ActividadGrupo(
+                            feria,
+                            mod1,
+                            "Seleccionar grupo para 1er examen parcial",
+                            "Seleccionar número de grupo según se les asignó en la hoja que presentaron en clases.",
+                            java.time.LocalDateTime.now().minusDays(3),
+                            java.time.LocalDateTime.now().plusDays(14),
+                            5,
+                            true,
+                            true,
+                            true,
+                            docente
+                    );
+                    actGrupo = actividadGrupoRepository.save(actGrupo);
+
+                    List<Grupo> gruposMoodle = new java.util.ArrayList<>();
+                    for (int i = 1; i <= 10; i++) {
+                        Grupo g = new Grupo(feria, actGrupo, "Gr1erPar " + i, "Grupo de trabajo #" + i, 5, docente);
+                        gruposMoodle.add(g);
+                    }
+                    gruposMoodle = grupoRepository.saveAll(gruposMoodle);
+
+                    // Asignar a Daniel Quispe a Gr1erPar 1 como ejemplo inicial
+                    if (daniel != null && !gruposMoodle.isEmpty()) {
+                        ConvocatoriaParticipante partDaniel = participanteRepository
+                                .findByConvocatoriaIdAndUsuarioId(feria.getId(), daniel.getId()).orElse(null);
+                        if (partDaniel != null) {
+                            partDaniel.setGrupo(gruposMoodle.get(0));
+                            participanteRepository.save(partDaniel);
+                        }
+                    }
+                }
             }
 
             if (hackathon != null) {

@@ -14,7 +14,6 @@ class MisAreasScreen extends StatefulWidget {
 }
 
 class _MisAreasScreenState extends State<MisAreasScreen> {
-  String _selectedRole = 'TODOS';
   List<ConvocatoriaModel> _cursos = [];
   bool _isLoading = true;
 
@@ -41,10 +40,12 @@ class _MisAreasScreenState extends State<MisAreasScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mis Áreas Moodle'),
+        title: const Text('Mis Áreas Académicas'),
         actions: [
+          const NotificacionBadge(),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Actualizar áreas',
             onPressed: _loadCursos,
           ),
         ],
@@ -56,50 +57,97 @@ class _MisAreasScreenState extends State<MisAreasScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Filtros por Rol
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: ['TODOS', 'DOCENTE', 'JURADO', 'ESTUDIANTE'].map((role) {
-                        final isSelected = _selectedRole == role;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(
-                              role == 'TODOS'
-                                  ? 'Todos (${_cursos.length})'
-                                  : role[0] + role.substring(1).toLowerCase(),
+                  // Encabezado informativo de áreas reales asignadas
+                  Row(
+                    children: [
+                      const Icon(Icons.school_rounded, color: AppTheme.accent, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Áreas en las que participas',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? AppTheme.darkInk : AppTheme.ink,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
+                        ),
+                        child: Text(
+                          '${_cursos.length} ${_cursos.length == 1 ? "área" : "áreas"}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Listado directo de cursos y áreas asignadas
+                  if (_cursos.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            const Icon(Icons.school_outlined, size: 48, color: AppTheme.inkFaint),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No tienes asignaturas o áreas académicas asignadas actualmente.',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                color: isSelected
-                                    ? Colors.white
-                                    : (isDark ? AppTheme.darkInk : AppTheme.ink),
+                                fontSize: 13,
+                                color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
                               ),
                             ),
-                            selected: isSelected,
-                            selectedColor: AppTheme.accent,
-                            backgroundColor: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            side: BorderSide(
-                              color: isSelected ? AppTheme.accent : (isDark ? AppTheme.darkLine : AppTheme.line),
-                            ),
-                            onSelected: (val) {
-                              if (val) setState(() => _selectedRole = role);
-                            },
-                          ),
-                        );
-                      }).toList(),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Column(
+                      children: _cursos
+                          .map((c) => CourseCardMoodle(
+                                curso: c,
+                                onTap: () {
+                                  if (c.miEstadoInscripcion == 'PENDIENTE') {
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Row(
+                                          children: [
+                                            Icon(Icons.hourglass_top_rounded, color: Colors.amber),
+                                            SizedBox(width: 8),
+                                            Text('Solicitud en Revisión', style: TextStyle(fontSize: 16)),
+                                          ],
+                                        ),
+                                        content: Text(
+                                          'Tu postulación a "${c.titulo}" aún está en revisión por el docente o tribunal encargado. Una vez admitido, podrás ingresar a realizar tareas y acceder a los contenidos del Aula Virtual.',
+                                          style: const TextStyle(fontSize: 13, height: 1.4),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            child: const Text('Entendido'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else {
+                                    widget.onOpenAula(c);
+                                  }
+                                },
+                              ))
+                          .toList(),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Listado de Cursos
-                  ..._cursos.map((c) => CourseCardMoodle(
-                        curso: c,
-                        onTap: () => widget.onOpenAula(c),
-                      )),
-
                   const SizedBox(height: 70),
                 ],
               ),

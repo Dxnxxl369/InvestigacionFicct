@@ -211,15 +211,15 @@ export default function UsuariosAdminPage() {
 
         {/* Notificaciones */}
         {notification && (
-          <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
             <span>{notification}</span>
           </div>
         )}
 
         {error && (
-          <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+          <div className="p-4 rounded-xl bg-danger-soft/20 border border-danger/30 text-danger text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-danger flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
@@ -345,15 +345,15 @@ export default function UsuariosAdminPage() {
 
                           <td className="py-3.5 px-4">
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                                 u.estado === "ACTIVO"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-red-100 text-red-800"
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                  : "bg-danger-soft text-danger border border-danger/20"
                               }`}
                             >
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${
-                                  u.estado === "ACTIVO" ? "bg-emerald-600" : "bg-red-600"
+                                  u.estado === "ACTIVO" ? "bg-emerald-500" : "bg-danger"
                                 }`}
                               />
                               {u.estado}
@@ -367,8 +367,8 @@ export default function UsuariosAdminPage() {
                                 disabled={processingId === u.id}
                                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                                   u.estado === "ACTIVO"
-                                    ? "border border-red-200 text-red-700 hover:bg-red-50"
-                                    : "border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                    ? "border border-danger/30 text-danger hover:bg-danger-soft/30"
+                                    : "border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
                                 }`}
                               >
                                 {u.estado === "ACTIVO" ? "Suspender" : "Activar"}

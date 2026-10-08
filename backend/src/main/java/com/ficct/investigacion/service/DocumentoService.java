@@ -238,12 +238,12 @@ public class DocumentoService {
         if (user.getRol() == Rol.ADMIN) {
             return "OWNER";
         }
+        Optional<Tarea> tareaVinculada = tareaRepository.findByDocumentoColaborativoId(doc.getId());
+        if (tareaVinculada.isPresent()) {
+            return resolverPermisoDocumentoDeTarea(tareaVinculada.get(), user);
+        }
         if (doc.getAutor().getId().equals(user.getId())) {
             return "OWNER";
-        }
-        Optional<Tarea> tareaVinculada = tareaRepository.findByDocumentoColaborativoId(doc.getId());
-        if (tareaVinculada.isPresent() && puedeAccederDocumentoDeTarea(tareaVinculada.get(), user)) {
-            return "EDICION";
         }
         for (DocumentoColaborador c : doc.getColaboradores()) {
             if (c.getUsuario().getId().equals(user.getId())) {
@@ -325,13 +325,48 @@ public class DocumentoService {
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no autenticado"));
     }
 
-    private boolean puedeAccederDocumentoDeTarea(Tarea tarea, User user) {
-        if (user.getRol() == Rol.ADMIN) return true;
-        if (tarea.getCreador() != null && tarea.getCreador().getId().equals(user.getId())) return true;
-        Long convocatoriaId = tarea.getConvocatoria().getId();
-        return participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndEstadoInscripcion(
-                convocatoriaId, user.getId(), EstadoInscripcion.ACEPTADO
+    private String resolverPermisoDocumentoDeTarea(Tarea tarea, User user) {
+        if (puedeDocenteVerDocumentoDeTarea(tarea, user)) {
+            return "LECTURA";
+        }
+        return estudiantePerteneceAGrupoDeTarea(tarea, user) ? "EDICION" : null;
+    }
+
+    private boolean puedeDocenteVerDocumentoDeTarea(Tarea tarea, User user) {
+        if (tarea.getCreador() != null && tarea.getCreador().getId().equals(user.getId())) {
+            return true;
+        }
+        return participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
+                tarea.getConvocatoria().getId(),
+                user.getId(),
+                Rol.DOCENTE,
+                EstadoInscripcion.ACEPTADO
         );
+    }
+
+    private boolean estudiantePerteneceAGrupoDeTarea(Tarea tarea, User user) {
+        if (user.getRol() != Rol.ESTUDIANTE || !tarea.isEsGrupal() || tarea.getActividadGrupo() == null) {
+            return false;
+        }
+        Optional<ConvocatoriaParticipante> participanteOpt = participanteRepository
+                .findByConvocatoriaIdAndUsuarioId(tarea.getConvocatoria().getId(), user.getId());
+        if (participanteOpt.isEmpty()) {
+            return false;
+        }
+        ConvocatoriaParticipante participante = participanteOpt.get();
+        if (participante.getRol() != Rol.ESTUDIANTE || participante.getEstadoInscripcion() != EstadoInscripcion.ACEPTADO) {
+            return false;
+        }
+        Long actividadId = tarea.getActividadGrupo().getId();
+        boolean enGrupoDeActividad = participante.getGrupos() != null && participante.getGrupos().stream()
+                .anyMatch(g -> g.getActividadGrupo() != null && actividadId.equals(g.getActividadGrupo().getId()));
+        if (enGrupoDeActividad) {
+            return true;
+        }
+        Grupo grupoPrincipal = participante.getGrupo();
+        return grupoPrincipal != null
+                && grupoPrincipal.getActividadGrupo() != null
+                && actividadId.equals(grupoPrincipal.getActividadGrupo().getId());
     }
 
     private void notificarActualizacion(Documento doc, User user) {

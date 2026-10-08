@@ -15,6 +15,21 @@ class TareaModel {
   final double? calificacion;
   final String? retroalimentacion;
 
+  final bool esGrupal;
+  final double? puntajeMaximo;
+  final int? entregaId;
+  final String? comentarioEstudiante;
+  final bool habilitada;
+  final int? actividadGrupoId;
+
+  // Campos de mejoras
+  final String? miEstado;
+  final bool conRetraso;
+  final int intentos;
+  final int? convocatoriaId;
+  final String? convocatoriaTitulo;
+  final List<Map<String, dynamic>> rubrica;
+
   TareaModel({
     required this.id,
     required this.titulo,
@@ -31,25 +46,84 @@ class TareaModel {
     this.archivoNombre,
     this.calificacion,
     this.retroalimentacion,
+    this.esGrupal = false,
+    this.puntajeMaximo = 100,
+    this.entregaId,
+    this.comentarioEstudiante,
+    this.habilitada = true,
+    this.actividadGrupoId,
+    this.miEstado,
+    this.conRetraso = false,
+    this.intentos = 1,
+    this.convocatoriaId,
+    this.convocatoriaTitulo,
+    this.rubrica = const [],
   });
 
   factory TareaModel.fromJson(Map<String, dynamic> json) {
+    final miEntrega = json['miEntrega'] as Map<String, dynamic>?;
+
+    final String estado;
+    if (miEntrega != null) {
+      estado = (miEntrega['estado'] ?? 'ENTREGADO').toString();
+    } else {
+      estado = (json['estadoEntrega'] ?? 'SIN_ENTREGAR').toString();
+    }
+
+    final double? calif = miEntrega != null
+        ? (miEntrega['calificacion'] as num?)?.toDouble()
+        : (json['calificacion'] as num?)?.toDouble();
+
+    final String? retro = miEntrega != null
+        ? miEntrega['retroalimentacion'] as String?
+        : json['retroalimentacion'] as String?;
+
+    final String? archUrl = miEntrega != null
+        ? miEntrega['archivoUrl'] as String?
+        : json['archivoUrl'] as String?;
+
+    final String? archNom = miEntrega != null
+        ? miEntrega['nombreArchivo'] as String?
+        : json['archivoNombre'] as String?;
+
+    final int? entId = miEntrega != null ? (miEntrega['id'] as num?)?.toInt() : null;
+    final String? coment = miEntrega != null ? miEntrega['comentarioEstudiante'] as String? : null;
+    final bool conRet = miEntrega != null ? (miEntrega['conRetraso'] == true) : false;
+    final int ints = miEntrega != null ? ((miEntrega['intentos'] as num?)?.toInt() ?? 1) : 1;
+
+    final rubricaRaw = json['rubrica'] as List<dynamic>?;
+    final rubricaParsed = rubricaRaw != null
+        ? rubricaRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+        : <Map<String, dynamic>>[];
+
     return TareaModel(
       id: json['id'] as int? ?? 0,
       titulo: json['titulo'] as String? ?? 'Sin título',
       descripcion: json['descripcion'] as String? ?? '',
-      moduloId: json['moduloId'] as int?,
+      moduloId: (json['moduloId'] as num?)?.toInt(),
       moduloTitulo: json['moduloTitulo'] as String?,
-      fechaApertura: json['fechaApertura'] as String?,
-      fechaLimite: json['fechaLimite'] as String?,
+      fechaApertura: (json['fechaHabilitacion'] ?? json['fechaApertura']) as String?,
+      fechaLimite: (json['fechaEntrega'] ?? json['fechaLimite']) as String?,
       fechaCorte: json['fechaCorte'] as String?,
-      tiposPermitidos: json['tiposPermitidos'] as String? ?? '.pdf, .docx, .zip',
-      tamanoMaximoMb: json['tamanoMaximoMb'] as int? ?? 10,
-      estadoEntrega: json['estadoEntrega'] as String? ?? 'SIN_ENTREGAR',
-      archivoUrl: json['archivoUrl'] as String?,
-      archivoNombre: json['archivoNombre'] as String?,
-      calificacion: (json['calificacion'] as num?)?.toDouble(),
-      retroalimentacion: json['retroalimentacion'] as String?,
+      tiposPermitidos: (json['tiposArchivosPermitidos'] ?? json['tiposPermitidos'] ?? '.pdf, .docx, .zip') as String?,
+      tamanoMaximoMb: (json['tamanoMaximoMb'] as num?)?.toInt() ?? 10,
+      estadoEntrega: estado,
+      archivoUrl: archUrl,
+      archivoNombre: archNom,
+      calificacion: calif,
+      retroalimentacion: retro,
+      esGrupal: json['esGrupal'] as bool? ?? false,
+      puntajeMaximo: (json['puntajeMaximo'] as num?)?.toDouble() ?? 100,
+      entregaId: entId,
+      comentarioEstudiante: coment,
+      habilitada: json['habilitada'] as bool? ?? true,
+      actividadGrupoId: (json['actividadGrupoId'] as num?)?.toInt(),
+      miEstado: json['miEstado'] as String?,
+      conRetraso: conRet,
+      intentos: ints,
+      convocatoriaId: (json['convocatoriaId'] as num?)?.toInt(),
+      convocatoriaTitulo: json['convocatoriaTitulo'] as String?,
+      rubrica: rubricaParsed,
     );
   }
 
@@ -64,6 +138,8 @@ class TareaModel {
       'fechaCorte': fechaCorte,
       'tiposPermitidos': tiposPermitidos,
       'tamanoMaximoMb': tamanoMaximoMb,
+      'estadoEntrega': estadoEntrega,
+      'esGrupal': esGrupal,
     };
   }
 }

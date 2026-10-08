@@ -87,6 +87,7 @@ export interface ConvocatoriaParticipanteDTO {
   rol: "ADMIN" | "DOCENTE" | "JURADO" | "ESTUDIANTE";
   estadoInscripcion: EstadoInscripcion;
   nombreEquipo?: string;
+  gruposNombres?: string[];
   fechaSolicitud?: string;
   fechaRespuesta?: string;
   fechaAsignacion: string;
@@ -187,6 +188,15 @@ export const authAPI = {
       body: JSON.stringify(data),
     });
     return handleResponse<User>(res);
+  },
+
+  async getPerfilPublico(usuarioId: number): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/auth/usuarios/${usuarioId}/perfil-publico`, {
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
+    return handleResponse<any>(res);
   },
 };
 
@@ -419,6 +429,20 @@ export const convocatoriasAPI = {
       headers: { ...getAuthHeader() },
     });
     return handleResponse<{ message: string }>(res);
+  },
+
+  async responderLote(
+    convocatoriaId: number,
+    participanteIds: number[],
+    accion: "ADMITIR" | "RECHAZAR",
+    motivo?: string
+  ): Promise<{ procesados: number; errores: string[] }> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/participantes/responder-lote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ participanteIds, accion, motivo }),
+    });
+    return handleResponse<{ procesados: number; errores: string[] }>(res);
   },
 
   async getTareas(convocatoriaId: number): Promise<TareaDTO[]> {
@@ -700,6 +724,92 @@ export const cursosAPI = {
 };
 
 // 8. Tareas y Entregas Académicas API (tipo Moodle - Sprint 2)
+
+// --- Rúbrica ---
+export interface CriterioDTO {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  puntajeMaximo: number;
+  orden: number;
+}
+
+export interface CriterioRequest {
+  id?: number;
+  nombre: string;
+  descripcion?: string;
+  puntajeMaximo: number;
+}
+
+export interface PuntajeCriterioDTO {
+  criterioId: number;
+  nombre: string;
+  puntaje: number;
+  puntajeMaximo: number;
+}
+
+export interface PuntajeCriterioRequest {
+  criterioId: number;
+  puntaje: number;
+}
+
+// --- Notificaciones ---
+export interface NotificacionDTO {
+  id: number;
+  tipo: "INSCRIPCION_ADMITIDA" | "INSCRIPCION_RECHAZADA" | "NUEVA_POSTULACION" | "NUEVA_ENTREGA" | "ENTREGA_CALIFICADA" | "NUEVA_TAREA" | "CORTE_PROXIMO" | string;
+  titulo: string;
+  mensaje: string;
+  leida: boolean;
+  createdAt: string;
+  convocatoriaId?: number;
+  tareaId?: number;
+  entregaId?: number;
+}
+
+// --- Seguimiento de tarea (SpeedGrader) ---
+export interface ItemSeguimientoDTO {
+  estudianteId: number;
+  estudianteNombre: string;
+  estudianteEmail: string;
+  fotoPerfil?: string;
+  grupoNombre?: string;
+  estadoSeguimiento: "SIN_ENTREGAR" | "ENTREGADO" | "CALIFICADO";
+  conRetraso: boolean;
+  entrega?: EntregaTareaDTO | null;
+}
+
+export interface ResumenSeguimientoDTO {
+  totalEstudiantes: number;
+  entregados: number;
+  sinEntregar: number;
+  conRetraso: number;
+  calificados: number;
+  porCalificar: number;
+}
+
+export interface SeguimientoTareaDTO {
+  tareaId: number;
+  titulo: string;
+  puntajeMaximo: number;
+  esGrupal: boolean;
+  fechaEntrega?: string;
+  fechaCorte?: string;
+  resumen: ResumenSeguimientoDTO;
+  items: ItemSeguimientoDTO[];
+}
+
+// --- Historial de versiones ---
+export interface VersionDTO {
+  id: number;
+  intento: number;
+  nombreArchivo?: string;
+  archivoUrl?: string;
+  comentario?: string;
+  fechaEntrega: string;
+  conRetraso: boolean;
+}
+
+// --- EntregaTareaDTO con campos de mejoras ---
 export interface EntregaTareaDTO {
   id: number;
   tareaId: number;
@@ -718,8 +828,22 @@ export interface EntregaTareaDTO {
   retroalimentacion?: string;
   fechaCalificacion?: string;
   calificadoPorNombre?: string;
+  esGrupal?: boolean;
+  entregadoPorId?: number;
+  entregadoPorNombre?: string;
+  entregadoPorEmail?: string;
+  esMiEntregaPropia?: boolean;
+  grupoId?: number;
+  grupoNombre?: string;
+  companerosEquipo?: string[];
+  // Mejoras
+  conRetraso?: boolean;
+  intentos?: number;
+  puntajeMaximoTarea?: number;
+  puntajesCriterios?: PuntajeCriterioDTO[];
 }
 
+// --- TareaDTO con rubrica y miEstado ---
 export interface TareaDTO {
   id: number;
   convocatoriaId?: number;
@@ -737,17 +861,24 @@ export interface TareaDTO {
   tiposArchivosPermitidos: string;
   tamanoMaximoMb: number;
   puntajeMaximo: number;
+  esGrupal?: boolean;
   creadorId?: number;
   creadorNombre?: string;
   totalEntregas: number;
   estadoMoodle?: "ABIERTA" | "PENDIENTE_APERTURA" | "CERRADA_CORTE" | "DESHABILITADA" | "ENTREGA_CON_RETRASO";
   createdAt?: string;
+  updatedAt?: string;
   miEntrega?: EntregaTareaDTO;
   moduloId?: number;
   moduloTitulo?: string;
   documentoColaborativoHabilitado?: boolean;
   documentoColaborativoId?: number;
   documentoColaborativoTitulo?: string;
+  actividadGrupoId?: number;
+  actividadGrupoTitulo?: string;
+  // Mejoras
+  rubrica?: CriterioDTO[];
+  miEstado?: "PENDIENTE" | "ENTREGADO" | "ENTREGADO_CON_RETRASO" | "CALIFICADO" | "VENCIDA" | "NO_DISPONIBLE";
 }
 
 export interface TareaRequest {
@@ -764,6 +895,10 @@ export interface TareaRequest {
   tamanoMaximoMb?: number;
   puntajeMaximo?: number;
   documentoColaborativoHabilitado?: boolean;
+  esGrupal?: boolean;
+  actividadGrupoId?: number;
+  // Mejoras: null = no tocar; [] = borrar; lista = reemplazar
+  rubrica?: CriterioRequest[] | null;
 }
 
 export interface EntregaRequest {
@@ -771,11 +906,20 @@ export interface EntregaRequest {
   nombreArchivo?: string;
   archivoUrl?: string;
   comentarioEstudiante?: string;
+  grupoId?: number;
 }
 
 export interface CalificarEntregaRequest {
-  calificacion: number;
+  calificacion?: number;
   retroalimentacion?: string;
+  // Mejoras: calificación por rúbrica criterio a criterio
+  puntajesCriterios?: PuntajeCriterioRequest[];
+}
+
+export interface ResponderLoteRequest {
+  participanteIds: number[];
+  accion: "ADMITIR" | "RECHAZAR";
+  motivo?: string;
 }
 
 export const tareasAPI = {
@@ -833,6 +977,76 @@ export const tareasAPI = {
       body: JSON.stringify(data),
     });
     return handleResponse<EntregaTareaDTO>(res);
+  },
+
+  async getSeguimiento(tareaId: number): Promise<SeguimientoTareaDTO> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${tareaId}/seguimiento`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<SeguimientoTareaDTO>(res);
+  },
+
+  async getMisTareas(): Promise<TareaDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/tareas/mis-tareas`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<TareaDTO[]>(res);
+  },
+
+  async getHistorial(entregaId: number): Promise<VersionDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/entregas/${entregaId}/historial`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<VersionDTO[]>(res);
+  },
+
+  async exportNotasTarea(tareaId: number): Promise<Blob> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${tareaId}/export-notas`, {
+      headers: { ...getAuthHeader() },
+    });
+    if (!res.ok) throw new Error(`Error ${res.status} exportando notas`);
+    return res.blob();
+  },
+
+  async exportNotasConvocatoria(convocatoriaId: number): Promise<Blob> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/export-notas`, {
+      headers: { ...getAuthHeader() },
+    });
+    if (!res.ok) throw new Error(`Error ${res.status} exportando notas`);
+    return res.blob();
+  },
+};
+
+// 9. Notificaciones API
+export const notificacionesAPI = {
+  async listar(limite = 50): Promise<NotificacionDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/notificaciones?limite=${limite}`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<NotificacionDTO[]>(res);
+  },
+
+  async contarNoLeidas(): Promise<{ count: number }> {
+    const res = await fetch(`${API_BASE_URL}/notificaciones/no-leidas`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ count: number }>(res);
+  },
+
+  async marcarLeida(id: number): Promise<{ ok: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/notificaciones/${id}/leer`, {
+      method: "PUT",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ ok: boolean }>(res);
+  },
+
+  async marcarTodasLeidas(): Promise<{ ok: boolean; marcadas: number }> {
+    const res = await fetch(`${API_BASE_URL}/notificaciones/leer-todas`, {
+      method: "PUT",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ ok: boolean; marcadas: number }>(res);
   },
 };
 
@@ -941,6 +1155,202 @@ export function getMediaUrl(url?: string): string {
 
 export const resolveFileUrl = getMediaUrl;
 
+// ==========================================
+// 12. GRUPOS Y SELECCIÓN DE EQUIPOS (Moodle Style)
+// ==========================================
+
+export interface MiembroGrupoDTO {
+  participanteId: number;
+  usuarioId: number;
+  nombreCompleto: string;
+  email: string;
+  fotoPerfil?: string;
+  fechaAsignacion?: string;
+}
+
+export interface GrupoDTO {
+  id: number;
+  convocatoriaId: number;
+  actividadGrupoId?: number;
+  nombre: string;
+  descripcion?: string;
+  capacidadMaxima: number;
+  cantidadMiembros: number;
+  completo: boolean;
+  miembros: MiembroGrupoDTO[];
+}
+
+export interface CrearGrupoRequest {
+  nombre: string;
+  descripcion?: string;
+  capacidadMaxima?: number;
+  actividadGrupoId?: number;
+}
+
+export interface GenerarLoteGruposRequest {
+  prefijo?: string;
+  cantidad?: number;
+  capacidadMaxima?: number;
+  actividadGrupoId?: number;
+}
+
+export interface GruposAreaResponse {
+  grupos: GrupoDTO[];
+  estudiantesSinEquipo: ConvocatoriaParticipanteDTO[];
+  totalEstudiantes: number;
+  totalConEquipo: number;
+  totalSinEquipo: number;
+}
+
+export interface ActividadGrupoDTO {
+  id: number;
+  convocatoriaId: number;
+  moduloId?: number;
+  titulo: string;
+  descripcion?: string;
+  fechaApertura?: string;
+  fechaCierre?: string;
+  capacidadPorGrupo: number;
+  permitirCambio: boolean;
+  mostrarMiembros: boolean;
+  habilitada: boolean;
+  abierta: boolean;
+  cerrada: boolean;
+  grupoSeleccionadoId?: number;
+  grupoSeleccionadoNombre?: string;
+  grupos: GrupoDTO[];
+}
+
+export interface CrearActividadGrupoRequest {
+  convocatoriaId?: number;
+  moduloId?: number;
+  titulo: string;
+  descripcion?: string;
+  fechaApertura?: string;
+  fechaCierre?: string;
+  capacidadPorGrupo?: number;
+  permitirCambio?: boolean;
+  mostrarMiembros?: boolean;
+  generarGrupos?: boolean;
+  cantidadGrupos?: number;
+  prefijoGrupos?: string;
+}
+
+export interface ElegirGrupoRequest {
+  grupoId: number;
+}
+
+export const gruposAPI = {
+  async getGrupos(convocatoriaId: number): Promise<GruposAreaResponse> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<GruposAreaResponse>(res);
+  },
+
+  async crearGrupo(convocatoriaId: number, data: CrearGrupoRequest): Promise<GrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<GrupoDTO>(res);
+  },
+
+  async generarLote(convocatoriaId: number, data: GenerarLoteGruposRequest): Promise<GrupoDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/generar-lote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<GrupoDTO[]>(res);
+  },
+
+  async actualizarGrupo(convocatoriaId: number, grupoId: number, data: CrearGrupoRequest): Promise<GrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/${grupoId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<GrupoDTO>(res);
+  },
+
+  async eliminarGrupo(convocatoriaId: number, grupoId: number): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/${grupoId}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<{ message: string }>(res);
+  },
+
+  async asignarMiembro(convocatoriaId: number, grupoId: number, participanteId: number): Promise<GrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/${grupoId}/miembros/${participanteId}`, {
+      method: "POST",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<GrupoDTO>(res);
+  },
+
+  async removerMiembro(convocatoriaId: number, grupoId: number, participanteId: number): Promise<GrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/grupos/${grupoId}/miembros/${participanteId}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<GrupoDTO>(res);
+  },
+};
+
+export const actividadesGrupoAPI = {
+  async getActividades(convocatoriaId: number): Promise<ActividadGrupoDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ActividadGrupoDTO[]>(res);
+  },
+
+  async getDetalle(convocatoriaId: number, actividadId: number): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+
+  async crearActividad(convocatoriaId: number, data: CrearActividadGrupoRequest): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+
+  async actualizarActividad(convocatoriaId: number, actividadId: number, data: CrearActividadGrupoRequest): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+
+  async elegirGrupo(convocatoriaId: number, actividadId: number, grupoId: number): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}/elegir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ grupoId }),
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+
+  async anularEleccion(convocatoriaId: number, actividadId: number): Promise<ActividadGrupoDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/actividades-grupo/${actividadId}/elegir`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<ActividadGrupoDTO>(res);
+  },
+};
+
 // Unified api object
 export const api = {
   // Auth
@@ -948,6 +1358,7 @@ export const api = {
   register: authAPI.register,
   getProfile: authAPI.getProfile,
   updateProfile: authAPI.updateProfile,
+  getPerfilPublico: authAPI.getPerfilPublico,
 
   // Admin Users
   getUsers: adminUsersAPI.getAll,
@@ -969,6 +1380,7 @@ export const api = {
   admitirParticipante: convocatoriasAPI.admitirParticipante,
   rechazarParticipante: convocatoriasAPI.rechazarParticipante,
   removerParticipante: convocatoriasAPI.removerParticipante,
+  responderLote: convocatoriasAPI.responderLote,
   getTareasConvocatoria: convocatoriasAPI.getTareas,
   createTareaConvocatoria: convocatoriasAPI.createTarea,
 
@@ -1020,6 +1432,37 @@ export const api = {
   getEntregasTarea: tareasAPI.getEntregas,
   getDocumentoColaborativoTarea: tareasAPI.getDocumentoColaborativo,
   calificarEntrega: tareasAPI.calificar,
+  // Mejoras
+  getSeguimiento: tareasAPI.getSeguimiento,
+  getSeguimientoTarea: tareasAPI.getSeguimiento,
+  getMisTareas: tareasAPI.getMisTareas,
+  getHistorial: tareasAPI.getHistorial,
+  getHistorialEntrega: tareasAPI.getHistorial,
+  exportNotasTarea: tareasAPI.exportNotasTarea,
+  exportNotasConvocatoria: tareasAPI.exportNotasConvocatoria,
+
+  // Grupos & Equipos (Moodle Style)
+  getGruposArea: gruposAPI.getGrupos,
+  crearGrupo: gruposAPI.crearGrupo,
+  generarLoteGrupos: gruposAPI.generarLote,
+  actualizarGrupo: gruposAPI.actualizarGrupo,
+  eliminarGrupo: gruposAPI.eliminarGrupo,
+  asignarMiembroGrupo: gruposAPI.asignarMiembro,
+  removerMiembroGrupo: gruposAPI.removerMiembro,
+
+  // Actividades de Selección de Grupo (Moodle Style)
+  getActividadesGrupo: actividadesGrupoAPI.getActividades,
+  getDetalleActividadGrupo: actividadesGrupoAPI.getDetalle,
+  crearActividadGrupo: actividadesGrupoAPI.crearActividad,
+  actualizarActividadGrupo: actividadesGrupoAPI.actualizarActividad,
+  elegirGrupoActividad: actividadesGrupoAPI.elegirGrupo,
+  anularEleccionGrupoActividad: actividadesGrupoAPI.anularEleccion,
+
+  // Notificaciones
+  listarNotificaciones: notificacionesAPI.listar,
+  contarNotificacionesNoLeidas: notificacionesAPI.contarNoLeidas,
+  marcarNotificacionLeida: notificacionesAPI.marcarLeida,
+  marcarTodasNotificacionesLeidas: notificacionesAPI.marcarTodasLeidas,
 };
 
 export default api;

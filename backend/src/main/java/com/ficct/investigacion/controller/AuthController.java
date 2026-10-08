@@ -86,4 +86,21 @@ public class AuthController {
                                           @RequestBody PerfilUpdateRequest request) {
         return updateProfile(userDetails, request);
     }
+
+    /**
+     * Ficha Académica / Perfil Público de un usuario (para consulta entre participantes de la facultad)
+     */
+    @GetMapping("/usuarios/{id}/perfil-publico")
+    public ResponseEntity<?> getPerfilPublico(@PathVariable Long id,
+                                              @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            String currentUserEmail = userDetails != null ? userDetails.getUsername() : null;
+            Map<String, Object> perfil = authService.getPerfilPublico(id, currentUserEmail);
+            return ResponseEntity.ok(perfil);
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        }
+    }
 }

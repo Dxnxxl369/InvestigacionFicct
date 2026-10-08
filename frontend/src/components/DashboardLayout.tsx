@@ -22,7 +22,9 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Clock,
 } from "lucide-react";
+import NotificacionesCampana from "./NotificacionesCampana";
 
 export default function DashboardLayout({
   children,
@@ -139,6 +141,18 @@ export default function DashboardLayout({
       badge: "Moodle",
       badgeColor: "bg-seal/20 text-seal-dark",
     },
+    ...(user.rol === "ESTUDIANTE"
+      ? [
+          {
+            href: "/dashboard/mis-pendientes",
+            label: "Mis Pendientes",
+            icon: Clock,
+            isActive: pathname.startsWith("/dashboard/mis-pendientes"),
+            badge: "Tareas",
+            badgeColor: "bg-blue-500/20 text-blue-600 dark:text-blue-400",
+          },
+        ]
+      : []),
     {
       href: "/dashboard/perfil",
       label: "Mi Perfil",
@@ -176,6 +190,7 @@ export default function DashboardLayout({
         </div>
 
         <div className="flex items-center gap-2.5">
+          <NotificacionesCampana />
           <ThemeToggle />
           <Link href="/dashboard/perfil" title="Mi Perfil" className="relative block">
             <div className="w-8 h-8 rounded-full overflow-hidden bg-accent text-white font-bold text-xs flex items-center justify-center border border-line/40">
@@ -232,8 +247,8 @@ export default function DashboardLayout({
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
                       item.isActive
-                        ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                        : "text-ink-soft hover:bg-paper-sunken"
+                        ? "bg-accent-soft text-accent font-semibold border-l-4 border-accent shadow-xs"
+                        : "text-ink-soft hover:bg-paper-sunken hover:text-ink border-l-4 border-transparent"
                     }`}
                   >
                     <IconComponent className="w-4 h-4" />
@@ -321,6 +336,7 @@ export default function DashboardLayout({
               </button>
 
               <ThemeToggle />
+              <NotificacionesCampana isCollapsed={true} />
             </>
           ) : (
             <>
@@ -333,6 +349,7 @@ export default function DashboardLayout({
               </Link>
 
               <div className="flex items-center gap-1.5">
+                <NotificacionesCampana isCollapsed={false} />
                 <ThemeToggle />
                 {/* Botón para Colapsar */}
                 <button
@@ -362,7 +379,7 @@ export default function DashboardLayout({
                   title={item.label}
                   className={`flex items-center justify-center w-full h-11 rounded-xl transition-all relative group ${
                     item.isActive
-                      ? "bg-accent-soft text-accent-dark shadow-xs"
+                      ? "bg-accent-soft text-accent font-semibold border-2 border-accent/40 shadow-xs"
                       : "text-ink-soft hover:bg-paper-sunken hover:text-ink"
                   }`}
                 >
@@ -386,8 +403,8 @@ export default function DashboardLayout({
                 href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
                   item.isActive
-                    ? "bg-accent-soft text-accent-dark font-semibold shadow-xs"
-                    : "text-ink-soft hover:bg-paper-sunken"
+                    ? "bg-accent-soft text-accent font-semibold border-l-4 border-accent shadow-xs"
+                    : "text-ink-soft hover:bg-paper-sunken hover:text-ink border-l-4 border-transparent"
                 }`}
               >
                 <IconComponent className="w-4 h-4 flex-shrink-0" />

@@ -34,6 +34,8 @@ public class TareaRequest {
     private Long moduloId;
 
     private Boolean documentoColaborativoHabilitado;
+    private boolean esGrupal;
+    private Long actividadGrupoId;
 
     public TareaRequest() {
     }
@@ -143,5 +145,32 @@ public class TareaRequest {
 
     public void setPuntajeMaximo(Double puntajeMaximo) {
         this.puntajeMaximo = puntajeMaximo;
+    }
+
+    public boolean isEsGrupal() {
+        return esGrupal;
+    }
+
+    public void setEsGrupal(boolean esGrupal) {
+        this.esGrupal = esGrupal;
+    }
+
+    public Long getActividadGrupoId() {
+        return actividadGrupoId;
+    }
+
+    public void setActividadGrupoId(Long actividadGrupoId) {
+        this.actividadGrupoId = actividadGrupoId;
+    }
+
+    // ---- Mejoras: rubrica editable (null = no tocar; [] = borrar) ----
+    private java.util.List<MejorasDTOs.CriterioRequest> rubrica;
+
+    public java.util.List<MejorasDTOs.CriterioRequest> getRubrica() {
+        return rubrica;
+    }
+
+    public void setRubrica(java.util.List<MejorasDTOs.CriterioRequest> rubrica) {
+        this.rubrica = rubrica;
     }
 }

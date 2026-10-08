@@ -49,6 +49,13 @@ public class Tarea {
     @Column(name = "puntaje_maximo")
     private Double puntajeMaximo = 100.0;
 
+    @Column(name = "es_grupal", nullable = false)
+    private boolean esGrupal = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actividad_grupo_id")
+    private ActividadGrupo actividadGrupo;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "creador_id")
     private User creador;
@@ -62,6 +69,10 @@ public class Tarea {
 
     @OneToMany(mappedBy = "tarea", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<EntregaTarea> entregas = new ArrayList<>();
+
+    @OneToMany(mappedBy = "tarea", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orden ASC")
+    private List<RubricaCriterio> rubrica = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -224,6 +235,14 @@ public class Tarea {
         this.documentoColaborativo = documentoColaborativo;
     }
 
+    public List<RubricaCriterio> getRubrica() {
+        return rubrica;
+    }
+
+    public void setRubrica(List<RubricaCriterio> rubrica) {
+        this.rubrica = rubrica;
+    }
+
     public List<EntregaTarea> getEntregas() {
         return entregas;
     }
@@ -246,5 +265,25 @@ public class Tarea {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public boolean isEsGrupal() {
+        return esGrupal;
+    }
+
+    public void setEsGrupal(boolean esGrupal) {
+        this.esGrupal = esGrupal;
+    }
+
+    public ActividadGrupo getActividadGrupo() {
+        return actividadGrupo;
+    }
+
+    public void setActividadGrupo(ActividadGrupo actividadGrupo) {
+        this.actividadGrupo = actividadGrupo;
     }
 }

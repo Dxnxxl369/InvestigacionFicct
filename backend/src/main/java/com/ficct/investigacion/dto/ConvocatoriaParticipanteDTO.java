@@ -5,6 +5,9 @@ import com.ficct.investigacion.model.EstadoInscripcion;
 import com.ficct.investigacion.model.Rol;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class ConvocatoriaParticipanteDTO {
 
@@ -22,6 +25,9 @@ public class ConvocatoriaParticipanteDTO {
     private LocalDateTime fechaAsignacion;
     private String motivoRechazo;
     private String asignadoPorNombre;
+    private Long grupoId;
+    private List<String> gruposNombres = new ArrayList<>();
+    private String fotoPerfil;
 
     public ConvocatoriaParticipanteDTO() {
     }
@@ -34,6 +40,7 @@ public class ConvocatoriaParticipanteDTO {
             this.nombre = cp.getUsuario().getNombre();
             this.apellidos = cp.getUsuario().getApellidos();
             this.email = cp.getUsuario().getEmail();
+            this.fotoPerfil = cp.getUsuario().getFotoPerfil();
         }
         this.rol = cp.getRol();
         this.estadoInscripcion = cp.getEstadoInscripcion();
@@ -44,6 +51,21 @@ public class ConvocatoriaParticipanteDTO {
         this.motivoRechazo = cp.getMotivoRechazo();
         if (cp.getAsignadoPor() != null) {
             this.asignadoPorNombre = cp.getAsignadoPor().getNombre() + " " + cp.getAsignadoPor().getApellidos();
+        }
+        if (cp.getGrupo() != null) {
+            this.grupoId = cp.getGrupo().getId();
+        }
+        if (cp.getGrupos() != null && !cp.getGrupos().isEmpty()) {
+            this.gruposNombres = cp.getGrupos().stream()
+                    .map(g -> g.getNombre())
+                    .filter(n -> n != null && !n.trim().isEmpty())
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .collect(Collectors.toList());
+        } else if (cp.getGrupo() != null) {
+            this.gruposNombres = List.of(cp.getGrupo().getNombre());
+        } else {
+            this.gruposNombres = new ArrayList<>();
         }
     }
 
@@ -157,5 +179,35 @@ public class ConvocatoriaParticipanteDTO {
 
     public void setAsignadoPorNombre(String asignadoPorNombre) {
         this.asignadoPorNombre = asignadoPorNombre;
+    }
+
+    public Long getGrupoId() {
+        return grupoId;
+    }
+
+    public void setGrupoId(Long grupoId) {
+        this.grupoId = grupoId;
+    }
+
+    public List<String> getGruposNombres() {
+        return gruposNombres;
+    }
+
+    public void setGruposNombres(List<String> gruposNombres) {
+        this.gruposNombres = gruposNombres;
+    }
+
+    public String getFotoPerfil() {
+        return fotoPerfil;
+    }
+
+    public void setFotoPerfil(String fotoPerfil) {
+        this.fotoPerfil = fotoPerfil;
+    }
+
+    public String getNombreCompleto() {
+        String n = this.nombre != null ? this.nombre : "";
+        String a = this.apellidos != null ? this.apellidos : "";
+        return (n + " " + a).trim();
     }
 }

@@ -237,9 +237,10 @@ export default function ConvocatoriasListPage() {
           <div className="grid grid-cols-1 gap-4">
             {filtered.map((conv) => {
               const miAreaInfo = misAreasMap[conv.id];
-              const miEstado = miAreaInfo?.miEstadoInscripcion;
+              const miEstado = miAreaInfo?.miEstadoInscripcion || conv.miEstadoInscripcion;
               const estaPendiente = miEstado === "PENDIENTE";
               const estaAceptado = miEstado === "ACEPTADO";
+              const estaRechazado = miEstado === "RECHAZADO";
 
               return (
                 <div
@@ -278,13 +279,19 @@ export default function ConvocatoriasListPage() {
 
                       {/* Estado personal del estudiante */}
                       {esEstudiante && estaPendiente && (
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1 shadow-xs">
                           <Clock className="w-3 h-3" />
                           Solicitud en Revisión
                         </span>
                       )}
+                      {esEstudiante && estaRechazado && (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 flex items-center gap-1 shadow-xs">
+                          <XCircle className="w-3 h-3" />
+                          Postulación Rechazada
+                        </span>
+                      )}
                       {esEstudiante && estaAceptado && (
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shadow-xs">
                           <CheckCircle2 className="w-3 h-3" />
                           Admitido en el Aula
                         </span>
@@ -394,12 +401,31 @@ export default function ConvocatoriasListPage() {
                           </Link>
                         ) : estaPendiente ? (
                           <div className="flex flex-col items-end gap-1.5">
+                            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> En revisión
+                            </span>
                             <button
                               onClick={() => handleDeclinar(conv.id)}
                               disabled={actionLoading === conv.id}
                               className="px-3 py-1.5 rounded-lg border border-danger/40 bg-danger-soft/10 text-danger text-xs font-semibold hover:bg-danger-soft/30 transition-all cursor-pointer disabled:opacity-50"
                             >
                               {actionLoading === conv.id ? "Cancelando..." : "Declinar Solicitud"}
+                            </button>
+                            <Link
+                              href={`/dashboard/convocatorias/${conv.id}`}
+                              className="text-[11px] text-ink-soft hover:text-ink underline"
+                            >
+                              Ver bases públicas
+                            </Link>
+                          </div>
+                        ) : estaRechazado ? (
+                          <div className="flex flex-col items-end gap-1.5">
+                            <button
+                              onClick={() => setSelectedConvForInscripcion(conv)}
+                              className="px-3.5 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-opacity-95 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <PlusCircle className="w-3.5 h-3.5" />
+                              <span>Volver a Postular</span>
                             </button>
                             <Link
                               href={`/dashboard/convocatorias/${conv.id}`}
@@ -506,13 +532,13 @@ export default function ConvocatoriasListPage() {
                   <label className="block text-xs font-semibold text-ink mb-1">
                     Nombre del Equipo / Grupo (Opcional):
                   </label>
-                  <input
-                    type="text"
-                    value={nombreEquipo}
-                    onChange={(e) => setNombreEquipo(e.target.value)}
-                    placeholder="Ej: ByteWarriors, Innovadores FICCT..."
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-paper border border-line-soft focus:border-accent focus:outline-none"
-                  />
+                    <input
+                      type="text"
+                      value={nombreEquipo}
+                      onChange={(e) => setNombreEquipo(e.target.value)}
+                      placeholder="Dejar en blanco si te postulas de forma individual"
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-paper border border-line-soft focus:border-accent focus:outline-none"
+                    />
                   <span className="text-[10px] text-ink-faint block mt-1">
                     Si te postulas de manera individual, puedes dejarlo en blanco.
                   </span>

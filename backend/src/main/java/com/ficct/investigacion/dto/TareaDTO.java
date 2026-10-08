@@ -22,12 +22,16 @@ public class TareaDTO {
     private int totalEntregas;
     private String estadoMoodle; // "ABIERTA", "PENDIENTE_APERTURA", "CERRADA_CORTE", "DESHABILITADA"
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private EntregaTareaDTO miEntrega;
     private Long moduloId;
     private String moduloTitulo;
     private boolean documentoColaborativoHabilitado;
     private Long documentoColaborativoId;
     private String documentoColaborativoTitulo;
+    private boolean esGrupal;
+    private Long actividadGrupoId;
+    private String actividadGrupoTitulo;
 
     public TareaDTO() {
     }
@@ -222,5 +226,57 @@ public class TareaDTO {
 
     public void setDocumentoColaborativoTitulo(String documentoColaborativoTitulo) {
         this.documentoColaborativoTitulo = documentoColaborativoTitulo;
+    }
+
+    public boolean isEsGrupal() {
+        return esGrupal;
+    }
+
+    public void setEsGrupal(boolean esGrupal) {
+        this.esGrupal = esGrupal;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public Long getActividadGrupoId() {
+        return actividadGrupoId;
+    }
+
+    public void setActividadGrupoId(Long actividadGrupoId) {
+        this.actividadGrupoId = actividadGrupoId;
+    }
+
+    public String getActividadGrupoTitulo() {
+        return actividadGrupoTitulo;
+    }
+
+    public void setActividadGrupoTitulo(String actividadGrupoTitulo) {
+        this.actividadGrupoTitulo = actividadGrupoTitulo;
+    }
+
+    // ---- Mejoras: rubrica y estado personal del estudiante ----
+    private java.util.List<MejorasDTOs.CriterioDTO> rubrica = new java.util.ArrayList<>();
+    private String miEstado;
+
+    public java.util.List<MejorasDTOs.CriterioDTO> getRubrica() {
+        return rubrica;
+    }
+
+    public void setRubrica(java.util.List<MejorasDTOs.CriterioDTO> rubrica) {
+        this.rubrica = rubrica;
+    }
+
+    public String getMiEstado() {
+        return miEstado;
+    }
+
+    public void setMiEstado(String miEstado) {
+        this.miEstado = miEstado;
     }
 }

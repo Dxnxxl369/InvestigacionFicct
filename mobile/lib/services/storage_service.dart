@@ -5,9 +5,28 @@ import '../models/user_model.dart';
 
 class StorageService {
   static SharedPreferences? _prefs;
+  static UserModel? _cachedUser;
 
   static Future<void> init() async {
     _prefs ??= await SharedPreferences.getInstance();
+    if (_cachedUser == null && _prefs != null) {
+      final userStr = _prefs?.getString(AppConstants.userKey);
+      if (userStr != null) {
+        try {
+          _cachedUser = UserModel.fromJson(jsonDecode(userStr) as Map<String, dynamic>);
+        } catch (_) {}
+      }
+    }
+  }
+
+  static Future<void> saveServerUrl(String url) async {
+    await init();
+    await _prefs?.setString(AppConstants.serverUrlKey, url.trim());
+  }
+
+  static Future<String?> getServerUrl() async {
+    await init();
+    return _prefs?.getString(AppConstants.serverUrlKey);
   }
 
   static Future<void> saveToken(String token) async {
@@ -21,8 +40,21 @@ class StorageService {
   }
 
   static Future<void> saveUser(UserModel user) async {
+    _cachedUser = user;
     await init();
     await _prefs?.setString(AppConstants.userKey, jsonEncode(user.toJson()));
+  }
+
+  static UserModel? getCachedUser() {
+    if (_cachedUser != null) return _cachedUser;
+    final userStr = _prefs?.getString(AppConstants.userKey);
+    if (userStr != null) {
+      try {
+        _cachedUser = UserModel.fromJson(jsonDecode(userStr) as Map<String, dynamic>);
+        return _cachedUser;
+      } catch (_) {}
+    }
+    return null;
   }
 
   static Future<UserModel?> getUser() async {
@@ -30,13 +62,15 @@ class StorageService {
     final userStr = _prefs?.getString(AppConstants.userKey);
     if (userStr != null) {
       try {
-        return UserModel.fromJson(jsonDecode(userStr) as Map<String, dynamic>);
+        _cachedUser = UserModel.fromJson(jsonDecode(userStr) as Map<String, dynamic>);
+        return _cachedUser;
       } catch (_) {}
     }
     return null;
   }
 
   static Future<void> clearAuth() async {
+    _cachedUser = null;
     await init();
     await _prefs?.remove(AppConstants.tokenKey);
     await _prefs?.remove(AppConstants.userKey);

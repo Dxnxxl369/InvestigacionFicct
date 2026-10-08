@@ -2,6 +2,8 @@ package com.ficct.investigacion.dto;
 
 import com.ficct.investigacion.model.EstadoEntrega;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class EntregaTareaDTO {
 
@@ -22,6 +24,14 @@ public class EntregaTareaDTO {
     private String retroalimentacion;
     private LocalDateTime fechaCalificacion;
     private String calificadoPorNombre;
+    private boolean esGrupal;
+    private Long entregadoPorId;
+    private String entregadoPorNombre;
+    private String entregadoPorEmail;
+    private boolean esMiEntregaPropia = true;
+    private Long grupoId;
+    private String grupoNombre;
+    private List<String> companerosEquipo = new ArrayList<>();
 
     public EntregaTareaDTO() {
     }
@@ -160,5 +170,107 @@ public class EntregaTareaDTO {
 
     public void setCalificadoPorNombre(String calificadoPorNombre) {
         this.calificadoPorNombre = calificadoPorNombre;
+    }
+
+    public boolean isEsGrupal() {
+        return esGrupal;
+    }
+
+    public void setEsGrupal(boolean esGrupal) {
+        this.esGrupal = esGrupal;
+    }
+
+    public Long getEntregadoPorId() {
+        return entregadoPorId;
+    }
+
+    public void setEntregadoPorId(Long entregadoPorId) {
+        this.entregadoPorId = entregadoPorId;
+    }
+
+    public String getEntregadoPorNombre() {
+        return entregadoPorNombre;
+    }
+
+    public void setEntregadoPorNombre(String entregadoPorNombre) {
+        this.entregadoPorNombre = entregadoPorNombre;
+    }
+
+    public String getEntregadoPorEmail() {
+        return entregadoPorEmail;
+    }
+
+    public void setEntregadoPorEmail(String entregadoPorEmail) {
+        this.entregadoPorEmail = entregadoPorEmail;
+    }
+
+    public boolean isEsMiEntregaPropia() {
+        return esMiEntregaPropia;
+    }
+
+    public void setEsMiEntregaPropia(boolean esMiEntregaPropia) {
+        this.esMiEntregaPropia = esMiEntregaPropia;
+    }
+
+    public Long getGrupoId() {
+        return grupoId;
+    }
+
+    public void setGrupoId(Long grupoId) {
+        this.grupoId = grupoId;
+    }
+
+    public String getGrupoNombre() {
+        return grupoNombre;
+    }
+
+    public void setGrupoNombre(String grupoNombre) {
+        this.grupoNombre = grupoNombre;
+    }
+
+    public List<String> getCompanerosEquipo() {
+        return companerosEquipo;
+    }
+
+    public void setCompanerosEquipo(List<String> companerosEquipo) {
+        this.companerosEquipo = companerosEquipo;
+    }
+
+    // ---- Mejoras: retraso, intentos y puntajes por criterio ----
+    private boolean conRetraso;
+    private int intentos = 1;
+    private Double puntajeMaximoTarea;
+    private java.util.List<MejorasDTOs.PuntajeDTO> puntajesCriterios = new java.util.ArrayList<>();
+
+    public boolean isConRetraso() {
+        return conRetraso;
+    }
+
+    public void setConRetraso(boolean conRetraso) {
+        this.conRetraso = conRetraso;
+    }
+
+    public int getIntentos() {
+        return intentos;
+    }
+
+    public void setIntentos(int intentos) {
+        this.intentos = intentos;
+    }
+
+    public Double getPuntajeMaximoTarea() {
+        return puntajeMaximoTarea;
+    }
+
+    public void setPuntajeMaximoTarea(Double puntajeMaximoTarea) {
+        this.puntajeMaximoTarea = puntajeMaximoTarea;
+    }
+
+    public java.util.List<MejorasDTOs.PuntajeDTO> getPuntajesCriterios() {
+        return puntajesCriterios;
+    }
+
+    public void setPuntajesCriterios(java.util.List<MejorasDTOs.PuntajeDTO> puntajesCriterios) {
+        this.puntajesCriterios = puntajesCriterios;
     }
 }

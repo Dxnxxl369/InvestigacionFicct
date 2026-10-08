@@ -695,3 +695,14 @@
   - Backend: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` completo 42 pruebas sin fallos.
   - Backend licencias: `powershell -ExecutionPolicy Bypass -File scripts/check-licenses.ps1` reviso 78 dependencias runtime Maven sin AGPL/GPL/LGPL obligatorio.
   - Alcance: `git status --short mobile` no reporto cambios en `mobile/`.
+- Merge de `origin/Daniel` sobre `Brandon-Vasquez`:
+  - Se conservaron las mejoras de grupos, rubricas, gradebook y modulos de Daniel junto con el editor colaborativo propio.
+  - El documento colaborativo ahora se configura desde la tarea como opcion grupal vinculada obligatoriamente a una actividad de grupos.
+  - Backend: el docente/creador/admin puede abrir el documento, pero el docente queda con permiso `LECTURA`; solo estudiantes aceptados que pertenecen al grupo de la actividad vinculada reciben `EDICION`.
+  - Frontend: el modal de crear/editar tarea fuerza documento colaborativo por grupo; las listas y el detalle de tarea muestran el acceso al documento colaborativo.
+  - Se confirmo que las entregas grupales ya se registran para todos los miembros del grupo, por lo que esa misma relacion de grupo queda como base para acceso al documento.
+  - Verificacion tras resolver merge:
+    - Frontend: `npm run build` completado correctamente.
+    - Backend: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` completo 42 pruebas sin fallos.
+    - Frontend licencias: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL.
+    - Backend licencias: `powershell -ExecutionPolicy Bypass -File scripts/check-licenses.ps1` reviso 78 dependencias runtime Maven sin AGPL/GPL/LGPL obligatorio.

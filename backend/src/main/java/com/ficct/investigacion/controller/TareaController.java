@@ -1,18 +1,16 @@
 package com.ficct.investigacion.controller;
 
-import com.ficct.investigacion.dto.CalificarEntregaRequest;
-import com.ficct.investigacion.dto.DocumentoDTO;
-import com.ficct.investigacion.dto.EntregaRequest;
-import com.ficct.investigacion.dto.EntregaTareaDTO;
-import com.ficct.investigacion.dto.TareaDTO;
-import com.ficct.investigacion.dto.TareaRequest;
+import com.ficct.investigacion.dto.*;
 import com.ficct.investigacion.service.TareaService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +46,17 @@ public class TareaController {
         try {
             TareaDTO creada = tareaService.crearTarea(convocatoriaId, request, userDetails.getUsername());
             return ResponseEntity.ok(creada);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Endpoint específico /tareas/mis-tareas ANTES de /tareas/{id} para evitar colisión de ruta
+    @GetMapping("/tareas/mis-tareas")
+    public ResponseEntity<?> getMisTareas(@AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            List<TareaDTO> misTareas = tareaService.getMisTareas(userDetails.getUsername());
+            return ResponseEntity.ok(misTareas);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -124,6 +133,72 @@ public class TareaController {
         try {
             EntregaTareaDTO evaluada = tareaService.calificarEntrega(entregaId, request, userDetails.getUsername());
             return ResponseEntity.ok(evaluada);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ==========================================
+    // MEJORAS: SEGUIMIENTO, HISTORIAL, EXPORTACIÓN Y LOTE
+    // ==========================================
+
+    @GetMapping("/tareas/{id}/seguimiento")
+    public ResponseEntity<?> getSeguimiento(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            MejorasDTOs.SeguimientoTarea seguimiento = tareaService.getSeguimiento(id, userDetails.getUsername());
+            return ResponseEntity.ok(seguimiento);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/entregas/{entregaId}/historial")
+    public ResponseEntity<?> getHistorial(@PathVariable Long entregaId, @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            List<MejorasDTOs.VersionDTO> historial = tareaService.getHistorial(entregaId, userDetails.getUsername());
+            return ResponseEntity.ok(historial);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/tareas/{id}/export-notas")
+    public ResponseEntity<?> exportNotasTarea(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            String csv = tareaService.exportNotasTarea(id, userDetails.getUsername());
+            byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"notas-tarea-" + id + ".csv\"")
+                    .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                    .body(bytes);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/convocatorias/{id}/export-notas")
+    public ResponseEntity<?> exportNotasConvocatoria(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            String csv = tareaService.exportNotasConvocatoria(id, userDetails.getUsername());
+            byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"notas-convocatoria-" + id + ".csv\"")
+                    .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                    .body(bytes);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/convocatorias/{id}/participantes/responder-lote")
+    public ResponseEntity<?> responderLote(
+            @PathVariable Long id,
+            @RequestBody MejorasDTOs.ResponderLoteRequest request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            MejorasDTOs.ResultadoLote resultado = tareaService.responderLote(id, request, userDetails.getUsername());
+            return ResponseEntity.ok(resultado);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

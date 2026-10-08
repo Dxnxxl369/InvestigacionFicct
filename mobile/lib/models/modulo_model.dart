@@ -22,7 +22,7 @@ class ModuloModel {
       id: json['id'] as int? ?? 0,
       titulo: json['titulo'] as String? ?? 'Módulo',
       descripcion: json['descripcion'] as String? ?? '',
-      imagenPortada: json['imagenPortada'] as String?,
+      imagenPortada: (json['imagenUrl'] ?? json['imagenPortada']) as String?,
       orden: json['orden'] as int? ?? 0,
       tareas: (json['tareas'] as List<dynamic>?)
               ?.map((t) => TareaModel.fromJson(t as Map<String, dynamic>))
