@@ -4,6 +4,8 @@ import '../config/app_theme.dart';
 import '../models/convocatoria_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../screens/moodle/tarea_entrega_screen.dart';
+import '../screens/moodle/speedgrader_screen.dart';
 
 class RoleBadge extends StatelessWidget {
   final String role;
@@ -702,6 +704,51 @@ class _NotificacionesSheetState extends State<_NotificacionesSheet> {
     }
   }
 
+  Future<void> _onTapNotificacion(Map<String, dynamic> notif) async {
+    await _marcarLeida(notif);
+
+    final tareaId = (notif['tareaId'] as num?)?.toInt();
+    final tipo = notif['tipo'] as String?;
+
+    if (tareaId != null && tareaId > 0 && mounted) {
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+
+      if (tipo == 'NUEVA_ENTREGA') {
+        navigator.pop();
+        navigator.push(
+          MaterialPageRoute(
+            builder: (ctx) => SpeedGraderScreen(
+              tareaId: tareaId,
+              onBack: () => Navigator.of(ctx).pop(),
+            ),
+          ),
+        );
+      } else {
+        final tarea = await ApiService.getTareaById(tareaId);
+        if (!mounted) return;
+        navigator.pop();
+        if (tarea != null) {
+          navigator.push(
+            MaterialPageRoute(
+              builder: (ctx) => TareaEntregaScreen(
+                tarea: tarea,
+                onBack: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+          );
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(
+              backgroundColor: AppTheme.danger,
+              content: Text('No se pudo cargar la información de la tarea.'),
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _marcarTodasLeidas() async {
     await ApiService.marcarTodasNotificacionesLeidas();
     setState(() {
@@ -858,7 +905,7 @@ class _NotificacionesSheetState extends State<_NotificacionesSheet> {
                             final fecha = _formatFecha(n['createdAt'] as String?);
 
                             return InkWell(
-                              onTap: () => _marcarLeida(n),
+                              onTap: () => _onTapNotificacion(n),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                                 color: leida

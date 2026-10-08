@@ -165,6 +165,14 @@ public class AuthService {
         return new UserDTO(updated);
     }
 
+    @Transactional
+    public void updateFcmToken(String email, String fcmToken) {
+        userRepository.findByEmail(email).ifPresent(user -> {
+            user.setFcmToken(fcmToken != null && !fcmToken.isBlank() ? fcmToken.trim() : null);
+            userRepository.save(user);
+        });
+    }
+
     @Transactional(readOnly = true)
     public Map<String, Object> getPerfilPublico(Long usuarioId) {
         return getPerfilPublico(usuarioId, null);

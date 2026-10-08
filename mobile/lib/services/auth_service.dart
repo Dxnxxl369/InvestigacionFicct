@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import 'api_service.dart';
 import 'storage_service.dart';
+import 'fcm_service.dart';
 
 class AuthService extends ChangeNotifier {
   UserModel? _currentUser;
@@ -20,6 +21,9 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     _currentUser = await StorageService.getUser();
+    if (_currentUser != null) {
+      FcmService.syncTokenWithBackend();
+    }
     _isLoading = false;
     notifyListeners();
   }
@@ -34,6 +38,7 @@ class AuthService extends ChangeNotifier {
         _currentUser = res['user'] as UserModel;
         _isLoading = false;
         notifyListeners();
+        FcmService.syncTokenWithBackend();
         return true;
       }
     } catch (_) {}

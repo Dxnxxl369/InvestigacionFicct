@@ -24,17 +24,20 @@ public class NotificacionService {
     private final TareaRepository tareaRepository;
     private final EntregaTareaRepository entregaRepository;
     private final ConvocatoriaParticipanteRepository participanteRepository;
+    private final FCMService fcmService;
 
     public NotificacionService(NotificacionRepository notificacionRepository,
                                UserRepository userRepository,
                                TareaRepository tareaRepository,
                                EntregaTareaRepository entregaRepository,
-                               ConvocatoriaParticipanteRepository participanteRepository) {
+                               ConvocatoriaParticipanteRepository participanteRepository,
+                               FCMService fcmService) {
         this.notificacionRepository = notificacionRepository;
         this.userRepository = userRepository;
         this.tareaRepository = tareaRepository;
         this.entregaRepository = entregaRepository;
         this.participanteRepository = participanteRepository;
+        this.fcmService = fcmService;
     }
 
     public List<MejorasDTOs.NotificacionDTO> listar(String userEmail, int limite) {
@@ -78,6 +81,22 @@ public class NotificacionService {
         try {
             Notificacion n = new Notificacion(usuarioId, tipo, titulo, mensaje, convocatoriaId, tareaId, entregaId);
             notificacionRepository.save(n);
+
+            // Disparo asíncrono de Firebase Cloud Messaging (Push)
+            try {
+                userRepository.findById(usuarioId).ifPresent(dest -> {
+                    if (dest.getFcmToken() != null && !dest.getFcmToken().isBlank()) {
+                        Map<String, String> data = new java.util.HashMap<>();
+                        data.put("tipo", tipo != null ? tipo : "");
+                        if (convocatoriaId != null) data.put("convocatoriaId", String.valueOf(convocatoriaId));
+                        if (tareaId != null) data.put("tareaId", String.valueOf(tareaId));
+                        if (entregaId != null) data.put("entregaId", String.valueOf(entregaId));
+                        fcmService.enviarPush(dest.getFcmToken(), titulo, mensaje, data);
+                    }
+                });
+            } catch (Exception pushErr) {
+                // Silencioso para no romper la transacción principal
+            }
         } catch (Exception e) {
             // Defensivo para no interrumpir flujos de negocio
         }

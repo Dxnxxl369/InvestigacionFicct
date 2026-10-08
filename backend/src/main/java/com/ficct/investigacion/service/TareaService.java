@@ -86,7 +86,7 @@ public class TareaService {
 
         LocalDateTime fechaHab = request.getFechaHabilitacion() != null ? request.getFechaHabilitacion() : LocalDateTime.now(ZONA_FICCT);
         LocalDateTime fechaEnt = request.getFechaEntrega() != null ? request.getFechaEntrega() : request.getFechaLimite();
-        LocalDateTime fechaCor = request.getFechaCorte() != null ? request.getFechaCorte() : fechaEnt;
+        LocalDateTime fechaCor = request.getFechaCorte();
 
         Tarea tarea = new Tarea(
                 convocatoria,
@@ -404,6 +404,13 @@ public class TareaService {
                     if (request.getArchivoUrl() != null) entrega.setArchivoUrl(request.getArchivoUrl());
                     entrega.setComentarioEstudiante(request.getComentarioEstudiante());
                     entrega.setFechaEntrega(ahora);
+                    if (entrega.getEstado() == EstadoEntrega.CALIFICADO) {
+                        entrega.setCalificacion(null);
+                        entrega.setRetroalimentacion(null);
+                        entrega.setFechaCalificacion(null);
+                        entrega.setCalificadoPor(null);
+                        puntajeCriterioRepository.deleteByEntrega(entrega);
+                    }
                     entrega.setEstado(EstadoEntrega.ENTREGADO);
                     entrega.setEntregadoPor(estudiante);
                     entrega.setGrupo(grupoEstudiante);
@@ -460,6 +467,13 @@ public class TareaService {
             if (request.getArchivoUrl() != null) entrega.setArchivoUrl(request.getArchivoUrl());
             entrega.setComentarioEstudiante(request.getComentarioEstudiante());
             entrega.setFechaEntrega(ahora);
+            if (entrega.getEstado() == EstadoEntrega.CALIFICADO) {
+                entrega.setCalificacion(null);
+                entrega.setRetroalimentacion(null);
+                entrega.setFechaCalificacion(null);
+                entrega.setCalificadoPor(null);
+                puntajeCriterioRepository.deleteByEntrega(entrega);
+            }
             entrega.setEstado(EstadoEntrega.ENTREGADO);
             entrega.setEntregadoPor(estudiante);
             entrega.setConRetraso(tarde);
@@ -602,9 +616,11 @@ public class TareaService {
 
         EntregaTarea saved = entregaRepository.save(entrega);
 
-        // Si la tarea es grupal y tiene grupo asociado, propagar la calificación a los compañeros del equipo
+        // Si la tarea es grupal y tiene grupo asociado, propagar la calificación y rúbrica a los compañeros del equipo
         if (entrega.getTarea().isEsGrupal() && entrega.getGrupo() != null) {
             List<EntregaTarea> entregasGrupo = entregaRepository.findByTareaAndGrupo(entrega.getTarea(), entrega.getGrupo());
+            List<EntregaPuntajeCriterio> puntajesSaved = puntajeCriterioRepository.findByEntrega(saved);
+
             for (EntregaTarea eComp : entregasGrupo) {
                 if (!eComp.getId().equals(saved.getId())) {
                     eComp.setCalificacion(saved.getCalificacion());
@@ -612,7 +628,30 @@ public class TareaService {
                     eComp.setFechaCalificacion(LocalDateTime.now(ZONA_FICCT));
                     eComp.setCalificadoPor(evaluador);
                     eComp.setEstado(EstadoEntrega.CALIFICADO);
-                    entregaRepository.save(eComp);
+                    EntregaTarea compGuardada = entregaRepository.save(eComp);
+
+                    // Replicar desglose de criterios pedagógicos
+                    if (puntajesSaved != null && !puntajesSaved.isEmpty()) {
+                        puntajeCriterioRepository.deleteByEntrega(compGuardada);
+                        for (EntregaPuntajeCriterio epc : puntajesSaved) {
+                            puntajeCriterioRepository.save(new EntregaPuntajeCriterio(compGuardada, epc.getCriterio(), epc.getPuntaje()));
+                        }
+                    }
+
+                    // Notificar a cada compañero de equipo
+                    try {
+                        notificacionService.crearNotificacion(
+                                compGuardada.getEstudiante().getId(),
+                                Notificacion.ENTREGA_CALIFICADA,
+                                "Tu entrega grupal fue calificada",
+                                "La entrega del equipo '" + (compGuardada.getNombreEquipo() != null ? compGuardada.getNombreEquipo() : "Grupal") + "' en '" + tarea.getTitulo() + "' recibió " + saved.getCalificacion() + " pts.",
+                                conv.getId(),
+                                tarea.getId(),
+                                compGuardada.getId()
+                        );
+                    } catch (Exception e) {
+                        // Silencioso
+                    }
                 }
             }
         }

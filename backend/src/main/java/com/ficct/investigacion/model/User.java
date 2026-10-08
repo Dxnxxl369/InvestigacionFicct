@@ -40,6 +40,9 @@ public class User {
     @Column(name = "ocultar_cursos")
     private Boolean ocultarCursos = false;
 
+    @Column(name = "fcm_token", length = 500)
+    private String fcmToken;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -157,6 +160,14 @@ public class User {
 
     public void setOcultarCursos(Boolean ocultarCursos) {
         this.ocultarCursos = ocultarCursos;
+    }
+
+    public String getFcmToken() {
+        return fcmToken;
+    }
+
+    public void setFcmToken(String fcmToken) {
+        this.fcmToken = fcmToken;
     }
 
     public LocalDateTime getCreatedAt() {

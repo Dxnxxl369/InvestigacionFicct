@@ -101,7 +101,11 @@ export default function NotificacionesCampana({ isCollapsed }: { isCollapsed?: b
   const irA = (notif: NotificacionDTO) => {
     marcarLeida(notif.id);
     if (notif.convocatoriaId) {
-      router.push(`/dashboard/convocatorias/${notif.convocatoriaId}`);
+      if (notif.tareaId) {
+        router.push(`/dashboard/convocatorias/${notif.convocatoriaId}?tab=tareas&tarea=${notif.tareaId}`);
+      } else {
+        router.push(`/dashboard/convocatorias/${notif.convocatoriaId}`);
+      }
     }
     setOpen(false);
   };

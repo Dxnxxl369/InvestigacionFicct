@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../config/app_theme.dart';
 import '../../models/convocatoria_model.dart';
 import '../../models/modulo_model.dart';
@@ -422,13 +425,21 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
     final csv = await ApiService.exportarNotasConvocatoria(widget.curso.id);
     if (mounted) {
       if (csv != null && csv.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF10B981),
-            content:
-                Text('Libro de calificaciones exportado exitosamente (${csv.split('\n').length - 1} registros).'),
-          ),
-        );
+        try {
+          final bytes = Uint8List.fromList(utf8.encode(csv));
+          final xFile = XFile.fromData(bytes, name: 'libro_calificaciones_${widget.curso.id}.csv', mimeType: 'text/csv');
+          // ignore: deprecated_member_use
+          await Share.shareXFiles([xFile], text: 'Libro de Calificaciones - ${widget.curso.titulo}');
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF10B981),
+              content:
+                  Text('Libro de calificaciones exportado exitosamente (${csv.split('\n').length - 1} registros).'),
+            ),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

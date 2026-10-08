@@ -1460,5 +1460,22 @@ class ApiService {
       return false;
     }
   }
+
+  // Registrar o actualizar token FCM para notificaciones Push
+  static Future<bool> actualizarFcmToken(String fcmToken) async {
+    try {
+      final headers = await _headers();
+      final res = await http.put(
+        Uri.parse('$baseUrl/auth/fcm-token'),
+        headers: headers,
+        body: jsonEncode({'fcmToken': fcmToken}),
+      ).timeout(const Duration(seconds: 5));
+
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('[ApiService] Error al sincronizar FCM token: $e');
+      return false;
+    }
+  }
 }
 

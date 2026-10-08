@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { tareasAPI, TareaDTO } from "@/lib/api";
+import Link from "next/link";
 import {
   Clock,
   CheckCircle2,
@@ -13,7 +14,10 @@ import {
   RefreshCw,
   FileText,
   Calendar,
+  ArrowRight,
+  ExternalLink,
 } from "lucide-react";
+import { formatMoodleDate, calcularTiempoRestanteMoodle } from "@/components/moodle/moodleUtils";
 
 type FiltroEstado = "TODOS" | "PENDIENTE" | "ENTREGADO" | "ENTREGADO_CON_RETRASO" | "CALIFICADO" | "VENCIDA";
 
@@ -229,10 +233,17 @@ export default function MisPendientesPage() {
             const dias = diasRestantes(tarea.fechaEntrega ?? tarea.fechaCorte);
             const urgente = dias !== null && dias <= 2 && dias >= 0 && estado === "PENDIENTE";
 
+            const targetUrl = `/dashboard/convocatorias/${tarea.convocatoriaId}?tab=tareas&tarea=${tarea.id}`;
+            const tiempoInfo = calcularTiempoRestanteMoodle(
+              tarea.fechaEntrega || tarea.fechaLimite,
+              tarea.miEntrega?.fechaEntrega,
+              tarea.fechaHabilitacion
+            );
+
             return (
               <div
                 key={tarea.id}
-                className={`border rounded-xl p-4 transition-shadow hover:shadow-md ${cfg.bg} ${urgente ? "ring-2 ring-orange-400" : ""}`}
+                className={`border rounded-xl p-4 transition-all hover:shadow-md hover:border-accent group ${cfg.bg} ${urgente ? "ring-2 ring-orange-400" : ""}`}
               >
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex-1 min-w-0">
@@ -242,7 +253,7 @@ export default function MisPendientesPage() {
                         {cfg.label}
                       </span>
                       {(tarea.miEntrega?.conRetraso || tarea.miEstado === "ENTREGADO_CON_RETRASO") && (
-                        <span className="text-xs bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full border border-orange-200 dark:border-orange-800">
+                        <span className="text-xs bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full border border-orange-200 dark:border-orange-800 font-semibold">
                           Con retraso
                         </span>
                       )}
@@ -253,57 +264,71 @@ export default function MisPendientesPage() {
                       )}
                     </div>
 
-                    <h3 className="font-semibold text-ink text-base truncate">{tarea.titulo}</h3>
+                    <Link
+                      href={targetUrl}
+                      className="font-semibold text-ink text-base truncate block hover:text-accent transition-colors"
+                    >
+                      {tarea.titulo}
+                    </Link>
                     <p className="text-xs text-ink-soft mt-0.5 truncate">
                       📚 {tarea.convocatoriaTitulo ?? "—"}
                       {tarea.moduloTitulo && ` · ${tarea.moduloTitulo}`}
                     </p>
                   </div>
 
-                  <div className="flex flex-col items-end gap-1 shrink-0">
+                  <div className="flex flex-col items-end gap-2 shrink-0">
                     {tarea.miEntrega?.calificacion !== undefined ? (
                       <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                        {tarea.miEntrega.calificacion}/{tarea.puntajeMaximo}
+                        {tarea.miEntrega.calificacion}/{tarea.puntajeMaximo} pts
                       </span>
                     ) : (
                       <span className="text-sm text-ink-soft font-medium">
                         /{tarea.puntajeMaximo} pts
                       </span>
                     )}
+
+                    <Link
+                      href={targetUrl}
+                      className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-all"
+                    >
+                      {estado === "PENDIENTE" ? "Entregar Tarea" : "Ver Tarea"}
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
                   </div>
                 </div>
 
-                {/* Fechas */}
-                <div className="mt-3 flex flex-wrap gap-4 text-xs text-ink-soft">
+                {/* Fechas y tiempo restante estilo Moodle */}
+                <div className="mt-3 flex flex-wrap gap-4 text-xs text-ink-soft border-t border-line/40 pt-2.5">
                   {tarea.fechaEntrega && (
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5" />
-                      Entrega: {formatFecha(tarea.fechaEntrega)}
-                      {dias !== null && estado === "PENDIENTE" && (
-                        <span className={`ml-1 font-medium ${dias < 0 ? "text-red-500" : dias <= 2 ? "text-orange-500" : "text-ink-soft"}`}>
-                          ({dias < 0 ? `Venció hace ${Math.abs(dias)}d` : dias === 0 ? "¡Hoy!" : `${dias}d`})
-                        </span>
-                      )}
+                      Entrega: {formatMoodleDate(tarea.fechaEntrega)}
+                    </span>
+                  )}
+                  {tiempoInfo.texto && (
+                    <span className={`font-semibold flex items-center gap-1 ${tiempoInfo.retraso ? "text-red-500" : tiempoInfo.temprano ? "text-emerald-600" : "text-amber-600"}`}>
+                      <Clock className="w-3.5 h-3.5" />
+                      {tiempoInfo.texto}
                     </span>
                   )}
                   {tarea.fechaCorte && (
-                    <span className="flex items-center gap-1">
-                      <XCircle className="w-3.5 h-3.5 text-red-400" />
-                      Corte: {formatFecha(tarea.fechaCorte)}
+                    <span className="flex items-center gap-1 text-red-500">
+                      <XCircle className="w-3.5 h-3.5" />
+                      Corte: {formatMoodleDate(tarea.fechaCorte)}
                     </span>
                   )}
                   {tarea.miEntrega && (
                     <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                       <FileText className="w-3.5 h-3.5" />
-                      Entregado: {formatFecha(tarea.miEntrega.fechaEntrega)}
+                      Entregado: {formatMoodleDate(tarea.miEntrega.fechaEntrega)}
                     </span>
                   )}
                 </div>
 
                 {/* Retroalimentación si fue calificado */}
                 {tarea.miEntrega?.retroalimentacion && (
-                  <p className="mt-2 text-xs text-ink-soft bg-white/40 dark:bg-black/20 rounded-lg p-2 italic">
-                    💬 {tarea.miEntrega.retroalimentacion}
+                  <p className="mt-2 text-xs text-ink-soft bg-white/40 dark:bg-black/20 rounded-lg p-2 italic border border-line/30">
+                    💬 Retroalimentación: "{tarea.miEntrega.retroalimentacion}"
                   </p>
                 )}
               </div>

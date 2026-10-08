@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_theme.dart';
 import '../../models/tarea_model.dart';
@@ -306,17 +309,25 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
     final csv = await ApiService.exportarNotasTarea(tid);
     if (mounted) {
       if (csv != null && csv.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF10B981),
-            content: Text('Reporte CSV generado correctamente (${csv.split('\n').length - 1} filas).'),
-          ),
-        );
+        try {
+          final bytes = Uint8List.fromList(utf8.encode(csv));
+          final xFile = XFile.fromData(bytes, name: 'notas_tarea_$tid.csv', mimeType: 'text/csv');
+          // ignore: deprecated_member_use
+          await Share.shareXFiles([xFile], text: 'Reporte CSV de Notas - Tarea $tid');
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF10B981),
+              content: Text('Reporte CSV generado (${csv.split('\n').length - 1} filas).'),
+            ),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             backgroundColor: AppTheme.danger,
-            content: const Text('No se pudo descargar el archivo CSV.'),
+            content: Text('No se pudo descargar el archivo CSV.'),
           ),
         );
       }
