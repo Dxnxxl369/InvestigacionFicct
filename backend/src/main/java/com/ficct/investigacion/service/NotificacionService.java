@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -86,7 +87,7 @@ public class NotificacionService {
         try {
             List<ConvocatoriaParticipante> misAreas = participanteRepository
                     .findByUsuarioIdAndEstadoInscripcion(usuarioId, EstadoInscripcion.ACEPTADO);
-            LocalDateTime ahora = LocalDateTime.now();
+            LocalDateTime ahora = LocalDateTime.now(ZoneId.of("America/La_Paz"));
             LocalDateTime limiteRecordatorio = ahora.plusHours(24);
 
             for (ConvocatoriaParticipante part : misAreas) {

@@ -21,10 +21,10 @@ public class EntregaVersion {
     @Column(nullable = false)
     private Integer intento;
 
-    @Column(name = "nombre_archivo", length = 255)
+    @Column(name = "nombre_archivo", columnDefinition = "TEXT")
     private String nombreArchivo;
 
-    @Column(name = "archivo_url", length = 500)
+    @Column(name = "archivo_url", columnDefinition = "TEXT")
     private String archivoUrl;
 
     @Column(columnDefinition = "TEXT")

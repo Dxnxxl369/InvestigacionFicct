@@ -668,8 +668,14 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
         ? '${partes[0][0]}${partes[1][0]}'.toUpperCase()
         : (nombre.isNotEmpty ? nombre.substring(0, 1).toUpperCase() : 'E');
 
-    final archivoUrl = entrega?['archivoUrl'] as String?;
-    final nombreArchivo = entrega?['nombreArchivo'] as String? ?? 'Archivo adjunto';
+    final rawUrl = entrega?['archivoUrl'] as String?;
+    final rawNombre = entrega?['nombreArchivo'] as String?;
+    final List<String> urls = (rawUrl != null && rawUrl.isNotEmpty)
+        ? rawUrl.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+        : [];
+    final List<String> nombres = (rawNombre != null && rawNombre.isNotEmpty)
+        ? rawNombre.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+        : (rawUrl != null ? ['Archivo adjunto'] : []);
     final fechaEntrega = (entrega?['fechaEntrega'] ?? '').toString().replaceFirst('T', ' ');
     final intentos = (entrega?['intentos'] as num?)?.toInt() ?? 1;
 
@@ -802,61 +808,90 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(_getFileIcon(nombreArchivo), color: _getFileColor(nombreArchivo), size: 28),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                nombreArchivo,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? AppTheme.darkInk : AppTheme.ink,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                'Entregado: $fechaEntrega',
-                                style: const TextStyle(fontSize: 11, color: Color(0xFF10B981)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'Archivos Entregados (${nombres.length})',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? AppTheme.darkInk : AppTheme.ink,
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    if (nombres.isEmpty)
+                      const Text(
+                        'No hay archivos adjuntos en esta entrega.',
+                        style: TextStyle(fontSize: 12, color: AppTheme.inkSoft),
+                      )
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: nombres.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (ctx, i) {
+                          final fName = nombres[i];
+                          final fUrl = i < urls.length ? urls[i] : (urls.isNotEmpty ? urls.first : null);
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.lineSoft),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(_getFileIcon(fName), color: _getFileColor(fName), size: 24),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    fName,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? AppTheme.darkInk : AppTheme.ink,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  onPressed: (fUrl != null && fUrl.isNotEmpty) ? () => _abrirArchivo(fUrl) : null,
+                                  icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                                  label: const Text('Ver', style: TextStyle(fontSize: 11)),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    backgroundColor: AppTheme.accentSoft,
+                                    foregroundColor: AppTheme.accentDark,
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: (archivoUrl != null && archivoUrl.isNotEmpty)
-                                ? () => _abrirArchivo(archivoUrl)
-                                : null,
-                            icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                            label: const Text('Ver Archivo', style: TextStyle(fontSize: 12)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.accentSoft,
-                              foregroundColor: AppTheme.accentDark,
-                              elevation: 0,
-                            ),
-                          ),
+                        Text(
+                          'Entregado: $fechaEntrega',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.w500),
                         ),
-                        if (entrega?['id'] != null) ...[
-                          const SizedBox(width: 8),
+                        const Spacer(),
+                        if (entrega?['id'] != null)
                           OutlinedButton.icon(
                             onPressed: () => _verHistorial((entrega?['id'] as num).toInt()),
-                            icon: const Icon(Icons.history_rounded, size: 16),
+                            icon: const Icon(Icons.history_rounded, size: 15),
                             label: Text(
                               intentos > 1 ? 'Historial ($intentos)' : 'Historial',
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             ),
                           ),
-                        ],
                       ],
                     ),
                   ],

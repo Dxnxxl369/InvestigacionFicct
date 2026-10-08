@@ -9,12 +9,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 @Transactional
 public class TareaService {
+
+    public static final ZoneId ZONA_FICCT = ZoneId.of("America/La_Paz");
 
     private final TareaRepository tareaRepository;
     private final EntregaTareaRepository entregaRepository;
@@ -81,7 +84,7 @@ public class TareaService {
             throw new AccessDeniedException("Solo un Docente asignado a esta área o un Administrador puede crear tareas.");
         }
 
-        LocalDateTime fechaHab = request.getFechaHabilitacion() != null ? request.getFechaHabilitacion() : LocalDateTime.now();
+        LocalDateTime fechaHab = request.getFechaHabilitacion() != null ? request.getFechaHabilitacion() : LocalDateTime.now(ZONA_FICCT);
         LocalDateTime fechaEnt = request.getFechaEntrega() != null ? request.getFechaEntrega() : request.getFechaLimite();
         LocalDateTime fechaCor = request.getFechaCorte() != null ? request.getFechaCorte() : fechaEnt;
 
@@ -199,7 +202,7 @@ public class TareaService {
         } else {
             tarea.setActividadGrupo(null);
         }
-        tarea.setUpdatedAt(LocalDateTime.now());
+        tarea.setUpdatedAt(LocalDateTime.now(ZONA_FICCT));
 
         // Manejo de rúbrica en actualización:
         // null = no tocar, [] = borrar todos, lista = reemplazar/actualizar
@@ -310,7 +313,7 @@ public class TareaService {
         }
 
         // 2. Control de triple fecha (Moodle)
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = LocalDateTime.now(ZONA_FICCT);
         if (tarea.getFechaHabilitacion() != null && ahora.isBefore(tarea.getFechaHabilitacion())) {
             throw new IllegalStateException("La entrega aún no está habilitada. Abre a partir de: " + tarea.getFechaHabilitacion());
         }
@@ -593,7 +596,7 @@ public class TareaService {
         }
 
         entrega.setRetroalimentacion(request.getRetroalimentacion());
-        entrega.setFechaCalificacion(LocalDateTime.now());
+        entrega.setFechaCalificacion(LocalDateTime.now(ZONA_FICCT));
         entrega.setCalificadoPor(evaluador);
         entrega.setEstado(EstadoEntrega.CALIFICADO);
 
@@ -606,7 +609,7 @@ public class TareaService {
                 if (!eComp.getId().equals(saved.getId())) {
                     eComp.setCalificacion(saved.getCalificacion());
                     eComp.setRetroalimentacion(request.getRetroalimentacion());
-                    eComp.setFechaCalificacion(LocalDateTime.now());
+                    eComp.setFechaCalificacion(LocalDateTime.now(ZONA_FICCT));
                     eComp.setCalificadoPor(evaluador);
                     eComp.setEstado(EstadoEntrega.CALIFICADO);
                     entregaRepository.save(eComp);
@@ -928,19 +931,27 @@ public class TareaService {
         if (permitidos == null || permitidos.isBlank() || "*".equals(permitidos.trim())) {
             return;
         }
-        int lastDot = nombreArchivo.lastIndexOf('.');
-        if (lastDot == -1) {
-            throw new IllegalArgumentException("El archivo debe tener una extensión válida.");
+        if (nombreArchivo == null || nombreArchivo.isBlank()) {
+            return;
         }
-        String ext = nombreArchivo.substring(lastDot).toLowerCase().trim();
         List<String> permitidas = Arrays.stream(permitidos.split(","))
                 .map(String::trim)
                 .map(String::toLowerCase)
                 .collect(Collectors.toList());
 
-        boolean valida = permitidas.stream().anyMatch(p -> p.equalsIgnoreCase(ext) || p.equalsIgnoreCase(ext.replace(".", "")));
-        if (!valida) {
-            throw new IllegalArgumentException("Tipo de archivo no permitido. Se admiten únicamente: " + permitidos);
+        String[] archivos = nombreArchivo.split(",");
+        for (String arch : archivos) {
+            String archTrim = arch.trim();
+            if (archTrim.isEmpty()) continue;
+            int lastDot = archTrim.lastIndexOf('.');
+            if (lastDot == -1) {
+                throw new IllegalArgumentException("El archivo '" + archTrim + "' debe tener una extensión válida.");
+            }
+            String ext = archTrim.substring(lastDot).toLowerCase().trim();
+            boolean valida = permitidas.stream().anyMatch(p -> p.equalsIgnoreCase(ext) || p.equalsIgnoreCase(ext.replace(".", "")));
+            if (!valida) {
+                throw new IllegalArgumentException("Tipo de archivo no permitido para '" + archTrim + "'. Se admiten únicamente: " + permitidos);
+            }
         }
     }
 
@@ -972,7 +983,7 @@ public class TareaService {
         dto.setUpdatedAt(tarea.getUpdatedAt());
 
         // Estado Moodle computado
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = LocalDateTime.now(ZONA_FICCT);
         if (!tarea.isHabilitada()) {
             dto.setEstadoMoodle("DESHABILITADA");
         } else if (tarea.getFechaHabilitacion() != null && ahora.isBefore(tarea.getFechaHabilitacion())) {

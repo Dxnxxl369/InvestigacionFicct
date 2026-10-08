@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,6 +8,20 @@ import '../../models/user_model.dart';
 import '../../services/storage_service.dart';
 import '../../services/api_service.dart';
 import 'speedgrader_screen.dart';
+
+class ArchivoAdjuntoItem {
+  String nombre;
+  String? urlExistente;
+  Uint8List? bytes;
+  int tamanoBytes;
+
+  ArchivoAdjuntoItem({
+    required this.nombre,
+    this.urlExistente,
+    this.bytes,
+    required this.tamanoBytes,
+  });
+}
 
 class TareaEntregaScreen extends StatefulWidget {
   final TareaModel tarea;
@@ -25,22 +40,24 @@ class TareaEntregaScreen extends StatefulWidget {
 class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
   UserModel? _currentUser;
   final _comentarioCtrl = TextEditingController();
+  final List<ArchivoAdjuntoItem> _archivos = [];
 
-  String? _archivoNombre;
-  String? _archivoUrlExistente;
-  int? _archivoTamanoBytes;
-  Uint8List? _archivoBytes;
   String _estadoEntrega = 'SIN_ENTREGAR';
   bool _isLoading = false;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _initData();
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _comentarioCtrl.dispose();
     super.dispose();
   }
@@ -55,14 +72,55 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
 
         // Si ya hay entrega previa en el backend
         if (widget.tarea.archivoNombre != null && widget.tarea.archivoNombre!.isNotEmpty) {
-          _archivoNombre = widget.tarea.archivoNombre;
-          _archivoUrlExistente = widget.tarea.archivoUrl;
+          final nombres = widget.tarea.archivoNombre!
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+          final urls = (widget.tarea.archivoUrl ?? '')
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+
+          _archivos.clear();
+          for (int i = 0; i < nombres.length; i++) {
+            _archivos.add(
+              ArchivoAdjuntoItem(
+                nombre: nombres[i],
+                urlExistente: i < urls.length ? urls[i] : null,
+                tamanoBytes: 0,
+              ),
+            );
+          }
+
           _estadoEntrega = widget.tarea.estadoEntrega ?? 'ENTREGADO';
           if (widget.tarea.comentarioEstudiante != null) {
             _comentarioCtrl.text = widget.tarea.comentarioEstudiante!;
           }
         } else if (draft != null) {
-          _archivoNombre = draft['archivoNombre'] as String?;
+          final rawList = draft['archivos'] as List<dynamic>?;
+          _archivos.clear();
+          if (rawList != null) {
+            for (final item in rawList) {
+              if (item is Map) {
+                _archivos.add(
+                  ArchivoAdjuntoItem(
+                    nombre: item['nombre'] as String? ?? 'archivo',
+                    urlExistente: item['url'] as String?,
+                    tamanoBytes: (item['tamano'] as num?)?.toInt() ?? 0,
+                  ),
+                );
+              }
+            }
+          } else if (draft['archivoNombre'] != null) {
+            _archivos.add(
+              ArchivoAdjuntoItem(
+                nombre: draft['archivoNombre'] as String,
+                tamanoBytes: 0,
+              ),
+            );
+          }
           _estadoEntrega = draft['estado'] as String? ?? 'BORRADOR';
           if (draft['comentario'] != null) {
             _comentarioCtrl.text = draft['comentario'] as String;
@@ -71,6 +129,31 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
           _estadoEntrega = widget.tarea.estadoEntrega ?? 'SIN_ENTREGAR';
         }
       });
+    }
+  }
+
+  void _guardarBorradorLocal() {
+    StorageService.saveTaskDraft(widget.tarea.id, {
+      'archivos': _archivos
+          .map((a) => {
+                'nombre': a.nombre,
+                'url': a.urlExistente,
+                'tamano': a.tamanoBytes,
+              })
+          .toList(),
+      'estado': _estadoEntrega,
+      'comentario': _comentarioCtrl.text.trim(),
+    });
+  }
+
+  bool _esAperturaPendiente() {
+    if (widget.tarea.fechaApertura == null) return false;
+    try {
+      final apertura = DateTime.parse(widget.tarea.fechaApertura!);
+      // Margen de 1 segundo para sincronización
+      return DateTime.now().isBefore(apertura.subtract(const Duration(seconds: 1)));
+    } catch (_) {
+      return false;
     }
   }
 
@@ -84,7 +167,53 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
     }
   }
 
+  String _formatearDuracionEspanol(int diffMinutos) {
+    final absMin = diffMinutos.abs();
+    final dias = absMin ~/ (60 * 24);
+    final horas = (absMin % (60 * 24)) ~/ 60;
+    final minutos = absMin % 60;
+
+    final parts = <String>[];
+    if (dias > 0) {
+      parts.add('$dias ${dias == 1 ? "día" : "días"}');
+    }
+    if (horas > 0) {
+      parts.add('$horas ${horas == 1 ? "hora" : "horas"}');
+    }
+    if (minutos > 0 || parts.isEmpty) {
+      parts.add('$minutos ${minutos == 1 ? "minuto" : "minutos"}');
+    }
+
+    if (parts.length == 1) {
+      return parts[0];
+    } else if (parts.length == 2) {
+      return '${parts[0]} y ${parts[1]}';
+    } else {
+      return '${parts[0]}, ${parts[1]} y ${parts[2]}';
+    }
+  }
+
   Map<String, dynamic> _calcularTiempoRestante() {
+    final now = DateTime.now();
+
+    // 1. Apertura pendiente
+    if (widget.tarea.fechaApertura != null) {
+      try {
+        final apertura = DateTime.parse(widget.tarea.fechaApertura!);
+        if (now.isBefore(apertura)) {
+          final diffSec = apertura.difference(now).inSeconds;
+          final diffMin = (diffSec / 60).ceil();
+          final duracion = _formatearDuracionEspanol(diffMin);
+          return {
+            'texto': 'Abre en $duracion',
+            'esRetraso': false,
+            'pendienteApertura': true,
+            'color': const Color(0xFF3B82F6),
+          };
+        }
+      } catch (_) {}
+    }
+
     final fechaStr = widget.tarea.fechaLimite ?? widget.tarea.fechaCorte;
     if (fechaStr == null) {
       return {'texto': 'Sin fecha límite especificada', 'esRetraso': false, 'color': AppTheme.inkSoft};
@@ -92,30 +221,45 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
 
     try {
       final target = DateTime.parse(fechaStr);
-      final now = DateTime.now();
       final diff = target.difference(now);
 
       if (diff.isNegative) {
-        final abs = diff.abs();
-        final dias = abs.inDays;
-        final horas = abs.inHours % 24;
-        final mins = abs.inMinutes % 60;
-        final str = dias > 0 ? '$dias d $horas h con retraso' : '$horas h $mins m con retraso';
-        return {'texto': str, 'esRetraso': true, 'color': AppTheme.danger};
+        final diffSec = diff.abs().inSeconds;
+        final diffMin = (diffSec / 60).floor();
+        final duracion = _formatearDuracionEspanol(diffMin);
+        return {
+          'texto': 'Vencida hace $duracion (con retraso)',
+          'esRetraso': true,
+          'color': AppTheme.danger,
+        };
       } else {
-        final dias = diff.inDays;
-        final horas = diff.inHours % 24;
-        final mins = diff.inMinutes % 60;
-        final str = dias > 0 ? '$dias días $horas horas restantes' : '$horas h $mins min restantes';
-        return {'texto': str, 'esRetraso': false, 'color': const Color(0xFF10B981)};
+        final diffSec = diff.inSeconds;
+        final diffMin = (diffSec / 60).ceil();
+        final duracion = _formatearDuracionEspanol(diffMin);
+        final prefijo = diffMin == 1 ? 'Queda' : 'Quedan';
+        return {
+          'texto': '$prefijo $duracion',
+          'esRetraso': false,
+          'color': const Color(0xFF10B981),
+        };
       }
     } catch (_) {
       return {'texto': fechaStr, 'esRetraso': false, 'color': AppTheme.inkSoft};
     }
   }
 
-  // Selección Real de Archivos con validación de extensiones y tamaño
-  Future<void> _seleccionarArchivoReal() async {
+  // Selección Real de N Archivos con validación de extensiones y tamaño total
+  Future<void> _seleccionarArchivosReal() async {
+    if (_esAperturaPendiente()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFF3B82F6),
+          content: Text('Esta actividad aún no está abierta para entregas.'),
+        ),
+      );
+      return;
+    }
+
     if (_esFechaCortePasada()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -131,27 +275,49 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
       final extensiones = tiposPermitidosStr
           .split(',')
           .map((e) => e.trim().replaceAll('.', '').toLowerCase())
-          .where((e) => e.isNotEmpty)
+          .where((e) => e.isNotEmpty && e != '*')
           .toList();
 
       final result = await FilePicker.pickFiles(
+        allowMultiple: true,
         type: extensiones.isNotEmpty ? FileType.custom : FileType.any,
         allowedExtensions: extensiones.isNotEmpty ? extensiones : null,
         withData: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
+        // Validar extensiones de cada archivo
+        if (extensiones.isNotEmpty) {
+          for (final file in result.files) {
+            final ext = (file.extension ?? '').toLowerCase();
+            if (!extensiones.contains(ext)) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: AppTheme.danger,
+                    content: Text(
+                      'El archivo "${file.name}" tiene una extensión no permitida. Solo se aceptan: $tiposPermitidosStr',
+                    ),
+                  ),
+                );
+              }
+              return;
+            }
+          }
+        }
 
-        // Validar tamaño en MB
-        final sizeMb = file.size / (1024 * 1024);
-        if (sizeMb > widget.tarea.tamanoMaximoMb) {
+        // Validar tamaño acumulativo total
+        final totalBytesActuales = _archivos.fold<int>(0, (sum, a) => sum + a.tamanoBytes);
+        final bytesNuevos = result.files.fold<int>(0, (sum, f) => sum + f.size);
+        final totalMb = (totalBytesActuales + bytesNuevos) / (1024 * 1024);
+
+        if (totalMb > widget.tarea.tamanoMaximoMb) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 backgroundColor: AppTheme.danger,
                 content: Text(
-                  'El archivo (${sizeMb.toStringAsFixed(1)} MB) supera el límite máximo permitido de ${widget.tarea.tamanoMaximoMb} MB.',
+                  'El tamaño total de los archivos (${totalMb.toStringAsFixed(2)} MB) supera el límite máximo permitido de ${widget.tarea.tamanoMaximoMb} MB.',
                 ),
               ),
             );
@@ -159,35 +325,29 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
           return;
         }
 
-        if (file.bytes == null) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No se pudieron leer los bytes del archivo.')),
-            );
-          }
-          return;
-        }
-
         setState(() {
-          _archivoBytes = file.bytes;
-          _archivoNombre = file.name;
-          _archivoTamanoBytes = file.size;
-          _archivoUrlExistente = null; // Reemplazado por archivo nuevo
+          for (final file in result.files) {
+            if (file.bytes != null) {
+              _archivos.removeWhere((a) => a.nombre == file.name);
+              _archivos.add(
+                ArchivoAdjuntoItem(
+                  nombre: file.name,
+                  bytes: file.bytes,
+                  tamanoBytes: file.size,
+                ),
+              );
+            }
+          }
           _estadoEntrega = 'BORRADOR';
         });
 
-        // Guardar borrador local
-        StorageService.saveTaskDraft(widget.tarea.id, {
-          'archivoNombre': _archivoNombre,
-          'estado': 'BORRADOR',
-          'comentario': _comentarioCtrl.text.trim(),
-        });
+        _guardarBorradorLocal();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: const Color(0xFF10B981),
-              content: Text('Archivo "${file.name}" cargado en borrador local.'),
+              content: Text('${result.files.length} archivo(s) agregado(s) a la entrega.'),
             ),
           );
         }
@@ -195,28 +355,30 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: AppTheme.danger, content: Text('Error al seleccionar archivo: $e')),
+          SnackBar(backgroundColor: AppTheme.danger, content: Text('Error al seleccionar archivos: $e')),
         );
       }
     }
   }
 
-  void _eliminarArchivo() {
+  void _eliminarArchivo(int index) {
     setState(() {
-      _archivoNombre = null;
-      _archivoBytes = null;
-      _archivoTamanoBytes = null;
-      _archivoUrlExistente = null;
-      _estadoEntrega = 'SIN_ENTREGAR';
+      _archivos.removeAt(index);
+      if (_archivos.isEmpty) {
+        _estadoEntrega = 'SIN_ENTREGAR';
+        StorageService.removeTaskDraft(widget.tarea.id);
+      } else {
+        _guardarBorradorLocal();
+      }
     });
-    StorageService.removeTaskDraft(widget.tarea.id);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Borrador de entrega eliminado')),
+      const SnackBar(content: Text('Archivo eliminado de la lista de entrega')),
     );
   }
 
-  void _showRenombrarDialog() {
-    final ctrl = TextEditingController(text: _archivoNombre);
+  void _showRenombrarDialog(int index) {
+    final item = _archivos[index];
+    final ctrl = TextEditingController(text: item.nombre);
 
     showDialog(
       context: context,
@@ -245,12 +407,10 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
           ElevatedButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
-                setState(() => _archivoNombre = ctrl.text.trim());
-                StorageService.saveTaskDraft(widget.tarea.id, {
-                  'archivoNombre': _archivoNombre,
-                  'estado': _estadoEntrega,
-                  'comentario': _comentarioCtrl.text.trim(),
+                setState(() {
+                  item.nombre = ctrl.text.trim();
                 });
+                _guardarBorradorLocal();
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Nombre de archivo actualizado')),
@@ -264,8 +424,18 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
     );
   }
 
-  // Envío real con subida de archivo multipart al servidor
+  // Envío real con subida de N archivos multipart al servidor
   Future<void> _confirmarEntrega() async {
+    if (_esAperturaPendiente()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFF3B82F6),
+          content: Text('Esta actividad aún no está abierta para entregas.'),
+        ),
+      );
+      return;
+    }
+
     if (_esFechaCortePasada()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -276,33 +446,55 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
       return;
     }
 
+    if (_archivos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: AppTheme.danger,
+          content: Text('Debes adjuntar al menos un archivo antes de enviar la entrega.'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      String? finalArchivoUrl = _archivoUrlExistente;
+      final urls = <String>[];
+      final nombres = <String>[];
 
-      // Si el estudiante seleccionó un archivo nuevo desde su dispositivo, subirlo primero
-      if (_archivoBytes != null && _archivoNombre != null) {
-        final uploadRes = await ApiService.subirDocumento(_archivoBytes!, _archivoNombre!);
-        if (uploadRes == null) {
-          if (mounted) {
-            setState(() => _isLoading = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: AppTheme.danger,
-                content: Text('Error al subir el archivo físico al servidor. Verifica tu conexión.'),
-              ),
-            );
+      for (final arch in _archivos) {
+        if (arch.bytes != null) {
+          final uploadRes = await ApiService.subirDocumento(arch.bytes!, arch.nombre);
+          if (uploadRes == null) {
+            if (mounted) {
+              setState(() => _isLoading = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  backgroundColor: AppTheme.danger,
+                  content: Text('Error al subir "${arch.nombre}" al servidor. Verifica tu conexión.'),
+                ),
+              );
+            }
+            return;
           }
-          return;
+          final path = (uploadRes['relativePath'] ?? uploadRes['url'] ?? '') as String;
+          urls.add(path);
+          nombres.add(arch.nombre);
+          arch.urlExistente = path;
+          arch.bytes = null;
+        } else if (arch.urlExistente != null && arch.urlExistente!.isNotEmpty) {
+          urls.add(arch.urlExistente!);
+          nombres.add(arch.nombre);
         }
-        finalArchivoUrl = uploadRes['relativePath'] ?? uploadRes['url'];
       }
+
+      final joinedUrls = urls.join(', ');
+      final joinedNombres = nombres.join(', ');
 
       final ok = await ApiService.entregarTarea(
         widget.tarea.id,
-        nombreArchivo: _archivoNombre ?? 'Entrega_${widget.tarea.id}.pdf',
-        archivoUrl: finalArchivoUrl,
+        nombreArchivo: joinedNombres.isNotEmpty ? joinedNombres : 'Entrega_${widget.tarea.id}.pdf',
+        archivoUrl: joinedUrls.isNotEmpty ? joinedUrls : null,
         comentario: _comentarioCtrl.text.trim().isNotEmpty ? _comentarioCtrl.text.trim() : null,
       );
 
@@ -311,7 +503,6 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
           _isLoading = false;
           if (ok) {
             _estadoEntrega = 'ENTREGADO';
-            _archivoUrlExistente = finalArchivoUrl;
           }
         });
 
@@ -343,12 +534,30 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
     }
   }
 
-  String _formatFileSize(int? bytes) {
-    if (bytes == null) return '';
+  String _formatFileSize(int bytes) {
+    if (bytes <= 0) return '';
     final kb = bytes / 1024;
     if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
     final mb = kb / 1024;
     return '${mb.toStringAsFixed(2)} MB';
+  }
+
+  IconData _getFileIcon(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
+    if (lower.endsWith('.doc') || lower.endsWith('.docx')) return Icons.description_rounded;
+    if (lower.endsWith('.zip') || lower.endsWith('.rar')) return Icons.folder_zip_rounded;
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return Icons.image_rounded;
+    return Icons.insert_drive_file_rounded;
+  }
+
+  Color _getFileColor(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.pdf')) return AppTheme.danger;
+    if (lower.endsWith('.doc') || lower.endsWith('.docx')) return const Color(0xFF2563EB);
+    if (lower.endsWith('.zip') || lower.endsWith('.rar')) return const Color(0xFFD97706);
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return const Color(0xFF10B981);
+    return AppTheme.accent;
   }
 
   @override
@@ -356,6 +565,8 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDocenteOJurado = _currentUser != null && (_currentUser!.rol == 'DOCENTE' || _currentUser!.rol == 'JURADO');
     final isAdmin = _currentUser != null && _currentUser!.rol == 'ADMIN';
+
+    final aperturaPendiente = _esAperturaPendiente();
     final haCerrado = _esFechaCortePasada();
     final tiempoInfo = _calcularTiempoRestante();
 
@@ -425,10 +636,10 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                             label: 'Estado de entrega:',
                             value: _estadoEntrega == 'ENTREGADO'
                                 ? 'Entregado para calificar'
-                                : (_archivoNombre != null ? 'Borrador (No enviado)' : 'Sin entregar'),
+                                : (_archivos.isNotEmpty ? 'Borrador (No enviado)' : 'Sin entregar'),
                             valueColor: _estadoEntrega == 'ENTREGADO'
                                 ? const Color(0xFF10B981)
-                                : (_archivoNombre != null ? AppTheme.seal : AppTheme.danger),
+                                : (_archivos.isNotEmpty ? AppTheme.seal : AppTheme.danger),
                           ),
                           const SizedBox(height: 6),
                           if (widget.tarea.fechaApertura != null) ...[
@@ -464,6 +675,30 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // Banner si la actividad aún no abre
+            if (aperturaPendiente)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.schedule_rounded, color: Color(0xFF3B82F6), size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Esta actividad aún no está abierta para entregas. Se habilitará el ${widget.tarea.fechaApertura ?? "horario programado"}.',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF2563EB), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             // Banner si la fecha de corte expiró
             if (haCerrado)
@@ -523,7 +758,11 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                         const SizedBox(height: 10),
                         Text(
                           'Retroalimentación:',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Container(
@@ -647,7 +886,7 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                 ),
               )
             else
-              // Subida de Archivo Moodle Real para Estudiantes
+              // Subida de Archivo Moodle Real para Estudiantes (soporta N archivos)
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -664,7 +903,7 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Formatos permitidos: ${widget.tarea.tiposPermitidos ?? ".pdf, .docx, .zip"} • Límite: ${widget.tarea.tamanoMaximoMb} MB',
+                        'Formatos permitidos: ${widget.tarea.tiposPermitidos ?? ".pdf, .docx, .zip"} • Límite total: ${widget.tarea.tamanoMaximoMb} MB',
                         style: TextStyle(
                           fontSize: 11,
                           color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint,
@@ -672,101 +911,135 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      if (_archivoNombre == null)
+                      // Lista de Archivos Adjuntos
+                      if (_archivos.isNotEmpty) ...[
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _archivos.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (ctx, index) {
+                            final arch = _archivos[index];
+                            final icon = _getFileIcon(arch.nombre);
+                            final color = _getFileColor(arch.nombre);
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppTheme.accentSoft.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(icon, color: color, size: 26),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          arch.nombre,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: AppTheme.accentDark,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          arch.tamanoBytes > 0
+                                              ? '${_formatFileSize(arch.tamanoBytes)} • Listo para enviar'
+                                              : (arch.urlExistente != null ? 'Registrado en servidor' : 'Listo para enviar'),
+                                          style: const TextStyle(fontSize: 10, color: AppTheme.inkFaint),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!haCerrado && !aperturaPendiente) ...[
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 18),
+                                      tooltip: 'Renombrar',
+                                      onPressed: () => _showRenombrarDialog(index),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.danger, size: 18),
+                                      tooltip: 'Eliminar',
+                                      onPressed: () => _eliminarArchivo(index),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+
+                      // Botón para seleccionar o agregar más archivos
+                      if (!haCerrado && !aperturaPendiente)
                         InkWell(
-                          onTap: haCerrado ? null : _seleccionarArchivoReal,
-                          borderRadius: BorderRadius.circular(16),
+                          onTap: _seleccionarArchivosReal,
+                          borderRadius: BorderRadius.circular(14),
                           child: Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                             decoration: BoxDecoration(
-                              color: haCerrado
-                                  ? (isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken)
-                                  : AppTheme.accentSoft.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(16),
+                              color: AppTheme.accentSoft.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: haCerrado ? (isDark ? AppTheme.darkLine : AppTheme.line) : AppTheme.accent,
-                                width: 1.5,
+                                color: AppTheme.accent.withValues(alpha: 0.6),
+                                width: 1.2,
                               ),
                             ),
-                            child: Column(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  Icons.cloud_upload_outlined,
-                                  size: 38,
-                                  color: haCerrado ? AppTheme.inkFaint : AppTheme.accent,
-                                ),
-                                const SizedBox(height: 8),
+                                const Icon(Icons.add_circle_outline_rounded, size: 20, color: AppTheme.accent),
+                                const SizedBox(width: 8),
                                 Text(
-                                  haCerrado ? 'Entrega cerrada' : 'Toca para seleccionar archivo de tu dispositivo',
-                                  style: TextStyle(
-                                    color: haCerrado ? AppTheme.inkFaint : AppTheme.accentDark,
+                                  _archivos.isEmpty ? 'Seleccionar archivo(s) para entregar' : 'Agregar otro archivo',
+                                  style: const TextStyle(
+                                    color: AppTheme.accentDark,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  haCerrado
-                                      ? 'La fecha de corte expiró'
-                                      : 'Explora y selecciona tu documento para enviarlo',
-                                  style: TextStyle(
-                                    color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint,
-                                    fontSize: 11,
+                                    fontSize: 12.5,
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         )
+                      else if (aperturaPendiente)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.2)),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Apertura pendiente de habilitación',
+                              style: TextStyle(color: Color(0xFF2563EB), fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        )
                       else
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: AppTheme.accentSoft,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppTheme.accent.withValues(alpha: 0.4)),
+                            color: AppTheme.danger.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.danger.withValues(alpha: 0.2)),
                           ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.picture_as_pdf_rounded, color: AppTheme.danger, size: 28),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _archivoNombre!,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12.5,
-                                        color: AppTheme.accentDark,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    Text(
-                                      _archivoTamanoBytes != null
-                                          ? '${_formatFileSize(_archivoTamanoBytes)} • Listo para enviar'
-                                          : (_archivoUrlExistente != null ? 'Archivo registrado en el servidor' : 'Listo para enviar'),
-                                      style: const TextStyle(fontSize: 10.5, color: AppTheme.inkFaint),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (!haCerrado) ...[
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined, size: 20),
-                                  tooltip: 'Renombrar entrega',
-                                  onPressed: _showRenombrarDialog,
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.danger, size: 20),
-                                  tooltip: 'Eliminar archivo',
-                                  onPressed: _eliminarArchivo,
-                                ),
-                              ],
-                            ],
+                          child: const Center(
+                            child: Text(
+                              'Entrega cerrada por fecha de corte',
+                              style: TextStyle(color: AppTheme.danger, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ),
 
@@ -776,7 +1049,7 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                       TextField(
                         controller: _comentarioCtrl,
                         maxLines: 2,
-                        enabled: !haCerrado,
+                        enabled: !haCerrado && !aperturaPendiente,
                         decoration: const InputDecoration(
                           labelText: 'Comentarios de la entrega (Opcional)',
                           hintText: 'Añade alguna aclaración o mensaje para el evaluador...',
@@ -787,7 +1060,9 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                       const SizedBox(height: 18),
 
                       ElevatedButton(
-                        onPressed: (_archivoNombre != null && !_isLoading && !haCerrado) ? _confirmarEntrega : null,
+                        onPressed: (_archivos.isNotEmpty && !_isLoading && !haCerrado && !aperturaPendiente)
+                            ? _confirmarEntrega
+                            : null,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           backgroundColor: const Color(0xFF10B981),

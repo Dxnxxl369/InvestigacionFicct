@@ -11,4 +11,4 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
 ENV PORT=8080
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-Xmx384m", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Duser.timezone=America/La_Paz", "-XX:+UseContainerSupport", "-Xmx384m", "-jar", "app.jar"]

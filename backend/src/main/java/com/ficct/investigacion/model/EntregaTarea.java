@@ -26,10 +26,10 @@ public class EntregaTarea {
     @JoinColumn(name = "documento_id")
     private Documento documento;
 
-    @Column(name = "nombre_archivo", length = 255)
+    @Column(name = "nombre_archivo", columnDefinition = "TEXT")
     private String nombreArchivo;
 
-    @Column(name = "archivo_url", length = 500)
+    @Column(name = "archivo_url", columnDefinition = "TEXT")
     private String archivoUrl;
 
     @Column(name = "comentario_estudiante", columnDefinition = "TEXT")
