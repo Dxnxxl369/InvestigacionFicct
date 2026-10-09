@@ -29,7 +29,7 @@
   --danger-soft: #FEF2F2;
   --shadow: 0 1px 3px rgba(11, 37, 69, 0.06), 0 1px 2px rgba(11, 37, 69, 0.04);
   --shadow-lg: 0 10px 25px rgba(11, 37, 69, 0.08), 0 4px 10px rgba(11, 37, 69, 0.04);
-  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-bg: rgba(255, 255, 255, 0.82);
   --glass-line: #CBD8E6;
   --blob-a: #0B2545;
   --blob-b: #4CA64B;
@@ -62,7 +62,7 @@ html[data-theme="dark"], .dark {
   --danger-soft: rgba(239, 68, 68, 0.15);
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.65);
-  --glass-bg: rgba(13, 28, 51, 0.85);
+  --glass-bg: rgba(13, 28, 51, 0.78);
   --glass-line: #1E3A5F;
   --blob-a: #4CA64B;
   --blob-b: #0B2545;

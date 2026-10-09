@@ -184,8 +184,8 @@ export default function MisPendientesPage() {
         </div>
       )}
 
-      {/* Filtros y búsqueda */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      {/* Filtros y búsqueda con Liquid Glass Sticky */}
+      <div className="sticky top-14 lg:top-0 z-10 bg-paper/85 dark:bg-slate-950/85 backdrop-blur-md p-3 -mx-3 rounded-2xl border border-line/60 shadow-xs flex flex-col sm:flex-row gap-3 transition-colors">
         <input
           type="text"
           placeholder="Buscar tarea o área..."

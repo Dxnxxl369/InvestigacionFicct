@@ -910,8 +910,8 @@ export default function ConvocatoriaDetallePage() {
           </div>
         </div>
 
-        {/* Barra de Pestañas estilo Moodle LMS */}
-        <div className="border-b border-line flex items-center gap-2 overflow-x-auto">
+        {/* Barra de Pestañas estilo Moodle LMS con efecto Liquid Glass Sticky */}
+        <div className="sticky top-14 lg:top-0 z-20 bg-paper/85 dark:bg-slate-950/85 backdrop-blur-md border-b border-line/60 -mx-4 sm:-mx-7 px-4 sm:px-7 py-0.5 flex items-center gap-2 overflow-x-auto shadow-xs transition-colors">
           <button
             onClick={() => handleCambiarTab("tareas")}
             className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${

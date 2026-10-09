@@ -128,9 +128,9 @@ export default function NotificacionesCampana({ isCollapsed }: { isCollapsed?: b
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-80 sm:w-96 bg-paper border border-border rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-12 w-80 sm:w-96 bg-paper/85 dark:bg-slate-900/85 backdrop-blur-xl border border-line/60 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-line/60 bg-paper-raised/50 dark:bg-slate-800/50 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-accent" />
               <span className="font-semibold text-ink text-sm">Notificaciones</span>

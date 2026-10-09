@@ -517,7 +517,7 @@ export default function SpeedGraderPanel({
 
         {/* Panel Derecho de Revisión y Calificación */}
         <div className="lg:col-span-8 bg-paper border border-line rounded-2xl flex flex-col overflow-hidden shadow-xs">
-          <div className="p-4 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-paper-sunken/40">
+          <div className="sticky top-14 lg:top-0 z-10 bg-paper-raised/85 dark:bg-slate-900/85 backdrop-blur-md p-4 border-b border-line/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors">
             <div className="flex items-center gap-3">
               {selectedEstudianteObj ? (
                 <div>

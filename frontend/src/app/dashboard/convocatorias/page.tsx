@@ -497,8 +497,8 @@ export default function ConvocatoriasListPage() {
 
         {/* Modal para solicitar inscripción de Estudiante */}
         {selectedConvForInscripcion && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-paper-raised border border-line rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+          <div className="fixed inset-0 z-50 bg-ink/50 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
+            <div className="bg-paper-raised/95 dark:bg-slate-900/95 backdrop-blur-xl border border-line/60 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-accent-soft text-accent-dark flex items-center justify-center">

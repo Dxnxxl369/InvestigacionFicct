@@ -44,8 +44,8 @@ export default function InscripcionModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-paper border border-line rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+    <div className="fixed inset-0 bg-ink/50 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in-0 duration-200">
+      <div className="bg-paper/95 dark:bg-slate-900/95 backdrop-blur-xl border border-line/60 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-emerald-600" /> Inscripción al Área / Convocatoria

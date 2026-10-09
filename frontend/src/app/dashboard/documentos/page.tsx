@@ -568,8 +568,8 @@ export default function DocumentosColaborativosPage() {
         {/* Modal: Crear Nuevo Documento */}
         {showCreateModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs" onClick={() => setShowCreateModal(false)} />
-            <div className="relative w-full max-w-lg bg-paper-raised border border-line rounded-2xl p-6 shadow-2xl space-y-4 z-10 animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed inset-0 bg-ink/50 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setShowCreateModal(false)} />
+            <div className="relative w-full max-w-lg bg-paper-raised/95 dark:bg-slate-900/95 backdrop-blur-xl border border-line/60 rounded-2xl p-6 shadow-2xl space-y-4 z-10 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between pb-3 border-b border-line-soft">
                 <h3 className="font-serif text-lg text-ink font-semibold">Crear Nuevo Documento</h3>
                 <button
@@ -665,8 +665,8 @@ export default function DocumentosColaborativosPage() {
         {/* Modal: Gestionar Colaboradores y Permisos (Los 3 tipos de permisos) */}
         {showColabModal && selectedDoc && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs" onClick={() => setShowColabModal(false)} />
-            <div className="relative w-full max-w-lg bg-paper-raised border border-line rounded-2xl p-6 shadow-2xl space-y-4 z-10 animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed inset-0 bg-ink/50 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setShowColabModal(false)} />
+            <div className="relative w-full max-w-lg bg-paper-raised/95 dark:bg-slate-900/95 backdrop-blur-xl border border-line/60 rounded-2xl p-6 shadow-2xl space-y-4 z-10 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between pb-3 border-b border-line-soft">
                 <div>
                   <h3 className="font-serif text-lg text-ink font-semibold">Gestión de Permisos del Grupo</h3>

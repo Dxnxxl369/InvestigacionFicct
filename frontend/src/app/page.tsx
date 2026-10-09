@@ -1039,8 +1039,8 @@ export default function HomePage() {
 
       {/* ================= MODAL DE POSTULACIÓN A CONVOCATORIA ================= */}
       {selectedConvForPostulacion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-paper border border-line rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-paper/95 dark:bg-slate-900/95 backdrop-blur-xl border border-line/60 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[10px] font-bold text-accent-dark uppercase tracking-wider bg-accent/15 px-2.5 py-0.5 rounded-full font-mono">

@@ -220,10 +220,10 @@ export default function DashboardLayout({
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50">
           <div
-            className="fixed inset-0 bg-ink/40 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-ink/50 dark:bg-black/75 backdrop-blur-md transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed top-0 left-0 bottom-0 w-72 max-w-[82vw] bg-paper-raised border-r border-line p-5 shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-200">
+          <aside className="fixed top-0 left-0 bottom-0 w-72 max-w-[82vw] bg-paper-raised/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-line/60 p-5 shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between pb-4 mb-3 border-b border-line-soft">
               <Link href="/" onClick={() => setMobileMenuOpen(false)} className="font-serif text-lg tracking-tight">
                 <b className="font-bold text-ink">FICCT</b>
