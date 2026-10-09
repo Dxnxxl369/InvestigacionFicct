@@ -353,9 +353,22 @@ public class TareaService {
 
         if (partOpt.isPresent()) {
             ConvocatoriaParticipante part = partOpt.get();
+            if (request.getGrupoId() != null) {
+                if (part.getGrupos() != null) {
+                    grupoEstudiante = part.getGrupos().stream()
+                            .filter(g -> g.getId() != null && g.getId().equals(request.getGrupoId()))
+                            .findFirst().orElse(null);
+                }
+                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getId() != null && part.getGrupo().getId().equals(request.getGrupoId())) {
+                    grupoEstudiante = part.getGrupo();
+                }
+                if (grupoEstudiante == null) {
+                    throw new AccessDeniedException("No perteneces al grupo seleccionado para esta entrega.");
+                }
+            }
 
             // 1. Si la tarea está vinculada a un agrupamiento / actividad de grupo específico
-            if (tarea.getActividadGrupo() != null) {
+            if (grupoEstudiante == null && tarea.getActividadGrupo() != null) {
                 Long targetActividadId = tarea.getActividadGrupo().getId();
                 if (part.getGrupos() != null) {
                     grupoEstudiante = part.getGrupos().stream()
@@ -374,10 +387,10 @@ public class TareaService {
             if (grupoEstudiante == null && request.getGrupoId() != null) {
                 if (part.getGrupos() != null) {
                     grupoEstudiante = part.getGrupos().stream()
-                            .filter(g -> g.getId().equals(request.getGrupoId()))
+                            .filter(g -> g.getId() != null && g.getId().equals(request.getGrupoId()))
                             .findFirst().orElse(null);
                 }
-                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getId().equals(request.getGrupoId())) {
+                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getId() != null && part.getGrupo().getId().equals(request.getGrupoId())) {
                     grupoEstudiante = part.getGrupo();
                 }
             }

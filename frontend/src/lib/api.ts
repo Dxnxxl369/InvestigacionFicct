@@ -46,6 +46,9 @@ export interface Convocatoria {
   estado: "BORRADOR" | "PUBLICADA" | "FINALIZADA";
   fechaCierre?: string;
   tamanoEquipo?: string;
+  inscripcionGrupal?: boolean;
+  minIntegrantesGrupo?: number;
+  maxIntegrantesGrupo?: number;
   imagenPortada?: string;
   creadorId?: number;
   creadorNombre?: string;
@@ -71,6 +74,9 @@ export interface ConvocatoriaRequest {
   tipo: "FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION";
   fechaCierre?: string;
   tamanoEquipo?: string;
+  inscripcionGrupal?: boolean;
+  minIntegrantesGrupo?: number;
+  maxIntegrantesGrupo?: number;
   imagenPortada?: string;
   requisitos?: string[];
   docenteIds?: number[];
@@ -109,6 +115,8 @@ export interface DesignarParticipanteRequest {
 
 export interface InscribirseAreaRequest {
   nombreEquipo?: string;
+  numeroGrupo?: number;
+  integrantesEmails?: string[];
 }
 
 export interface RolPermisoDTO {

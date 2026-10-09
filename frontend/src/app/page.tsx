@@ -55,6 +55,8 @@ export default function HomePage() {
   const [misAreasMap, setMisAreasMap] = useState<Record<number, ConvocatoriaDTO>>({});
   const [selectedConvForPostulacion, setSelectedConvForPostulacion] = useState<Convocatoria | null>(null);
   const [nombreEquipoInput, setNombreEquipoInput] = useState("");
+  const [numeroGrupoInput, setNumeroGrupoInput] = useState<number | "">("");
+  const [integrantesGrupoInput, setIntegrantesGrupoInput] = useState<string[]>([""]);
   const [enviandoPostulacion, setEnviandoPostulacion] = useState(false);
 
   // Verificador Blockchain
@@ -151,10 +153,16 @@ export default function HomePage() {
       setEnviandoPostulacion(true);
       await api.inscribirseConvocatoria(selectedConvForPostulacion.id, {
         nombreEquipo: nombreEquipoInput.trim() || undefined,
+        numeroGrupo: numeroGrupoInput ? Number(numeroGrupoInput) : undefined,
+        integrantesEmails: selectedConvForPostulacion.inscripcionGrupal
+          ? integrantesGrupoInput.map((email) => email.trim()).filter(Boolean)
+          : undefined,
       });
       toast("¡Solicitud enviada con éxito! El tribunal docente revisará tu postulación para admitirte al aula.", "success");
       setSelectedConvForPostulacion(null);
       setNombreEquipoInput("");
+      setNumeroGrupoInput("");
+      setIntegrantesGrupoInput([""]);
       await fetchMisAreas();
     } catch (err: any) {
       toast(err.message || "Error al enviar postulación", "error");
@@ -1083,6 +1091,49 @@ export default function HomePage() {
                   Si no tienes equipo, podrás conformar uno con tus compañeros en el módulo de Selección de Grupos dentro del aula virtual.
                 </p>
               </div>
+
+              {selectedConvForPostulacion.inscripcionGrupal && (
+                <div className="bg-paper-raised border border-line-soft rounded-2xl p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-ink mb-1.5">Número de grupo</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={numeroGrupoInput}
+                        onChange={(e) => setNumeroGrupoInput(e.target.value ? Number(e.target.value) : "")}
+                        placeholder="Ej. 1"
+                        className="w-28 px-3.5 py-2.5 text-xs bg-paper text-ink border border-line rounded-xl focus:outline-none focus:border-accent"
+                      />
+                    </label>
+                    <p className="text-[11px] text-ink-faint text-right leading-relaxed">
+                      Integrantes permitidos: {selectedConvForPostulacion.minIntegrantesGrupo || 1} a {selectedConvForPostulacion.maxIntegrantesGrupo || 5}. Tu usuario ya cuenta como integrante.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-ink">Correos de compañeros</label>
+                    {integrantesGrupoInput.map((email, index) => (
+                      <input
+                        key={index}
+                        type="email"
+                        value={email}
+                        onChange={(e) => setIntegrantesGrupoInput((prev) => prev.map((item, i) => i === index ? e.target.value : item))}
+                        placeholder="correo@ficct.edu.bo"
+                        className="w-full px-3.5 py-2.5 text-xs bg-paper text-ink border border-line rounded-xl focus:outline-none focus:border-accent"
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setIntegrantesGrupoInput((prev) => [...prev, ""])}
+                      disabled={integrantesGrupoInput.length + 1 >= (selectedConvForPostulacion.maxIntegrantesGrupo || 5)}
+                      className="text-[11px] font-semibold text-accent disabled:text-ink-faint"
+                    >
+                      + Agregar compañero
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
                 ℹ️ Tu solicitud será remitida a los tribunales docentes a cargo. Una vez admitido, dispondrás de acceso inmediato a los módulos de entrega y rúbricas.

@@ -497,10 +497,10 @@ a {
 }
 
 .ficct-word-ribbon {
-  height: 98px;
+  height: 96px;
   display: flex;
   align-items: stretch;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   background: var(--word-ribbon);
   border-bottom: 1px solid var(--word-border);
@@ -512,7 +512,7 @@ a {
   display: grid;
   grid-template-rows: 1fr 17px;
   align-items: stretch;
-  padding: 6px 9px 2px;
+  padding: 5px 7px 2px;
   border-right: 1px solid #d1d1d1;
   box-shadow: inset -1px 0 0 #fff;
 }
@@ -530,8 +530,15 @@ a {
   gap: 6px;
 }
 
+.ficct-word-clipboard {
+  display: grid;
+  grid-template-columns: 50px 86px;
+  align-items: center;
+  gap: 4px;
+}
+
 .ficct-word-paste {
-  width: 54px;
+  width: 50px;
   height: 54px;
   border: 1px solid transparent;
   background: transparent;
@@ -539,21 +546,42 @@ a {
   font-size: 12px;
 }
 
-.ficct-word-paste::before {
-  content: "";
-  display: block;
-  width: 23px;
-  height: 27px;
-  margin: 0 auto 3px;
-  border: 2px solid #c79a45;
-  border-top-width: 8px;
-  background: #fff5cf;
+.ficct-word-paste-home {
+  height: 62px;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.ficct-word-paste-home svg {
+  width: 26px;
+  height: 26px;
+  color: #c79432;
+}
+
+.ficct-word-clipboard-actions {
+  display: grid;
+  gap: 1px;
+}
+
+.ficct-word-clipboard-actions button {
+  height: 20px;
+  border: 1px solid transparent;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #333;
+  font-size: 11px;
+  text-align: left;
 }
 
 .ficct-word-paste:hover,
 .ficct-word-tool:hover,
 .ficct-word-toggle:hover,
-.ficct-word-style-row button:hover,
+.ficct-word-style-gallery button:hover,
+.ficct-word-clipboard-actions button:hover,
 .ficct-word-doc-actions button:hover {
   background: #e8f0fb;
   border-color: #9eb6d8;
@@ -572,6 +600,14 @@ a {
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
+  gap: 4px;
+}
+
+.ficct-word-ribbon-group-body:has(> .ficct-word-tool-row + .ficct-word-tool-row) {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
 }
 
 .ficct-word-select-row select {
@@ -584,16 +620,20 @@ a {
 }
 
 .ficct-word-select-row select:first-child {
-  width: 135px;
+  width: 118px;
 }
 
-.ficct-word-select-row select:last-child {
+.ficct-word-select-row select:nth-child(2) {
   width: 62px;
 }
 
+.ficct-word-select-row select:last-child {
+  width: 54px;
+}
+
 .ficct-word-tool {
-  width: 27px;
-  height: 25px;
+  width: 25px;
+  height: 23px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -605,7 +645,7 @@ a {
 
 .ficct-word-tool.active,
 .ficct-word-toggle.active,
-.ficct-word-style-row button.active {
+.ficct-word-style-gallery button.active {
   background: #dbe9ff;
   border-color: #7fa7dd;
 }
@@ -619,46 +659,138 @@ a {
 }
 
 .ficct-word-toggle {
-  height: 25px;
+  height: 23px;
   border: 1px solid transparent;
   background: transparent;
   color: #222;
-  font-size: 12px;
-  padding: 0 8px;
+  font-size: 11px;
+  padding: 0 6px;
   white-space: nowrap;
 }
 
 .ficct-word-line-select {
-  height: 25px;
-  border: 1px solid #b8b8b8;
-  background: #fff;
-  color: #222;
-  font-size: 12px;
-  width: 56px;
-}
-
-.ficct-word-spacing-input {
-  width: 42px;
-  height: 25px;
+  height: 23px;
   border: 1px solid #b8b8b8;
   background: #fff;
   color: #222;
   font-size: 11px;
+  width: 50px;
+}
+
+.ficct-word-spacing-input {
+  width: 36px;
+  height: 23px;
+  border: 1px solid #b8b8b8;
+  background: #fff;
+  color: #222;
+  font-size: 10px;
   padding: 0 3px;
 }
 
-.ficct-word-style-row button {
-  width: 92px;
-  height: 52px;
+.ficct-word-ribbon-group-body:has(.ficct-word-style-gallery) {
+  width: 318px;
+  overflow: hidden;
+}
+
+.ficct-word-style-gallery {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 3px;
+  height: 64px;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+.ficct-word-style-gallery button {
+  width: 70px;
+  height: 54px;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-rows: 31px 16px;
+  align-items: center;
+  justify-items: center;
   border: 1px solid #cfcfcf;
-  background: #fff;
+  border-left: 0;
+  background: linear-gradient(#fff, #f7f7f7);
   color: #1f1f1f;
-  font-size: 12px;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+
+.ficct-word-swatch {
+  width: 24px;
+  height: 23px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 2px;
+}
+
+.ficct-word-style-gallery button:first-child {
+  border-left: 1px solid #cfcfcf;
+}
+
+.ficct-word-style-gallery .sample {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  color: #111;
+  font-family: Cambria, Georgia, serif;
+  font-size: 18px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ficct-word-style-gallery small {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  color: #4f4f4f;
+  font-size: 10px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ficct-word-style-gallery .apa {
+  color: #2f5597;
+  font-size: 16px;
+}
+
+.ficct-word-style-gallery .normal {
+  font-family: Calibri, Arial, sans-serif;
+  font-size: 17px;
+  color: #111;
+}
+
+.ficct-word-style-gallery .plain {
+  font-family: Calibri, Arial, sans-serif;
+  font-size: 16px;
+}
+
+.ficct-word-style-gallery .title-one {
+  color: #2f5597;
+  font-size: 19px;
+}
+
+.ficct-word-style-gallery .title-two {
+  color: #2f5597;
+  font-size: 17px;
+}
+
+.ficct-word-style-gallery .title-main {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.ficct-word-style-gallery .subtitle {
+  color: #5b6778;
+  font-family: Calibri, Arial, sans-serif;
+  font-size: 15px;
+}
+
+.ficct-word-style-gallery .quote {
+  color: #6b5f4b;
+  font-style: italic;
+  font-size: 14px;
 }
 
 .ficct-word-mini-style-row {
@@ -718,6 +850,306 @@ a {
   align-items: center;
   justify-content: center;
   gap: 4px;
+}
+
+.ficct-word-reference-group,
+.ficct-word-citations-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 66px;
+}
+
+.ficct-word-reference-big {
+  width: 74px;
+  height: 62px;
+  display: grid;
+  grid-template-rows: 30px 1fr;
+  place-items: center;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #222;
+  font-size: 11px;
+  line-height: 13px;
+  text-align: center;
+  padding: 3px;
+}
+
+.ficct-word-reference-big:hover,
+.ficct-word-reference-stack button:hover {
+  background: #e8f0fb;
+  border-color: #9eb6d8;
+}
+
+.ficct-word-reference-stack {
+  display: grid;
+  gap: 2px;
+  min-width: 128px;
+}
+
+.ficct-word-reference-stack button,
+.ficct-word-reference-stack label {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #222;
+  font-size: 11px;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+
+.ficct-word-reference-stack select {
+  height: 20px;
+  width: 84px;
+  border: 1px solid #aeb4bd;
+  background: #fff;
+  font-size: 11px;
+}
+
+.ficct-word-menu-anchor {
+  position: relative;
+}
+
+.ficct-word-dropdown {
+  position: fixed;
+  top: 122px;
+  z-index: 80;
+  width: 390px;
+  max-height: min(520px, calc(100vh - 150px));
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #b7b7b7;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  color: #1f2937;
+  font-size: 12px;
+  padding: 0 0 8px;
+}
+
+.ficct-toc-dropdown {
+  left: 0;
+}
+
+.ficct-bibliography-dropdown {
+  left: min(600px, calc(100vw - 430px));
+}
+
+.ficct-word-dropdown > strong {
+  display: block;
+  background: #f0f0f0;
+  border-bottom: 1px solid #d6d6d6;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.ficct-word-dropdown button {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  border: 0;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+  color: #1f2937;
+  text-align: left;
+  padding: 10px 12px;
+}
+
+.ficct-word-dropdown button:hover {
+  background: #e8f0fb;
+}
+
+.ficct-word-dropdown span {
+  color: #1f4e79;
+  font-family: Cambria, Georgia, serif;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.ficct-word-dropdown small {
+  color: #111827;
+  font-family: Cambria, Georgia, serif;
+  line-height: 1.45;
+}
+
+.ficct-source-manager-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.ficct-source-manager,
+.ficct-source-form {
+  background: #f4f4f4;
+  border: 1px solid #355f9e;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  color: #111;
+  font-family: "Segoe UI", Calibri, Arial, sans-serif;
+}
+
+.ficct-source-manager {
+  width: min(900px, calc(100vw - 80px));
+  min-height: 470px;
+  position: relative;
+}
+
+.ficct-source-manager > header,
+.ficct-source-form > header {
+  height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #153e7e;
+  color: #fff;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.ficct-source-manager header button,
+.ficct-source-form header button {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 20px;
+}
+
+.ficct-source-manager-search {
+  display: grid;
+  grid-template-columns: 44px 1fr 210px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+
+.ficct-source-manager input,
+.ficct-source-manager select {
+  height: 22px;
+  border: 1px solid #aeb4bd;
+  background: #fff;
+  font-size: 12px;
+}
+
+.ficct-source-manager-body {
+  display: grid;
+  grid-template-columns: 1fr 76px 1fr;
+  gap: 10px;
+  padding: 8px 14px;
+}
+
+.ficct-source-list span,
+.ficct-source-list strong {
+  display: block;
+  font-size: 12px;
+}
+
+.ficct-source-list > div {
+  height: 146px;
+  overflow: auto;
+  border: 1px solid #aeb4bd;
+  background: #fff;
+}
+
+.ficct-source-list button {
+  width: 100%;
+  display: block;
+  border: 0;
+  background: #fff;
+  text-align: left;
+  font-size: 12px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.ficct-source-list button.active {
+  background: #1d5fb8;
+  color: #fff;
+}
+
+.ficct-source-list p {
+  margin: 8px;
+  color: #555;
+  font-size: 12px;
+}
+
+.ficct-source-manager-actions {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+}
+
+.ficct-source-manager-actions button,
+.ficct-source-manager > footer button,
+.ficct-source-form footer button {
+  height: 24px;
+  border: 1px solid #aeb4bd;
+  background: #f7f7f7;
+  font-size: 12px;
+}
+
+.ficct-source-preview {
+  padding: 8px 14px 0;
+  font-size: 12px;
+}
+
+.ficct-source-preview > div {
+  height: 96px;
+  overflow: auto;
+  border: 1px solid #aeb4bd;
+  background: #fff;
+  padding: 6px;
+}
+
+.ficct-source-preview p {
+  margin: 0 0 6px;
+}
+
+.ficct-source-manager > footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 14px;
+}
+
+.ficct-source-manager > footer button {
+  min-width: 74px;
+}
+
+.ficct-source-form {
+  position: absolute;
+  left: 86px;
+  right: 12px;
+  top: 28px;
+  z-index: 2;
+}
+
+.ficct-source-form-grid {
+  display: grid;
+  grid-template-columns: 160px 1fr 88px 190px;
+  gap: 6px 8px;
+  padding: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.ficct-source-form-grid label:nth-of-type(n + 3) {
+  grid-column: 1;
+  text-align: right;
+}
+
+.ficct-source-form-grid label:nth-of-type(n + 3) + input {
+  grid-column: 2 / -1;
+}
+
+.ficct-source-form footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 8px 10px 12px;
 }
 
 .ficct-word-mini-style-row button,
@@ -1007,63 +1439,225 @@ a {
 
 .ficct-word-ruler-row {
   height: 19px;
-  display: grid;
-  grid-template-columns: 28px 1fr;
+  position: relative;
+  display: block;
   background: #f8f8f8;
   border-bottom: 1px solid #d2d2d2;
+  overflow: hidden;
 }
 
 .ficct-word-ruler-corner {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 28px;
   border-right: 1px solid #d2d2d2;
   background: #efefef;
 }
 
 .ficct-word-ruler {
-  width: min(8.5in, calc(100vw - 64px));
-  max-width: calc(100vw - 64px);
-  justify-self: center;
-  display: grid;
-  grid-template-columns: repeat(18, 1fr);
-  align-items: end;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--ficct-ruler-left, 28px);
+  width: var(--ficct-ruler-width, 8.5in);
+  min-width: 1px;
   color: #222;
   font-size: 9px;
   background:
-    repeating-linear-gradient(to right, #8f8f8f 0 1px, transparent 1px calc(100% / 36)),
+    linear-gradient(to bottom, transparent 0 16px, #b5b5b5 16px 17px, transparent 17px),
     #f8f8f8;
+  opacity: 1;
+  transition: opacity 120ms ease;
 }
 
-.ficct-word-ruler span {
+.ficct-word-ruler:not(.ready) {
+  left: 28px;
+  width: min(8.5in, calc(100vw - 80px));
+}
+
+.ficct-word-ruler .tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
   text-align: center;
-  padding-bottom: 1px;
+  transform: translateX(-50%);
+  color: #303030;
+  line-height: 11px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ficct-word-ruler .tick.major {
+  height: 16px;
+  border-left: 1px solid #777;
+  padding-left: 7px;
+}
+
+.ficct-word-ruler .tick.half {
+  height: 11px;
+  border-left: 1px solid #8d8d8d;
+}
+
+.ficct-word-ruler .tick.minor {
+  height: 7px;
+  border-left: 1px solid #aaa;
+}
+
+.ficct-word-ruler-margin {
+  position: absolute;
+  display: block;
+  background: rgba(205, 205, 205, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(150, 150, 150, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ficct-word-ruler .ficct-word-ruler-margin {
+  top: 0;
+  bottom: 0;
+}
+
+.ficct-word-ruler .ficct-word-ruler-margin.left {
+  left: 0;
+}
+
+.ficct-word-ruler .ficct-word-ruler-margin.right {
+  right: 0;
 }
 
 .ficct-word-workarea {
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: 28px auto 1fr;
   background: linear-gradient(#e4e4e4, var(--word-canvas));
   overflow: hidden;
 }
 
-.ficct-word-workarea.no-rulers {
-  grid-template-columns: auto 1fr;
+.ficct-word-workarea.without-navigation {
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+
+.ficct-word-workarea.with-navigation {
+  grid-template-columns: 28px 250px minmax(0, 1fr);
+}
+
+.ficct-word-workarea.no-rulers.without-navigation {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ficct-word-workarea.no-rulers.with-navigation {
+  grid-template-columns: 250px minmax(0, 1fr);
 }
 
 .ficct-word-vertical-ruler {
+  position: relative;
   background: #f8f8f8;
   border-right: 1px solid #d2d2d2;
-  display: grid;
-  grid-auto-rows: 1in;
-  justify-items: center;
   color: #222;
   font-size: 9px;
   overflow: hidden;
 }
 
-.ficct-word-vertical-ruler span {
+.ficct-word-vertical-ruler .tick {
+  position: absolute;
+  left: 0;
+  width: 27px;
+  min-height: 1px;
   writing-mode: vertical-rl;
+  transform: translateY(-50%);
+  border-top: 1px solid #aaa;
+  text-align: center;
   padding-top: 6px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ficct-word-vertical-ruler .tick.major {
+  border-top-color: #777;
+  width: 18px;
+  min-height: 16px;
+}
+
+.ficct-word-vertical-ruler .tick.half {
+  width: 13px;
+}
+
+.ficct-word-vertical-ruler .tick.minor {
+  width: 8px;
+}
+
+.ficct-word-vertical-ruler .ficct-word-ruler-margin {
+  left: 0;
+  right: 0;
+}
+
+.ficct-ruler-handle {
+  position: absolute;
+  z-index: 4;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.ficct-ruler-handle.horizontal {
+  top: 0;
+  width: 12px;
+  height: 19px;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+}
+
+.ficct-ruler-handle.horizontal::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid #6f6f6f;
+}
+
+.ficct-ruler-handle.horizontal::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  width: 2px;
+  height: 13px;
+  background: #6f6f6f;
+}
+
+.ficct-ruler-handle.vertical {
+  left: 0;
+  width: 28px;
+  height: 12px;
+  transform: translateY(-50%);
+  cursor: ns-resize;
+}
+
+.ficct-ruler-handle.vertical::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid #6f6f6f;
+}
+
+.ficct-ruler-handle.vertical::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 5px;
+  width: 20px;
+  height: 2px;
+  background: #6f6f6f;
+}
+
+.ficct-ruler-handle:hover::before,
+.ficct-ruler-handle:hover::after {
+  filter: brightness(0.72);
 }
 
 .ficct-navigation-panel {
@@ -1132,6 +1726,7 @@ a {
 }
 
 .ficct-word-page {
+  box-sizing: border-box;
   width: min(8.5in, calc(100vw - 48px));
   min-height: 11in;
   margin: 0 auto;
@@ -1334,21 +1929,60 @@ a {
   text-decoration: underline;
 }
 
-.ficct-word-page .ProseMirror .ficct-toc {
-  list-style: decimal;
-  padding-left: 1.35rem;
-  border-top: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+.ficct-word-page .ProseMirror .ficct-toc-title {
+  margin: 0.2in 0 0.18in;
+  color: #111;
+  font-family: Calibri, Arial, sans-serif;
+  font-size: 12pt;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: underline;
 }
 
-.ficct-word-page .ProseMirror .ficct-toc-h2 {
-  margin-left: 0.25in;
+.ficct-word-page .ProseMirror table[data-type="toc-table"] {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0 0 0.18in;
+  font-family: Calibri, Arial, sans-serif;
+  font-size: 11pt;
 }
 
-.ficct-word-page .ProseMirror .ficct-toc-h3 {
-  margin-left: 0.5in;
+.ficct-word-page .ProseMirror table[data-type="toc-table"],
+.ficct-word-page .ProseMirror table[data-type="toc-table"] tr,
+.ficct-word-page .ProseMirror table[data-type="toc-table"] td {
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.ficct-word-page .ProseMirror table[data-type="toc-table"] td {
+  padding: 0.04in 0;
+  vertical-align: baseline;
+  line-height: 1.25;
+}
+
+.ficct-word-page .ProseMirror table[data-type="toc-table"] td:first-child {
+  width: 1.05in;
+  padding-right: 0.12in;
+  white-space: nowrap;
+}
+
+.ficct-word-page .ProseMirror table[data-type="toc-table"] td:nth-child(2) {
+  overflow: hidden;
+  white-space: nowrap;
+  border-bottom: 1px dotted #555 !important;
+}
+
+.ficct-word-page .ProseMirror table[data-type="toc-table"] td:nth-child(2) > * {
+  display: inline;
+  background: #fff;
+  padding-right: 4px;
+}
+
+.ficct-word-page .ProseMirror table[data-type="toc-table"] td:last-child {
+  width: 0.42in;
+  text-align: right;
+  padding-left: 6px;
 }
 
 .ficct-word-page .ProseMirror .ficct-caption {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   XCircle,
   UploadCloud,
@@ -61,6 +61,7 @@ export default function EntregaTareaModal({
   const [archivoEntregaPrevioUrl, setArchivoEntregaPrevioUrl] = useState("");
   const [comentarioEstudiante, setComentarioEstudiante] = useState("");
   const [docVinculadoId, setDocVinculadoId] = useState<number | "">("");
+  const [selectedGrupoId, setSelectedGrupoId] = useState<number | "">("");
 
   const [isDraggingEntrega, setIsDraggingEntrega] = useState(false);
   const [errorValidacionArchivo, setErrorValidacionArchivo] = useState<string | null>(null);
@@ -92,53 +93,61 @@ export default function EntregaTareaModal({
   }, [tarea]);
 
   // Resolver a qué grupo pertenece el estudiante para esta tarea específica (Moodle Grouping)
-  let miGrupoParaEstaTarea: GrupoDTO | null = null;
-  let actividadAsociada: ActividadGrupoDTO | null = null;
+  const perteneceAlUsuario = (grupo: GrupoDTO) =>
+    grupo.miembros?.some(
+      (m) =>
+        m.usuarioId === user?.id ||
+        (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
+    ) || false;
 
-  if (tarea.esGrupal) {
-    if (tarea.actividadGrupoId) {
-      actividadAsociada = actividadesGrupo.find((a) => a.id === tarea.actividadGrupoId) || null;
-      if (actividadAsociada) {
-        miGrupoParaEstaTarea =
-          actividadAsociada.grupos?.find(
-            (g) =>
-              g.id === actividadAsociada?.grupoSeleccionadoId ||
-              g.miembros?.some(
-                (m) =>
-                  m.usuarioId === user?.id ||
-                  (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
-              )
-          ) || null;
-      }
+  const actividadAsociada = tarea.esGrupal && tarea.actividadGrupoId
+    ? actividadesGrupo.find((a) => a.id === tarea.actividadGrupoId) || null
+    : null;
+
+  const gruposDisponiblesParaEntrega = useMemo(() => {
+    if (!tarea.esGrupal) return [];
+    const candidatos: GrupoDTO[] = [];
+
+    if (actividadAsociada) {
+      candidatos.push(...(actividadAsociada.grupos || []).filter((g) => perteneceAlUsuario(g)));
     } else {
-      miGrupoParaEstaTarea =
-        gruposArea.find((g) =>
-          g.miembros?.some(
-            (m) =>
-              m.usuarioId === user?.id ||
-              (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
-          )
-        ) || null;
-      if (!miGrupoParaEstaTarea) {
-        for (const act of actividadesGrupo) {
-          const g = act.grupos?.find(
-            (gr) =>
-              gr.id === act.grupoSeleccionadoId ||
-              gr.miembros?.some(
-                (m) =>
-                  m.usuarioId === user?.id ||
-                  (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
-              )
-          );
-          if (g) {
-            miGrupoParaEstaTarea = g;
-            actividadAsociada = act;
-            break;
-          }
-        }
-      }
+      candidatos.push(...gruposArea.filter((g) => perteneceAlUsuario(g)));
+      actividadesGrupo.forEach((actividad) => {
+        candidatos.push(...(actividad.grupos || []).filter((g) => perteneceAlUsuario(g)));
+      });
     }
-  }
+
+    const vistos = new Set<number>();
+    return candidatos.filter((grupo) => {
+      if (!grupo.id || vistos.has(grupo.id)) return false;
+      vistos.add(grupo.id);
+      return true;
+    });
+  }, [actividadAsociada, actividadesGrupo, gruposArea, tarea.esGrupal, user?.email, user?.id]);
+
+  const gruposDisponiblesIds = gruposDisponiblesParaEntrega.map((g) => g.id).join(",");
+
+  useEffect(() => {
+    if (!tarea.esGrupal) {
+      setSelectedGrupoId("");
+      return;
+    }
+
+    const ids = gruposDisponiblesParaEntrega.map((g) => g.id);
+    if (selectedGrupoId && ids.includes(Number(selectedGrupoId))) return;
+
+    const entregaGrupoId = tarea.miEntrega?.grupoId;
+    if (entregaGrupoId && ids.includes(entregaGrupoId)) {
+      setSelectedGrupoId(entregaGrupoId);
+      return;
+    }
+
+    setSelectedGrupoId(ids[0] || "");
+  }, [gruposDisponiblesIds, selectedGrupoId, tarea.esGrupal, tarea.miEntrega?.grupoId]);
+
+  const miGrupoParaEstaTarea = tarea.esGrupal
+    ? gruposDisponiblesParaEntrega.find((g) => g.id === Number(selectedGrupoId)) || gruposDisponiblesParaEntrega[0] || null
+    : null;
 
   // Agregar lote de archivos con validación acumulada
   const agregarArchivosEntrega = (nuevosArchivos: File[]) => {
@@ -288,7 +297,7 @@ export default function EntregaTareaModal({
       // Grupo ID para entrega grupal
       let finalGrupoId: number | undefined = undefined;
       if (tarea.esGrupal) {
-        finalGrupoId = miGrupoParaEstaTarea?.id;
+        finalGrupoId = selectedGrupoId ? Number(selectedGrupoId) : miGrupoParaEstaTarea?.id;
       }
 
       const req: EntregaRequest = {
@@ -375,6 +384,20 @@ export default function EntregaTareaModal({
                 <p className="text-[11px] text-blue-700 dark:text-blue-300">
                   Actividad de agrupamiento: <strong>{actividadAsociada.titulo}</strong>
                 </p>
+              )}
+              {gruposDisponiblesParaEntrega.length > 1 && (
+                <label className="block pt-2 text-[11px] font-semibold text-blue-900 dark:text-blue-200">
+                  Presentar desde el grupo
+                  <select
+                    value={selectedGrupoId}
+                    onChange={(e) => setSelectedGrupoId(e.target.value ? Number(e.target.value) : "")}
+                    className="mt-1 w-full px-3 py-2 bg-paper text-ink border border-blue-200 dark:border-blue-900/60 rounded-xl focus:outline-none focus:border-accent"
+                  >
+                    {gruposDisponiblesParaEntrega.map((grupo) => (
+                      <option key={grupo.id} value={grupo.id}>{grupo.nombre}</option>
+                    ))}
+                  </select>
+                </label>
               )}
               {miGrupoParaEstaTarea.miembros && miGrupoParaEstaTarea.miembros.length > 0 && (
                 <p className="text-[10px] text-blue-600 dark:text-blue-400">

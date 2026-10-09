@@ -22,6 +22,12 @@ public class ConvocatoriaRequest {
 
     private String tamanoEquipo;
 
+    private Boolean inscripcionGrupal = false;
+
+    private Integer minIntegrantesGrupo = 1;
+
+    private Integer maxIntegrantesGrupo = 5;
+
     private String imagenPortada;
 
     private List<String> requisitos = new ArrayList<>();
@@ -82,6 +88,30 @@ public class ConvocatoriaRequest {
 
     public void setTamanoEquipo(String tamanoEquipo) {
         this.tamanoEquipo = tamanoEquipo;
+    }
+
+    public Boolean getInscripcionGrupal() {
+        return inscripcionGrupal;
+    }
+
+    public void setInscripcionGrupal(Boolean inscripcionGrupal) {
+        this.inscripcionGrupal = inscripcionGrupal;
+    }
+
+    public Integer getMinIntegrantesGrupo() {
+        return minIntegrantesGrupo;
+    }
+
+    public void setMinIntegrantesGrupo(Integer minIntegrantesGrupo) {
+        this.minIntegrantesGrupo = minIntegrantesGrupo;
+    }
+
+    public Integer getMaxIntegrantesGrupo() {
+        return maxIntegrantesGrupo;
+    }
+
+    public void setMaxIntegrantesGrupo(Integer maxIntegrantesGrupo) {
+        this.maxIntegrantesGrupo = maxIntegrantesGrupo;
     }
 
     public String getImagenPortada() {

@@ -23,6 +23,11 @@ import {
   getPageDimensions,
 } from "./collaborative-editor/editorViewUtils";
 import {
+  HorizontalPageRuler,
+  VerticalPageRuler,
+  usePageRulerMetrics,
+} from "./collaborative-editor/pageRulers";
+import {
   DEFAULT_MARGINS,
   PAGE_SIZES,
   type BibliographyStyle,
@@ -68,6 +73,8 @@ import {
   remoteConflictTitle,
   type RemoteConflictInfo,
 } from "./collaborative-editor/collaborationConflict";
+import { ReferenceSourceManager } from "./collaborative-editor/ReferenceSourceManager";
+import { formatInlineCitation } from "./collaborative-editor/bibliography";
 import {
   AlignCenter,
   AlignJustify,
@@ -75,22 +82,24 @@ import {
   AlignRight,
   Bold,
   BookOpen,
+  Clipboard,
+  Copy,
   Download,
   Eraser,
   FileText,
   FileUp,
-  Heading1,
-  Heading2,
   Highlighter,
   Image as ImageIcon,
   Italic,
   Link as LinkIcon,
   List,
   ListOrdered,
+  Paintbrush,
   Quote,
   Redo2,
   Save,
   Search,
+  Scissors,
   Subscript as SubscriptIcon,
   Superscript as SuperscriptIcon,
   Strikethrough,
@@ -190,6 +199,9 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
   const [showNavigation, setShowNavigation] = useState(false);
   const [showRulers, setShowRulers] = useState(true);
   const [showGridlines, setShowGridlines] = useState(false);
+  const [showTocMenu, setShowTocMenu] = useState(false);
+  const [showBibliographyMenu, setShowBibliographyMenu] = useState(false);
+  const [showSourceManager, setShowSourceManager] = useState(false);
   const [outlineVersion, setOutlineVersion] = useState(0);
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
@@ -200,7 +212,6 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
   const remoteApplyingRef = useRef(false);
   const suppressNextSettingsEffectRef = useRef(false);
   const livePublishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const publishStepsRef = useRef<(steps: Record<string, unknown>[]) => void>(() => {});
   const syncServerVersionRef = useRef<(serverVersion?: number) => void>(() => {});
   const statusRef = useRef<"synced" | "dirty" | "offline" | "remote">("synced");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -213,6 +224,10 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
   const endnoteInputRef = useRef<HTMLInputElement | null>(null);
   const citationAuthorInputRef = useRef<HTMLInputElement | null>(null);
   const exportDocxRef = useRef<(() => void | Promise<void>) | null>(null);
+  const workareaRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const pageRef = useRef<HTMLElement | null>(null);
+  const horizontalRulerRef = useRef<HTMLDivElement | null>(null);
   const pageContentRef = useRef<HTMLDivElement | null>(null);
 
   const { storageKey, pendingKey, settingsKey } = useMemo(
@@ -321,11 +336,6 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => saveDocument(contenido), 2200);
     },
-    onTransaction: ({ transaction }) => {
-      if (remoteApplyingRef.current || !transaction.docChanged || !transaction.steps.length) return;
-      const steps = transaction.steps.map((step) => step.toJSON() as Record<string, unknown>);
-      publishStepsRef.current(steps);
-    },
   });
 
   const applyRemoteSnapshot = useCallback((snapshot: RemoteSnapshot) => {
@@ -370,7 +380,6 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
 
   const {
     publishSnapshot: publishLiveSnapshot,
-    publishSteps: publishLiveSteps,
     publishCursor,
     applyPendingSnapshot,
     syncServerVersion,
@@ -381,7 +390,7 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
     documentId: documento.id,
     currentUserName,
     canApplyRemoteSnapshot,
-    canApplyRemoteSteps: canApplyRemoteSnapshot,
+    canApplyRemoteSteps: () => false,
     onRemoteSnapshot: applyRemoteSnapshot,
     onRemoteSteps: applyRemoteSteps,
     onRemoteConflict: (conflict) => {
@@ -392,10 +401,6 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
       setStatus("remote");
     },
   });
-
-  useEffect(() => {
-    publishStepsRef.current = publishLiveSteps;
-  }, [publishLiveSteps]);
 
   useEffect(() => {
     syncServerVersionRef.current = syncServerVersion;
@@ -901,6 +906,15 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
     replaceText,
     setStatus,
   });
+  const rulerMetrics = usePageRulerMetrics(
+    {
+      pageRef,
+      canvasRef,
+      workareaRef,
+      horizontalRulerRef,
+    },
+    [Boolean(editor), page.width, page.height, zoom, showRulers, showNavigation, viewMode]
+  );
 
   if (!editor) return null;
   const wordCount = plainText.trim().split(/\s+/).filter(Boolean).length;
@@ -935,6 +949,32 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
       const element = dom instanceof HTMLElement ? dom : dom.parentElement;
       element?.scrollIntoView({ block: "center", behavior: "smooth" });
     }, 0);
+  };
+
+  const insertManualTableOfContents = () => {
+    editor.chain().focus().insertContent(
+      `<p class="ficct-toc-title">TABLA DE CONTENIDO</p><table data-type="toc-table"><tbody><tr data-toc-level="1"><td>1.</td><td>ANTECEDENTES</td><td>1</td></tr><tr data-toc-level="2"><td>1.1.</td><td>Transporte urbano en microbuses</td><td>1</td></tr><tr data-toc-level="2"><td>1.2.</td><td>Uso de sistemas de informacion geografica</td><td>1</td></tr></tbody></table>`
+    ).run();
+    setShowTocMenu(false);
+  };
+
+  const insertBibliographyWithHeading = (heading: "Bibliografia" | "Referencias" | "Trabajos citados") => {
+    if (!citations.length) {
+      editor.chain().focus().insertContent(`<h2>${heading}</h2><p>Agrega fuentes desde Administrar fuentes para generar la bibliografia.</p>`).run();
+    } else {
+      insertBibliography();
+    }
+    setShowBibliographyMenu(false);
+  };
+
+  const insertCitationFromManager = (citationId: string) => {
+    const citationIndex = citations.findIndex((item) => item.id === citationId);
+    const citation = citations[citationIndex];
+    if (!citation) return;
+    setSelectedCitationId(citationId);
+    editor.chain().focus().insertContent(
+      `<span data-citation-id="${citation.id}">${escapeHtml(formatInlineCitation(citation, bibliographyStyle, citationIndex))}</span>`
+    ).run();
   };
 
   return (
@@ -1006,10 +1046,34 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
           </button>
         </RibbonGroup>
 
+        <RibbonGroup label="Portapapeles" show={activeRibbonTab === "Inicio"}>
+          <div className="ficct-word-clipboard">
+            <button
+              className="ficct-word-paste ficct-word-paste-home"
+              type="button"
+              onClick={async () => {
+                try {
+                  const text = await navigator.clipboard.readText();
+                  if (text) editor.chain().focus().insertContent(text).run();
+                } catch {}
+              }}
+              title="Pegar"
+            >
+              <Clipboard className="w-5 h-5" />
+              <span>Pegar</span>
+            </button>
+            <div className="ficct-word-clipboard-actions">
+              <button type="button" onClick={() => document.execCommand("cut")} title="Cortar"><Scissors className="w-4 h-4" /> Cortar</button>
+              <button type="button" onClick={() => document.execCommand("copy")} title="Copiar"><Copy className="w-4 h-4" /> Copiar</button>
+              <button type="button" onClick={() => applyPresetStyle("emphasis")} title="Copiar formato"><Paintbrush className="w-4 h-4" /> Copiar formato</button>
+            </div>
+          </div>
+        </RibbonGroup>
+
         <RibbonGroup label="Fuente" show={activeRibbonTab === "Inicio"}>
           <div className="ficct-word-select-row">
             <select onChange={(e) => run(() => editor.chain().focus().setFontFamily(e.target.value).run())}>
-              {["Calibri", "Arial", "Times New Roman", "Georgia", "Verdana"].map((f) => <option key={f}>{f}</option>)}
+              {["Aptos (Cuerpo)", "Calibri", "Arial", "Times New Roman", "Georgia", "Verdana"].map((f) => <option key={f}>{f}</option>)}
             </select>
             <select onChange={(e) => run(() => (editor.chain().focus() as any).setFontSize(e.target.value).run())}>
               {["11pt", "10pt", "12pt", "14pt", "16pt", "18pt", "20pt", "24pt"].map((s) => <option key={s}>{s}</option>)}
@@ -1039,76 +1103,65 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
           <div className="ficct-word-tool-row">
             <Tool active={editor.isActive("bulletList")} onClick={() => run(() => editor.chain().focus().toggleBulletList().run())}><List className="w-4 h-4" /></Tool>
             <Tool active={editor.isActive("orderedList")} onClick={() => run(() => editor.chain().focus().toggleOrderedList().run())}><ListOrdered className="w-4 h-4" /></Tool>
+            <button onClick={() => changeIndent(-1)} className="ficct-word-tool" type="button" title="Disminuir sangría">‹</button>
+            <button onClick={() => changeIndent(1)} className="ficct-word-tool" type="button" title="Aumentar sangría">›</button>
+            <button onClick={() => setNumberHeadings((v) => !v)} className={numberHeadings ? "ficct-word-tool active" : "ficct-word-tool"} type="button" title="Numerar títulos">1.1</button>
+          </div>
+          <div className="ficct-word-tool-row">
             <Tool onClick={() => run(() => editor.chain().focus().setTextAlign("left").run())}><AlignLeft className="w-4 h-4" /></Tool>
             <Tool onClick={() => run(() => editor.chain().focus().setTextAlign("center").run())}><AlignCenter className="w-4 h-4" /></Tool>
             <Tool onClick={() => run(() => editor.chain().focus().setTextAlign("right").run())}><AlignRight className="w-4 h-4" /></Tool>
             <Tool onClick={() => run(() => editor.chain().focus().setTextAlign("justify").run())}><AlignJustify className="w-4 h-4" /></Tool>
             <Tool active={editor.isActive("blockquote")} onClick={() => run(() => editor.chain().focus().toggleBlockquote().run())}><Quote className="w-4 h-4" /></Tool>
-          </div>
-          <div className="ficct-word-tool-row">
-            <button onClick={() => changeIndent(-1)} className="ficct-word-toggle" type="button">Sang -</button>
-            <button onClick={() => changeIndent(1)} className="ficct-word-toggle" type="button">Sang +</button>
             <select value={lineHeight} onChange={(e) => applyLineHeight(e.target.value as LineHeight)} className="ficct-word-line-select">
               <option value="1">1.0</option>
               <option value="1.15">1.15</option>
               <option value="1.5">1.5</option>
               <option value="2">2.0</option>
             </select>
-            <input className="ficct-word-spacing-input" type="number" min={0} max={72} value={paragraphSpacingBefore} onChange={(e) => setParagraphSpacingBefore(Number(e.target.value) || 0)} title="Espaciado antes" />
-            <input className="ficct-word-spacing-input" type="number" min={0} max={72} value={paragraphSpacingAfter} onChange={(e) => setParagraphSpacingAfter(Number(e.target.value) || 0)} title="Espaciado despues" />
-            <button onClick={applyParagraphSpacing} className="ficct-word-toggle" type="button">Esp.</button>
-            <input className="ficct-word-spacing-input" type="color" value={paragraphShadingColor} onChange={(e) => setParagraphShadingColor(e.target.value)} title="Sombreado de parrafo" />
-            <button onClick={applyParagraphShading} className="ficct-word-toggle" type="button">Somb.</button>
-            <button onClick={toggleParagraphBorder} className="ficct-word-toggle" type="button">Borde</button>
-            <input className="ficct-word-spacing-input" type="number" min={0.1} max={7.5} step={0.1} value={tabStopPosition} onChange={(e) => setTabStopPosition(Number(e.target.value) || 1)} title="Tabulacion en pulgadas" />
-            <select value={tabStopKind} onChange={(e) => setTabStopKind(e.target.value as TabStopKind)} className="ficct-word-line-select" title="Tipo de tabulacion">
-              <option value="left">Izq.</option>
-              <option value="center">Centro</option>
-              <option value="right">Der.</option>
-              <option value="decimal">Decimal</option>
-            </select>
-            <select value={tabStopLeader} onChange={(e) => setTabStopLeader(e.target.value as TabLeaderKind)} className="ficct-word-line-select" title="Relleno de tabulacion">
-              <option value="none">Sin relleno</option>
-              <option value="dot">Puntos</option>
-              <option value="hyphen">Guiones</option>
-              <option value="underscore">Linea</option>
-            </select>
-            <button onClick={applyTabStop} className="ficct-word-toggle" type="button">Tab</button>
-            <button onClick={clearTabStops} className="ficct-word-toggle" type="button">Tab -</button>
-            <button onClick={() => setNumberHeadings((v) => !v)} className={numberHeadings ? "ficct-word-toggle active" : "ficct-word-toggle"} type="button">
-              Numerar títulos
-            </button>
+            <input className="ficct-word-swatch" type="color" value={paragraphShadingColor} onChange={(e) => {
+              setParagraphShadingColor(e.target.value);
+              setTimeout(applyParagraphShading, 0);
+            }} title="Sombreado" />
+            <button onClick={toggleParagraphBorder} className="ficct-word-tool" type="button" title="Bordes">□</button>
             <Tool onClick={() => run(() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}><TableIcon className="w-4 h-4" /></Tool>
           </div>
         </RibbonGroup>
 
         <RibbonGroup label="Estilos" show={activeRibbonTab === "Inicio"}>
-          <div className="ficct-word-style-row">
+          <div className="ficct-word-style-gallery">
+            <button onClick={() => applyPresetStyle("quote")} type="button">
+              <span className="sample apa">AaBbCc</span>
+              <small>APA7</small>
+            </button>
+            <button className={editor.isActive("paragraph") ? "active" : ""} onClick={() => run(() => editor.chain().focus().setParagraph().run())} type="button">
+              <span className="sample normal">AaBbCc</span>
+              <small>Normal</small>
+            </button>
+            <button onClick={() => applyPresetStyle("emphasis")} type="button">
+              <span className="sample plain">AaBbCc</span>
+              <small>Sin espa...</small>
+            </button>
             <button className={editor.isActive("heading", { level: 1 }) ? "active" : ""} onClick={() => run(() => editor.chain().focus().toggleHeading({ level: 1 }).run())} type="button">
-              <Heading1 className="w-4 h-4" /> Título 1
+              <span className="sample title-one">AaBbCc</span>
+              <small>Título 1</small>
             </button>
             <button className={editor.isActive("heading", { level: 2 }) ? "active" : ""} onClick={() => run(() => editor.chain().focus().toggleHeading({ level: 2 }).run())} type="button">
-              <Heading2 className="w-4 h-4" /> Título 2
+              <span className="sample title-two">AaBbCc</span>
+              <small>Título 2</small>
             </button>
-          </div>
-          <div className="ficct-word-mini-style-row">
-            <button onClick={() => applyPresetStyle("title")} type="button">Titulo</button>
-            <button onClick={() => applyPresetStyle("subtitle")} type="button">Subtitulo</button>
-            <button onClick={() => applyPresetStyle("emphasis")} type="button">Enfasis</button>
-            <button onClick={() => applyPresetStyle("quote")} type="button">Cita</button>
-          </div>
-          <div className="ficct-word-custom-style-row">
-            <input value={styleName} onChange={(e) => setStyleName(e.target.value)} placeholder="Nuevo estilo" />
-            <button onClick={saveCustomStyle} type="button">Guardar</button>
-            <select value={selectedCustomStyleId} onChange={(e) => {
-              setSelectedCustomStyleId(e.target.value);
-              const style = customStyles.find((item) => item.id === e.target.value);
-              if (style) applyCustomStyle(style);
-            }}>
-              <option value="">Aplicar</option>
-              {customStyles.map((style) => <option key={style.id} value={style.id}>{style.name}</option>)}
-            </select>
-            <button onClick={deleteSelectedCustomStyle} type="button">Quitar</button>
+            <button onClick={() => applyPresetStyle("title")} type="button">
+              <span className="sample title-main">AaB</span>
+              <small>Título</small>
+            </button>
+            <button onClick={() => applyPresetStyle("subtitle")} type="button">
+              <span className="sample subtitle">AaBbCc</span>
+              <small>Subtítulo</small>
+            </button>
+            <button onClick={() => applyPresetStyle("quote")} type="button">
+              <span className="sample quote">AaBbCcDd</span>
+              <small>Énfasis sutil</small>
+            </button>
           </div>
         </RibbonGroup>
 
@@ -1166,64 +1219,75 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
           </div>
         </RibbonGroup>
 
-        <RibbonGroup label="Referencias" show={activeRibbonTab === "Referencias"}>
-          <div className="ficct-word-citation-grid">
-            <select value={bibliographyStyle} onChange={(e) => setBibliographyStyle(e.target.value as BibliographyStyle)} title="Estilo bibliografico">
-              <option value="apa">APA</option>
-              <option value="ieee">IEEE</option>
-              <option value="mla">MLA</option>
-            </select>
-            <select value={citationDraft.sourceType} onChange={(e) => setCitationDraft((value) => ({ ...value, sourceType: e.target.value as CitationSourceType }))} title="Tipo de fuente">
-              <option value="book">Libro</option>
-              <option value="journal">Articulo</option>
-              <option value="web">Web</option>
-              <option value="conference">Congreso</option>
-              <option value="thesis">Tesis</option>
-              <option value="report">Informe</option>
-            </select>
-            <input ref={citationAuthorInputRef} value={citationDraft.author} onChange={(e) => setCitationDraft((value) => ({ ...value, author: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Autor" />
-            <input value={citationDraft.year} onChange={(e) => setCitationDraft((value) => ({ ...value, year: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Año" />
-            <input value={citationDraft.title} onChange={(e) => setCitationDraft((value) => ({ ...value, title: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Titulo" />
-            <input value={citationDraft.source} onChange={(e) => setCitationDraft((value) => ({ ...value, source: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Fuente" />
-            <input value={citationDraft.publisher || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, publisher: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Editorial" />
-            <input value={citationDraft.city || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, city: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Ciudad" />
-            <input value={citationDraft.journal || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, journal: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Revista" />
-            <input value={citationDraft.volume || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, volume: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Vol." />
-            <input value={citationDraft.issue || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, issue: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Num." />
-            <input value={citationDraft.pages || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, pages: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Paginas" />
-            <input value={citationDraft.doi || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, doi: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="DOI" />
-            <input value={citationDraft.url || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, url: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="URL" />
-            <input value={citationDraft.accessedAt || ""} onChange={(e) => setCitationDraft((value) => ({ ...value, accessedAt: e.target.value }))} onKeyDown={(e) => runOnEnter(e, insertCitation)} placeholder="Consultado" />
-            <button onClick={insertCitation} type="button"><Quote className="w-4 h-4" /> Cita</button>
-            <select value={selectedCitationId} onChange={(e) => setSelectedCitationId(e.target.value)} title="Fuentes guardadas">
-              <option value="">Fuente guardada</option>
-              {citations.map((citation, index) => (
-                <option key={citation.id} value={citation.id}>{index + 1}. {citation.author} ({citation.year})</option>
-              ))}
-            </select>
-            <button onClick={insertExistingCitation} type="button">Citar fuente</button>
-            <button onClick={removeSelectedCitation} type="button">Quitar fuente</button>
-            <button onClick={insertBibliography} type="button"><BookOpen className="w-4 h-4" /> Bibliografia</button>
-            <button onClick={insertTableOfContents} type="button"><BookOpen className="w-4 h-4" /> Indice</button>
-            <select value={captionKind} onChange={(e) => setCaptionKind(e.target.value as CaptionKind)}>
-              <option value="Figura">Figura</option>
-              <option value="Tabla">Tabla</option>
-              <option value="Ecuacion">Ecuacion</option>
-            </select>
-            <input value={captionDraft} onChange={(e) => setCaptionDraft(e.target.value)} placeholder="Rotulo" />
-            <button onClick={insertCaption} type="button">Rotulo</button>
-            <button onClick={insertTableOfFigures} type="button">Tabla ilustraciones</button>
-            <input value={bookmarkName} onChange={(e) => setBookmarkName(e.target.value)} placeholder="Marcador" />
-            <button onClick={insertBookmark} type="button">Marcar</button>
-            <select value={crossReferenceTarget} onChange={(e) => setCrossReferenceTarget(e.target.value)}>
-              <option value="">Referencia</option>
-              {bookmarkTargets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}
-            </select>
-            <select value={crossReferenceKind} onChange={(e) => setCrossReferenceKind(e.target.value as CrossReferenceKind)}>
-              <option value="texto">Texto</option>
-              <option value="pagina">Pagina</option>
-            </select>
-            <button onClick={insertCrossReference} type="button">Ref cruzada</button>
+        <RibbonGroup label="Tabla de contenido" show={activeRibbonTab === "Referencias"}>
+          <div className="ficct-word-reference-group">
+            <div className="ficct-word-menu-anchor">
+              <button className="ficct-word-reference-big" onClick={() => setShowTocMenu((value) => !value)} type="button">
+                <FileText className="w-7 h-7" />
+                <span>Tabla de contenido</span>
+              </button>
+              {showTocMenu && (
+                <div className="ficct-word-dropdown ficct-toc-dropdown">
+                  <strong>Integrado</strong>
+                  <button type="button" onClick={() => { insertTableOfContents(); setShowTocMenu(false); }}>
+                    <span>Tabla automatica 1</span>
+                    <small>Contenido<br />Titulo 1........................................1<br />Titulo 2........................................1</small>
+                  </button>
+                  <button type="button" onClick={() => { insertTableOfContents(); setShowTocMenu(false); }}>
+                    <span>Tabla automatica 2</span>
+                    <small>Tabla de contenido<br />Titulo 1........................................1<br />Titulo 2........................................1</small>
+                  </button>
+                  <button type="button" onClick={insertManualTableOfContents}>
+                    <span>Tabla manual</span>
+                    <small>Escribir el titulo del capitulo..............1</small>
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="ficct-word-reference-stack">
+              <button type="button" onClick={insertTableOfContents}>Agregar texto</button>
+              <button type="button" onClick={insertTableOfContents}>Actualizar tabla</button>
+            </div>
+          </div>
+        </RibbonGroup>
+
+        <RibbonGroup label="Citas y bibliografía" show={activeRibbonTab === "Referencias"}>
+          <div className="ficct-word-citations-ribbon">
+            <button className="ficct-word-reference-big" onClick={insertCitation} type="button">
+              <Quote className="w-7 h-7" />
+              <span>Insertar cita</span>
+            </button>
+            <div className="ficct-word-reference-stack">
+              <button type="button" onClick={() => setShowSourceManager(true)}>Administrar fuentes</button>
+              <label>
+                <span>Estilo:</span>
+                <select value={bibliographyStyle} onChange={(e) => setBibliographyStyle(e.target.value as BibliographyStyle)} title="Estilo bibliografico">
+                  <option value="apa">APA</option>
+                  <option value="ieee">IEEE</option>
+                  <option value="mla">MLA</option>
+                </select>
+              </label>
+              <div className="ficct-word-menu-anchor">
+                <button type="button" onClick={() => setShowBibliographyMenu((value) => !value)}>Bibliografía</button>
+                {showBibliographyMenu && (
+                  <div className="ficct-word-dropdown ficct-bibliography-dropdown">
+                    <strong>Integrado</strong>
+                    <button type="button" onClick={() => insertBibliographyWithHeading("Bibliografia")}>
+                      <span>Bibliografía</span>
+                      <small>Benito, A. (2003). Citas y referencias...</small>
+                    </button>
+                    <button type="button" onClick={() => insertBibliographyWithHeading("Referencias")}>
+                      <span>Referencias</span>
+                      <small>Garcia, M. (2006). Como escribir una bibliografia...</small>
+                    </button>
+                    <button type="button" onClick={() => insertBibliographyWithHeading("Trabajos citados")}>
+                      <span>Trabajos citados</span>
+                      <small>Lopez, A. (2005). Crear una publicacion formal...</small>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </RibbonGroup>
 
@@ -1248,7 +1312,7 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
           </div>
         </RibbonGroup>
 
-        <RibbonGroup label="Notas" show={activeRibbonTab === "Referencias"}>
+        <RibbonGroup label="Notas" show={false}>
           <div className="ficct-word-link-tools">
             <input ref={footnoteInputRef} value={footnoteDraft} onChange={(e) => setFootnoteDraft(e.target.value)} onKeyDown={(e) => runOnEnter(e, insertFootnote)} placeholder="Nota al pie" />
             <button onClick={insertFootnote} type="button">Pie</button>
@@ -1444,19 +1508,30 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
       </section>
 
       {showRulers && (
-        <div className="ficct-word-ruler-row">
-          <div className="ficct-word-ruler-corner" />
-          <div className="ficct-word-ruler" style={{ width: `${page.width}in` }}>
-            {Array.from({ length: Math.ceil(page.width * 2) }).map((_, i) => <span key={i}>{i + 1}</span>)}
-          </div>
-        </div>
+        <HorizontalPageRuler
+          pageWidthIn={page.width}
+          margins={margins}
+          metrics={rulerMetrics}
+          rulerRef={horizontalRulerRef}
+          onMarginsChange={setMargins}
+        />
       )}
 
-      <div className={showRulers ? "ficct-word-workarea" : "ficct-word-workarea no-rulers"}>
+      <div
+        ref={workareaRef}
+        className={[
+          "ficct-word-workarea",
+          showRulers ? "" : "no-rulers",
+          showNavigation ? "with-navigation" : "without-navigation",
+        ].filter(Boolean).join(" ")}
+      >
         {showRulers && (
-          <aside className="ficct-word-vertical-ruler">
-            {Array.from({ length: Math.ceil(page.height) }).map((_, i) => <span key={i}>{i + 1}</span>)}
-          </aside>
+          <VerticalPageRuler
+            pageHeightIn={page.height}
+            margins={margins}
+            metrics={rulerMetrics}
+            onMarginsChange={setMargins}
+          />
         )}
         {showNavigation && (
           <aside className="ficct-navigation-panel">
@@ -1477,8 +1552,9 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
             ))}
           </aside>
         )}
-        <div className={`ficct-word-canvas ficct-view-${viewMode}`}>
+        <div ref={canvasRef} className={`ficct-word-canvas ficct-view-${viewMode}`}>
           <main
+            ref={pageRef}
             className={`ficct-word-page ficct-table-${tableStyle} ficct-columns-${pageColumns} ficct-view-page-${viewMode} ${showGridlines ? "ficct-gridlines" : ""} ${lineNumbers ? "ficct-line-numbers" : ""} ${pageBorder ? "ficct-page-bordered" : ""} ${numberHeadings ? "numbered-headings" : ""}`}
             style={{
               width: `${page.width}in`,
@@ -1588,6 +1664,15 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
           )}
         </div>
       </div>
+
+      <ReferenceSourceManager
+        open={showSourceManager}
+        citations={citations}
+        bibliographyStyle={bibliographyStyle}
+        onClose={() => setShowSourceManager(false)}
+        onCitationsChange={setCitations}
+        onInsertCitation={insertCitationFromManager}
+      />
 
       <footer className="ficct-word-statusbar">
         <span>Página 1 de {pageCount}</span>

@@ -21,6 +21,9 @@ public class ConvocatoriaDTO {
     private EstadoConvocatoria estado;
     private LocalDate fechaCierre;
     private String tamanoEquipo;
+    private boolean inscripcionGrupal;
+    private Integer minIntegrantesGrupo;
+    private Integer maxIntegrantesGrupo;
     private String imagenPortada;
     private Long creadorId;
     private String creadorNombre;
@@ -50,6 +53,9 @@ public class ConvocatoriaDTO {
         this.estado = c.getEstado();
         this.fechaCierre = c.getFechaCierre();
         this.tamanoEquipo = c.getTamanoEquipo();
+        this.inscripcionGrupal = c.isInscripcionGrupal();
+        this.minIntegrantesGrupo = c.getMinIntegrantesGrupo();
+        this.maxIntegrantesGrupo = c.getMaxIntegrantesGrupo();
         this.imagenPortada = c.getImagenPortada();
         if (c.getCreador() != null) {
             this.creadorId = c.getCreador().getId();
@@ -153,6 +159,30 @@ public class ConvocatoriaDTO {
 
     public void setTamanoEquipo(String tamanoEquipo) {
         this.tamanoEquipo = tamanoEquipo;
+    }
+
+    public boolean isInscripcionGrupal() {
+        return inscripcionGrupal;
+    }
+
+    public void setInscripcionGrupal(boolean inscripcionGrupal) {
+        this.inscripcionGrupal = inscripcionGrupal;
+    }
+
+    public Integer getMinIntegrantesGrupo() {
+        return minIntegrantesGrupo;
+    }
+
+    public void setMinIntegrantesGrupo(Integer minIntegrantesGrupo) {
+        this.minIntegrantesGrupo = minIntegrantesGrupo;
+    }
+
+    public Integer getMaxIntegrantesGrupo() {
+        return maxIntegrantesGrupo;
+    }
+
+    public void setMaxIntegrantesGrupo(Integer maxIntegrantesGrupo) {
+        this.maxIntegrantesGrupo = maxIntegrantesGrupo;
     }
 
     public String getImagenPortada() {

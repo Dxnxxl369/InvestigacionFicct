@@ -175,30 +175,13 @@ export function useDocumentRealtime({
             if (data.type === "steps") {
               const serverVersion = typeof data.serverVersion === "number" ? data.serverVersion : undefined;
               if (serverVersion !== undefined && serverVersion <= liveVersionRef.current) return;
+              confirmServerVersion(serverVersion, liveVersionRef, optimisticLiveVersionRef, optimisticTimerRef);
               if (data.sessionId === sessionIdRef.current) {
-                confirmServerVersion(serverVersion, liveVersionRef, optimisticLiveVersionRef, optimisticTimerRef);
                 return;
               }
-              const remoteSteps: RemoteSteps = {
-                steps: Array.isArray(data.steps) ? data.steps : [],
-                usuario: normalizeRealtimeUserLabel(data.usuario),
-                at: data.at,
-                serverVersion,
-                stale: Boolean(data.stale),
-              };
-              if (!remoteSteps.steps.length) return;
-              if (!remoteSteps.stale && callbacksRef.current.canApplyRemoteSteps() && callbacksRef.current.onRemoteSteps(remoteSteps)) {
-                confirmServerVersion(remoteSteps.serverVersion, liveVersionRef, optimisticLiveVersionRef, optimisticTimerRef);
-                return;
-              }
-              pendingSnapshotRef.current = null;
-              callbacksRef.current.onRemoteConflict({
-                source: "steps",
-                usuario: remoteSteps.usuario,
-                at: remoteSteps.at,
-                serverVersion: remoteSteps.serverVersion,
-                hasPendingSnapshot: false,
-              });
+              // Incremental ProseMirror steps are unsafe without CRDT/rebase support:
+              // positions drift when another client inserts paragraphs or line breaks.
+              // We keep version tracking, but rely on debounced snapshots for content sync.
               return;
             }
             if (data.type !== "snapshot") return;

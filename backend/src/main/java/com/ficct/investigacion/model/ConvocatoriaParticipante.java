@@ -1,6 +1,7 @@
 package com.ficct.investigacion.model;
 
 import jakarta.persistence.*;
+import org.hibernate.Hibernate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -219,7 +220,11 @@ public class ConvocatoriaParticipante {
             if (this.grupos == null) {
                 this.grupos = new ArrayList<>();
             }
-            if (this.grupos.stream().noneMatch(g -> g.getId().equals(grupo.getId()))) {
+            if (!Hibernate.isInitialized(this.grupos)) {
+                this.nombreEquipo = grupo.getNombre();
+                return;
+            }
+            if (this.grupos.stream().noneMatch(g -> mismoGrupo(g, grupo))) {
                 this.grupos.add(grupo);
             }
             actualizarNombreEquipoDesdeGrupos();
@@ -248,7 +253,7 @@ public class ConvocatoriaParticipante {
         if (this.grupos == null) {
             this.grupos = new ArrayList<>();
         }
-        if (this.grupos.stream().noneMatch(existing -> existing.getId().equals(g.getId()))) {
+        if (this.grupos.stream().noneMatch(existing -> mismoGrupo(existing, g))) {
             this.grupos.add(g);
         }
         this.grupo = g;
@@ -258,13 +263,17 @@ public class ConvocatoriaParticipante {
     public void removerGrupo(Long grupoId) {
         if (grupoId == null || this.grupos == null) return;
         this.grupos.removeIf(g -> g.getId().equals(grupoId));
-        if (this.grupo != null && this.grupo.getId().equals(grupoId)) {
+        if (this.grupo != null && grupoId.equals(this.grupo.getId())) {
             this.grupo = this.grupos.isEmpty() ? null : this.grupos.get(this.grupos.size() - 1);
         }
         actualizarNombreEquipoDesdeGrupos();
     }
 
     public void actualizarNombreEquipoDesdeGrupos() {
+        if (this.grupos != null && !Hibernate.isInitialized(this.grupos)) {
+            this.nombreEquipo = this.grupo != null ? this.grupo.getNombre() : this.nombreEquipo;
+            return;
+        }
         if (this.grupos == null || this.grupos.isEmpty()) {
             this.nombreEquipo = null;
             this.grupo = null;
@@ -276,9 +285,21 @@ public class ConvocatoriaParticipante {
                     .sorted(String.CASE_INSENSITIVE_ORDER)
                     .collect(Collectors.joining(", "));
             this.nombreEquipo = nombres.isEmpty() ? null : nombres;
-            if (this.grupo == null || this.grupos.stream().noneMatch(g -> g.getId().equals(this.grupo.getId()))) {
+            if (this.grupo == null || this.grupos.stream().noneMatch(g -> mismoGrupo(g, this.grupo))) {
                 this.grupo = this.grupos.get(this.grupos.size() - 1);
             }
         }
+    }
+
+    private boolean mismoGrupo(Grupo a, Grupo b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a == b) {
+            return true;
+        }
+        Long aId = a.getId();
+        Long bId = b.getId();
+        return aId != null && bId != null && aId.equals(bId);
     }
 }

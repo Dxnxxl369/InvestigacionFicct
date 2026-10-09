@@ -18,6 +18,8 @@ export default function InscripcionModal({
   toast,
 }: InscripcionModalProps) {
   const [nombreEquipo, setNombreEquipo] = useState("");
+  const [numeroGrupo, setNumeroGrupo] = useState<number | "">("");
+  const [integrantesEmails, setIntegrantesEmails] = useState<string[]>([""]);
   const [inscribiendo, setInscribiendo] = useState(false);
 
   if (!isOpen) return null;
@@ -26,14 +28,21 @@ export default function InscripcionModal({
     e.preventDefault();
     try {
       setInscribiendo(true);
+      const esGrupal = Boolean(convocatoria.inscripcionGrupal);
       await api.inscribirseConvocatoria(convocatoria.id, {
         nombreEquipo: nombreEquipo.trim() || undefined,
+        numeroGrupo: numeroGrupo ? Number(numeroGrupo) : undefined,
+        integrantesEmails: esGrupal
+          ? integrantesEmails.map((email) => email.trim()).filter(Boolean)
+          : undefined,
       });
       toast(
         "¡Solicitud enviada exitosamente! Tu postulación se encuentra en revisión por el docente encargado.",
         "success"
       );
       setNombreEquipo("");
+      setNumeroGrupo("");
+      setIntegrantesEmails([""]);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -70,6 +79,48 @@ export default function InscripcionModal({
               className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
             />
           </div>
+
+          {convocatoria.inscripcionGrupal && (
+            <div className="p-3 bg-paper-sunken/70 border border-line rounded-xl space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <label className="font-semibold text-ink block mb-1">Número de grupo</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={numeroGrupo}
+                    onChange={(e) => setNumeroGrupo(e.target.value ? Number(e.target.value) : "")}
+                    placeholder="Ej. 1"
+                    className="w-28 px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <span className="text-[10px] text-ink-faint text-right">
+                  Integrantes permitidos: {convocatoria.minIntegrantesGrupo || 1} a {convocatoria.maxIntegrantesGrupo || 5}. Tu usuario ya cuenta como integrante.
+                </span>
+              </div>
+              <div className="space-y-2">
+                <label className="font-semibold text-ink block">Correos de compañeros</label>
+                {integrantesEmails.map((email, index) => (
+                  <input
+                    key={index}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setIntegrantesEmails((prev) => prev.map((item, i) => i === index ? e.target.value : item))}
+                    placeholder="correo@ficct.edu.bo"
+                    className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setIntegrantesEmails((prev) => [...prev, ""])}
+                  disabled={integrantesEmails.length + 1 >= (convocatoria.maxIntegrantesGrupo || 5)}
+                  className="text-[11px] font-semibold text-accent disabled:text-ink-faint"
+                >
+                  + Agregar compañero
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
             <button

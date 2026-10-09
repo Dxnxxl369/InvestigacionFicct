@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { User, authAPI, AuthResponse, permisosAPI, RolPermisoDTO } from "@/lib/api";
 
 interface AuthContextType {
@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<
     Record<string, { puedeVer: boolean; puedeEditar: boolean }>
   >({});
+  const sessionVersionRef = useRef(0);
 
   const loadPermissionsForRole = async (rol: string) => {
     try {
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const savedToken = localStorage.getItem("auth_token");
     const savedUser = localStorage.getItem("auth_user");
+    const sessionVersion = sessionVersionRef.current;
 
     if (savedToken && savedUser) {
       try {
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authAPI
           .getProfile()
           .then((freshUser) => {
+            if (sessionVersionRef.current !== sessionVersion || localStorage.getItem("auth_token") !== savedToken) return;
             if (!freshUser || freshUser.estado === "SUSPENDIDO") {
               logout();
               window.location.href = "/login?error=suspended";
@@ -88,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             loadPermissionsForRole(freshUser.rol);
           })
           .catch(() => {
+            if (sessionVersionRef.current !== sessionVersion || localStorage.getItem("auth_token") !== savedToken) return;
             logout();
             window.location.href = "/login?error=suspended";
           })
@@ -105,11 +109,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Heartbeat reactivo cada 4 segundos: detecta baneos y cambios de rol en vivo sin esperar F5 ni cierre de sesión
   useEffect(() => {
     if (!token || !user) return;
+    const sessionVersion = sessionVersionRef.current;
+    const activeToken = token;
 
     const interval = setInterval(() => {
       authAPI
         .getProfile()
         .then((freshUser) => {
+          if (sessionVersionRef.current !== sessionVersion || localStorage.getItem("auth_token") !== activeToken) return;
           if (!freshUser || freshUser.estado === "SUSPENDIDO") {
             logout();
             window.location.href = "/login?error=suspended";
@@ -122,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         })
         .catch(() => {
+          if (sessionVersionRef.current !== sessionVersion || localStorage.getItem("auth_token") !== activeToken) return;
           logout();
           window.location.href = "/login?error=suspended";
         });
@@ -132,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<AuthResponse> => {
     const res = await authAPI.login(email, password);
+    sessionVersionRef.current += 1;
     const u: User = {
       id: res.id,
       nombre: res.nombre,
@@ -153,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setAuthSession = (newToken: string, newUser: User) => {
+    sessionVersionRef.current += 1;
     setToken(newToken);
     setUser(newUser);
     localStorage.setItem("auth_token", newToken);
@@ -160,13 +170,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadPermissionsForRole(newUser.rol);
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    sessionVersionRef.current += 1;
     setToken(null);
     setUser(null);
     setPermissions({});
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_user");
-  };
+    localStorage.removeItem("token");
+  }, []);
 
   const refreshProfile = async () => {
     try {

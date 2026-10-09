@@ -139,13 +139,19 @@ export function useReferenceActions({
     const insertTableOfContents = () => {
       if (!editor) return;
       const parsed = new DOMParser().parseFromString(editor.getHTML(), "text/html");
-      const headings = Array.from(parsed.querySelectorAll("h1,h2,h3"))
-        .map((heading) => ({ level: heading.tagName.toLowerCase(), text: heading.textContent?.trim() || "" }))
-        .filter((heading) => heading.text);
+      const headings = numberedTocEntries(parsed);
       const items = headings.length
-        ? headings.map((heading) => `<li class="ficct-toc-${heading.level}">${escapeHtml(heading.text)}</li>`).join("")
-        : "<li>Sin titulos todavia</li>";
-      editor.chain().focus().insertContent(`<h2>Tabla de contenido</h2><ol class="ficct-toc">${items}</ol>`).run();
+        ? headings.map((heading) => (
+          `<tr data-toc-level="${heading.level}">` +
+          `<td>${escapeHtml(heading.label)}</td>` +
+          `<td>${escapeHtml(heading.displayText)}</td>` +
+          `<td>${heading.page}</td>` +
+          `</tr>`
+        )).join("")
+        : `<tr data-toc-level="1"><td></td><td>Sin titulos todavia</td><td>1</td></tr>`;
+      editor.chain().focus().insertContent(
+        `<p class="ficct-toc-title">TABLA DE CONTENIDO</p><table data-type="toc-table"><tbody>${items}</tbody></table>`
+      ).run();
       markDirty();
     };
 
@@ -269,4 +275,28 @@ export function useReferenceActions({
     setSelectedCitationId,
     setStatus,
   ]);
+}
+
+function numberedTocEntries(parsed: Document) {
+  const counters = [0, 0, 0];
+  return Array.from(parsed.querySelectorAll("h1,h2,h3"))
+    .map((heading) => {
+      const level = Number(heading.tagName.slice(1));
+      const rawText = heading.textContent?.replace(/\s+/g, " ").trim() || "";
+      const text = rawText.replace(/^\d+(?:\.\d+)*\.?\s+/, "");
+      if (!text || /^tabla de contenido$/i.test(text)) return null;
+      if (heading.closest(".ficct-toc")) return null;
+      counters[level - 1] += 1;
+      for (let index = level; index < counters.length; index += 1) counters[index] = 0;
+      const number = counters.slice(0, level).filter((value) => value > 0).join(".");
+      return {
+        level,
+        number,
+        label: `${number}.`,
+        text,
+        displayText: level === 1 ? text.toLocaleUpperCase() : text,
+        page: "1",
+      };
+    })
+    .filter((entry): entry is { level: number; number: string; label: string; text: string; displayText: string; page: string } => Boolean(entry));
 }

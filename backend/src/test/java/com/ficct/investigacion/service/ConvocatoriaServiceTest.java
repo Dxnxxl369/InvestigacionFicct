@@ -5,6 +5,7 @@ import com.ficct.investigacion.dto.ConvocatoriaRequest;
 import com.ficct.investigacion.model.*;
 import com.ficct.investigacion.repository.ConvocatoriaRepository;
 import com.ficct.investigacion.repository.ConvocatoriaParticipanteRepository;
+import com.ficct.investigacion.repository.GrupoRepository;
 import com.ficct.investigacion.repository.RequisitoRepository;
 import com.ficct.investigacion.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,9 @@ class ConvocatoriaServiceTest {
 
     @Mock
     private RequisitoRepository requisitoRepository;
+
+    @Mock
+    private GrupoRepository grupoRepository;
 
     @Mock
     private NotificacionService notificacionService;

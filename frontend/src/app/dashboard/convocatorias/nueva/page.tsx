@@ -67,6 +67,7 @@ export default function NuevaConvocatoriaPage() {
   const [imagenNombre, setImagenNombre] = useState<string>("");
 
   const [fechaFinInscripcion, setFechaFinInscripcion] = useState("2026-10-30");
+  const [inscripcionGrupal, setInscripcionGrupal] = useState(false);
   const [cuposMinEquipo, setCuposMinEquipo] = useState(1);
   const [cuposMaxEquipo, setCuposMaxEquipo] = useState(4);
 
@@ -122,6 +123,7 @@ export default function NuevaConvocatoriaPage() {
         if (d.descripcion !== undefined) setDescripcion(d.descripcion);
         if (d.tipo) setTipo(d.tipo);
         if (d.fechaFinInscripcion) setFechaFinInscripcion(d.fechaFinInscripcion);
+        if (typeof d.inscripcionGrupal === "boolean") setInscripcionGrupal(d.inscripcionGrupal);
         if (d.cuposMinEquipo) setCuposMinEquipo(d.cuposMinEquipo);
         if (d.cuposMaxEquipo) setCuposMaxEquipo(d.cuposMaxEquipo);
         if (d.requisitos) setRequisitos(d.requisitos);
@@ -148,6 +150,7 @@ export default function NuevaConvocatoriaPage() {
       descripcion,
       tipo,
       fechaFinInscripcion,
+      inscripcionGrupal,
       cuposMinEquipo,
       cuposMaxEquipo,
       requisitos,
@@ -169,6 +172,7 @@ export default function NuevaConvocatoriaPage() {
     descripcion,
     tipo,
     fechaFinInscripcion,
+    inscripcionGrupal,
     cuposMinEquipo,
     cuposMaxEquipo,
     requisitos,
@@ -186,6 +190,7 @@ export default function NuevaConvocatoriaPage() {
       setDescripcion("Exposición anual de proyectos estudiantiles de todas las carreras de la facultad.");
       setTipo("FERIA");
       setFechaFinInscripcion("2026-10-30");
+      setInscripcionGrupal(false);
       setCuposMinEquipo(1);
       setCuposMaxEquipo(4);
       setRequisitos([
@@ -277,6 +282,9 @@ export default function NuevaConvocatoriaPage() {
         descripcion: descripcion.trim(),
         tipo,
         fechaCierre: fechaFinInscripcion || undefined,
+        inscripcionGrupal,
+        minIntegrantesGrupo: cuposMinEquipo,
+        maxIntegrantesGrupo: cuposMaxEquipo,
         tamanoEquipo:
           cuposMinEquipo === cuposMaxEquipo
             ? `Hasta ${cuposMaxEquipo} integrantes`
@@ -832,7 +840,21 @@ export default function NuevaConvocatoriaPage() {
 
               <div>
                 <label className="block text-xs font-medium text-ink-soft mb-1.5">
-                  Tamaño de equipo (Integrantes)
+                  Modo y tamaño de equipo
+                </label>
+                <label className="mb-2 flex items-center justify-between gap-3 rounded-md border border-line bg-paper-sunken px-3 py-2 text-xs text-ink">
+                  <span>
+                    <b>Inscripción por grupos</b>
+                    <span className="block text-[11px] text-ink-faint">
+                      Los estudiantes postulan con número/nombre de grupo e integrantes.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={inscripcionGrupal}
+                    onChange={(e) => setInscripcionGrupal(e.target.checked)}
+                    className="h-4 w-4 accent-accent"
+                  />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -840,7 +862,7 @@ export default function NuevaConvocatoriaPage() {
                     <input
                       type="number"
                       min={1}
-                      max={15}
+                      max={5}
                       value={cuposMinEquipo}
                       onChange={(e) => setCuposMinEquipo(Number(e.target.value) || 1)}
                       placeholder="Min"
@@ -852,7 +874,7 @@ export default function NuevaConvocatoriaPage() {
                     <input
                       type="number"
                       min={1}
-                      max={15}
+                      max={5}
                       value={cuposMaxEquipo}
                       onChange={(e) => setCuposMaxEquipo(Number(e.target.value) || 1)}
                       placeholder="Max"

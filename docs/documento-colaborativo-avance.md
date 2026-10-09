@@ -706,3 +706,51 @@
     - Backend: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` completo 42 pruebas sin fallos.
     - Frontend licencias: `npm run license:check` reviso 214 paquetes instalados sin AGPL/GPL/LGPL.
     - Backend licencias: `powershell -ExecutionPolicy Bypass -File scripts/check-licenses.ps1` reviso 78 dependencias runtime Maven sin AGPL/GPL/LGPL obligatorio.
+- Inscripcion grupal a eventos:
+  - Se agrego configuracion formal de convocatoria para distinguir inscripcion individual y grupal.
+  - La convocatoria ahora guarda `inscripcionGrupal`, `minIntegrantesGrupo` y `maxIntegrantesGrupo` como regla real, dejando `tamanoEquipo` como texto visible.
+  - En modo grupal, la solicitud de inscripcion puede crear un grupo con numero/nombre e integrantes por correo.
+  - Un estudiante mantiene una sola participacion en el evento, pero esa participacion puede vincularse a varios grupos del mismo evento. Esto permite que pueda presentar actividades grupales desde mas de un grupo si corresponde.
+  - El formulario de crear/editar convocatoria permite activar la inscripcion por grupos y limitar cupos entre 1 y 5.
+  - El modal de inscripcion del aula virtual muestra numero de grupo y correos de companeros cuando la convocatoria esta configurada como grupal.
+  - La portada publica tambien muestra numero de grupo y correos de companeros para convocatorias con inscripcion grupal.
+  - Se ajusto la comparacion interna de grupos para soportar asociaciones nuevas antes de que JPA asigne ID, manteniendo la posibilidad de que una participacion pertenezca a varios grupos del mismo evento.
+  - En entregas grupales, si el estudiante pertenece a mas de un grupo disponible en el evento, el modal permite escoger con que grupo presentar; el backend respeta ese `grupoId` y valida que el estudiante sea miembro.
+  - Verificacion:
+    - Backend: `..\.tools\apache-maven-3.9.16\bin\mvn.cmd test` completo 42 pruebas sin fallos.
+    - Frontend: `npm run build` completado correctamente.
+- Flujo real creado para validar documento colaborativo grupal:
+  - Se creo una convocatoria de prueba `Flujo Documento Colaborativo 20261008080127` con docente asignado.
+  - Se crearon tres estudiantes, se inscribieron, fueron admitidos y quedaron dentro del mismo grupo de actividad.
+  - El docente creo una actividad grupal y una tarea grupal con `documentoColaborativoHabilitado=true`.
+  - Resultado de verificacion API: tarea `3`, grupo `11`, documento colaborativo `3`.
+  - Permisos confirmados: docente `LECTURA`; los tres estudiantes `EDICION`.
+  - Los tres estudiantes reciben el mismo `documentoId`, por lo que editan el mismo documento compartido de la tarea.
+- Pulido visual tipo Word:
+  - Se separo la medicion de reglas en `collaborative-editor/pageRulers.tsx` para no cargar mas el componente principal.
+  - Las reglas horizontal y vertical ahora se alinean contra la pagina medida en el DOM, siguiendo tamano de papel, orientacion, zoom y desplazamiento real del lienzo.
+  - La grilla del area de trabajo ya no reserva una columna fantasma cuando el panel de navegacion esta cerrado, evitando que la hoja quede corrida a la izquierda.
+  - La cinta `Inicio` se reorganizo hacia el patron de Word: Portapapeles, Fuente, Parrafo, galeria de Estilos y Edicion.
+  - Verificacion: `npx tsc --noEmit --pretty false` completo sin errores.
+  - Verificacion final: `npm run build` completo correctamente despues de reiniciar los procesos Node que mantenian cache corrupta de `.next`.
+  - Frontend dev reiniciado en `http://localhost:3000`.
+  - Ajuste posterior solicitado: se quito el boton `¶` de la cinta Inicio.
+  - Se simplifico el grupo Parrafo para evitar colapso visual: quedan listados, numeracion, sangria, alineacion, interlineado, sombreado, bordes e insertar tabla; se retiraron de la cinta visible los controles numericos avanzados de espaciado/tabulacion.
+  - Se forzo fallback visible para la regla horizontal mientras se calcula la medicion real de la pagina.
+  - Verificacion posterior: `npx tsc --noEmit --pretty false` y `npm run build` completaron correctamente.
+  - La regla dejo de ser solo decorativa: ahora tiene manijas para arrastrar los margenes izquierdo, derecho, superior e inferior.
+  - Al mover una manija se actualiza el margen real de la pagina, reutilizando el mismo estado que se guarda en la configuracion del documento y se exporta a `.docx`.
+  - Verificacion posterior de reglas funcionales: `npx tsc --noEmit --pretty false` y `npm run build` completaron correctamente.
+- Correccion critica de sincronizacion colaborativa:
+  - Se detecto que los cambios en vivo enviados como `steps` de ProseMirror se aplicaban por posiciones absolutas.
+  - Sin transformacion/rebase CRDT, esas posiciones se desalinean cuando otro cliente inserta saltos de linea o cambia la estructura del documento, causando que el texto aparezca en otro titulo/parrafo.
+  - Se desactivo el envio y aplicacion de `steps` incrementales en vivo; la sincronizacion de contenido queda por snapshots HTML debounced, manteniendo cursores/presencia.
+  - Esto evita escrituras remotas en posiciones equivocadas hasta implementar una colaboracion CRDT real con Yjs/ProseMirror collab.
+  - Verificacion: `npx tsc --noEmit --pretty false` y `npm run build` completaron correctamente.
+- Referencias tipo Word:
+  - La pestaña `Referencias` se redujo a los grupos solicitados: `Tabla de contenido` y `Citas y bibliografia`.
+  - Se agrego menu de tabla de contenido con plantillas automatica/manual.
+  - Se agrego `ReferenceSourceManager.tsx` como administrador de fuentes separado del editor principal, con lista, busqueda, vista previa, crear/editar/eliminar fuente e insercion de cita.
+  - La tabla de contenido ahora se genera desde `h1/h2/h3`, calcula numeracion jerarquica visible (`1`, `1.1`, `1.1.1`) y renderiza entradas con puntos guia y numero de pagina alineado a la derecha.
+  - El titulo `Tabla de contenido` ya no se inserta como `h2`, para evitar que quede numerado como parte del esquema del documento.
+  - Verificacion: `npx tsc --noEmit --pretty false` y `npm run build` completaron correctamente.

@@ -163,7 +163,7 @@ export default function SpeedGraderPanel({
   // Descargar archivo autenticado
   const handleDescargarArchivo = async (archivoUrl: string, nombreArchivo: string) => {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
       const fullUrl = getMediaUrl(archivoUrl);
       const res = await fetch(fullUrl, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},

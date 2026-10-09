@@ -34,6 +34,15 @@ public class Convocatoria {
     @Column(name = "tamano_equipo", length = 100)
     private String tamanoEquipo;
 
+    @Column(name = "inscripcion_grupal")
+    private boolean inscripcionGrupal = false;
+
+    @Column(name = "min_integrantes_grupo")
+    private Integer minIntegrantesGrupo = 1;
+
+    @Column(name = "max_integrantes_grupo")
+    private Integer maxIntegrantesGrupo = 5;
+
     @Column(name = "imagen_portada", length = 500)
     private String imagenPortada;
 
@@ -155,6 +164,30 @@ public class Convocatoria {
 
     public void setTamanoEquipo(String tamanoEquipo) {
         this.tamanoEquipo = tamanoEquipo;
+    }
+
+    public boolean isInscripcionGrupal() {
+        return inscripcionGrupal;
+    }
+
+    public void setInscripcionGrupal(boolean inscripcionGrupal) {
+        this.inscripcionGrupal = inscripcionGrupal;
+    }
+
+    public Integer getMinIntegrantesGrupo() {
+        return minIntegrantesGrupo;
+    }
+
+    public void setMinIntegrantesGrupo(Integer minIntegrantesGrupo) {
+        this.minIntegrantesGrupo = minIntegrantesGrupo;
+    }
+
+    public Integer getMaxIntegrantesGrupo() {
+        return maxIntegrantesGrupo;
+    }
+
+    public void setMaxIntegrantesGrupo(Integer maxIntegrantesGrupo) {
+        this.maxIntegrantesGrupo = maxIntegrantesGrupo;
     }
 
     public String getImagenPortada() {

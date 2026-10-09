@@ -19,17 +19,20 @@ public class ConvocatoriaService {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final UserRepository userRepository;
     private final RequisitoRepository requisitoRepository;
+    private final GrupoRepository grupoRepository;
     private final NotificacionService notificacionService;
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
                                ConvocatoriaParticipanteRepository participanteRepository,
                                UserRepository userRepository,
                                RequisitoRepository requisitoRepository,
+                               GrupoRepository grupoRepository,
                                @org.springframework.context.annotation.Lazy NotificacionService notificacionService) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.userRepository = userRepository;
         this.requisitoRepository = requisitoRepository;
+        this.grupoRepository = grupoRepository;
         this.notificacionService = notificacionService;
     }
 
@@ -48,6 +51,7 @@ public class ConvocatoriaService {
                 request.getImagenPortada(),
                 creador
         );
+        aplicarConfiguracionInscripcion(c, request);
 
         if (request.getRequisitos() != null) {
             for (String reqDesc : request.getRequisitos()) {
@@ -111,6 +115,7 @@ public class ConvocatoriaService {
         c.setTipo(request.getTipo());
         c.setFechaCierre(request.getFechaCierre());
         c.setTamanoEquipo(request.getTamanoEquipo());
+        aplicarConfiguracionInscripcion(c, request);
         if (request.getImagenPortada() != null) {
             c.setImagenPortada(request.getImagenPortada());
         }
@@ -190,6 +195,25 @@ public class ConvocatoriaService {
 
         Convocatoria saved = convocatoriaRepository.save(c);
         return new ConvocatoriaDTO(saved);
+    }
+
+    private void aplicarConfiguracionInscripcion(Convocatoria convocatoria, ConvocatoriaRequest request) {
+        boolean inscripcionGrupal = Boolean.TRUE.equals(request.getInscripcionGrupal());
+        int min = request.getMinIntegrantesGrupo() != null ? request.getMinIntegrantesGrupo() : 1;
+        int max = request.getMaxIntegrantesGrupo() != null ? request.getMaxIntegrantesGrupo() : 5;
+
+        min = Math.max(1, Math.min(5, min));
+        max = Math.max(1, Math.min(5, max));
+        if (min > max) {
+            throw new IllegalArgumentException("El minimo de integrantes no puede ser mayor que el maximo.");
+        }
+
+        convocatoria.setInscripcionGrupal(inscripcionGrupal);
+        convocatoria.setMinIntegrantesGrupo(min);
+        convocatoria.setMaxIntegrantesGrupo(max);
+        if (request.getTamanoEquipo() == null || request.getTamanoEquipo().isBlank()) {
+            convocatoria.setTamanoEquipo(min == max ? "Hasta " + max + " integrantes" : "De " + min + " a " + max + " integrantes");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -563,6 +587,10 @@ public class ConvocatoriaService {
             throw new IllegalStateException("No se pueden recibir postulaciones: la convocatoria se encuentra en estado " + conv.getEstado() + " y aún no ha sido publicada en el portal.");
         }
 
+        if (conv.isInscripcionGrupal()) {
+            return inscribirGrupoEstudiantes(conv, request, estudiante);
+        }
+
         String nombreEquipoFinal = (request != null && request.getNombreEquipo() != null && !request.getNombreEquipo().trim().isEmpty())
                 ? request.getNombreEquipo().trim()
                 : null;
@@ -599,6 +627,91 @@ public class ConvocatoriaService {
         return new ConvocatoriaParticipanteDTO(saved);
     }
 
+    private ConvocatoriaParticipanteDTO inscribirGrupoEstudiantes(Convocatoria conv, InscribirseAreaRequest request, User solicitante) {
+        if (request == null) {
+            throw new IllegalArgumentException("La inscripcion grupal requiere datos del grupo e integrantes.");
+        }
+
+        LinkedHashSet<String> emails = new LinkedHashSet<>();
+        emails.add(solicitante.getEmail().trim().toLowerCase());
+        if (request.getIntegrantesEmails() != null) {
+            request.getIntegrantesEmails().stream()
+                    .filter(Objects::nonNull)
+                    .map(email -> email.trim().toLowerCase())
+                    .filter(email -> !email.isBlank())
+                    .forEach(emails::add);
+        }
+
+        int total = emails.size();
+        int min = conv.getMinIntegrantesGrupo() != null ? conv.getMinIntegrantesGrupo() : 1;
+        int max = conv.getMaxIntegrantesGrupo() != null ? conv.getMaxIntegrantesGrupo() : 5;
+        if (total < min || total > max) {
+            throw new IllegalArgumentException("La inscripcion grupal requiere entre " + min + " y " + max + " integrante(s). Actualmente hay " + total + ".");
+        }
+
+        List<User> integrantes = new ArrayList<>();
+        for (String email : emails) {
+            User integrante = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("No existe un usuario registrado con correo: " + email));
+            if (integrante.getRol() != Rol.ESTUDIANTE) {
+                throw new IllegalArgumentException("Solo estudiantes pueden formar parte del grupo de inscripcion: " + email);
+            }
+            integrantes.add(integrante);
+        }
+
+        String nombreGrupo = nombreGrupoInscripcion(request, conv);
+        Grupo grupo = grupoRepository.save(new Grupo(conv, nombreGrupo, "Grupo creado desde la inscripcion al evento.", max, solicitante));
+
+        ConvocatoriaParticipante participanteSolicitante = null;
+        for (User integrante : integrantes) {
+            ConvocatoriaParticipante participante = participanteRepository.findByConvocatoriaIdAndUsuarioId(conv.getId(), integrante.getId())
+                    .orElseGet(() -> new ConvocatoriaParticipante(
+                            conv,
+                            integrante,
+                            Rol.ESTUDIANTE,
+                            EstadoInscripcion.PENDIENTE,
+                            nombreGrupo,
+                            solicitante
+                    ));
+
+            if (participante.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO || participante.getEstadoInscripcion() == EstadoInscripcion.CANCELADO) {
+                participante.setEstadoInscripcion(EstadoInscripcion.PENDIENTE);
+                participante.setFechaRespuesta(null);
+                participante.setMotivoRechazo(null);
+            }
+            if (participante.getEstadoInscripcion() == null) {
+                participante.setEstadoInscripcion(EstadoInscripcion.PENDIENTE);
+            }
+            participante.setRol(Rol.ESTUDIANTE);
+            participante.setFechaSolicitud(LocalDateTime.now());
+            participante.setNombreEquipo(nombreGrupo);
+            participante.setAsignadoPor(solicitante);
+            participante.agregarGrupo(grupo);
+
+            ConvocatoriaParticipante saved = participanteRepository.save(participante);
+            if (saved.getId() != null && conv.getParticipantes().stream().noneMatch(p -> saved.getId().equals(p.getId()))) {
+                conv.addParticipante(saved);
+            }
+            if (integrante.getId().equals(solicitante.getId())) {
+                participanteSolicitante = saved;
+            }
+        }
+
+        return new ConvocatoriaParticipanteDTO(participanteSolicitante != null
+                ? participanteSolicitante
+                : participanteRepository.findByConvocatoriaIdAndUsuarioId(conv.getId(), solicitante.getId()).orElseThrow());
+    }
+
+    private String nombreGrupoInscripcion(InscribirseAreaRequest request, Convocatoria conv) {
+        if (request.getNombreEquipo() != null && !request.getNombreEquipo().trim().isBlank()) {
+            return request.getNombreEquipo().trim();
+        }
+        if (request.getNumeroGrupo() != null && request.getNumeroGrupo() > 0) {
+            return "Grupo " + request.getNumeroGrupo();
+        }
+        return "Grupo " + (grupoRepository.countByConvocatoriaId(conv.getId()) + 1);
+    }
+
     @Transactional
     public void declinarSolicitudEstudiante(Long convocatoriaId, String estudianteEmail) {
         User estudiante = userRepository.findByEmail(estudianteEmail)
@@ -633,12 +746,18 @@ public class ConvocatoriaService {
             throw new IllegalArgumentException("El participante no pertenece a esta convocatoria.");
         }
 
-        cp.setEstadoInscripcion(EstadoInscripcion.ACEPTADO);
-        cp.setFechaRespuesta(LocalDateTime.now());
-        cp.setMotivoRechazo(null);
-        cp.setAsignadoPor(solicitante);
-
-        ConvocatoriaParticipante saved = participanteRepository.save(cp);
+        List<ConvocatoriaParticipante> participantesAAdmitir = participantesMismoGrupoInscripcion(cp);
+        ConvocatoriaParticipante saved = cp;
+        for (ConvocatoriaParticipante participante : participantesAAdmitir) {
+            participante.setEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+            participante.setFechaRespuesta(LocalDateTime.now());
+            participante.setMotivoRechazo(null);
+            participante.setAsignadoPor(solicitante);
+            ConvocatoriaParticipante actualizado = participanteRepository.save(participante);
+            if (actualizado.getId().equals(cp.getId())) {
+                saved = actualizado;
+            }
+        }
         try {
             notificacionService.crearNotificacion(
                     saved.getUsuario().getId(),
@@ -653,6 +772,16 @@ public class ConvocatoriaService {
             // Silencioso
         }
         return new ConvocatoriaParticipanteDTO(saved);
+    }
+
+    private List<ConvocatoriaParticipante> participantesMismoGrupoInscripcion(ConvocatoriaParticipante participante) {
+        if (participante.getConvocatoria() == null
+                || !participante.getConvocatoria().isInscripcionGrupal()
+                || participante.getGrupo() == null) {
+            return List.of(participante);
+        }
+        List<ConvocatoriaParticipante> miembros = participanteRepository.findMiembrosPorGrupoId(participante.getGrupo().getId());
+        return miembros == null || miembros.isEmpty() ? List.of(participante) : miembros;
     }
 
     @Transactional
