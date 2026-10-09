@@ -7,6 +7,7 @@ import { Convocatoria, publicConvocatoriasAPI, api, ConvocatoriaDTO } from "@/li
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/context/ThemeContext";
+import NotificacionesCampana from "@/components/NotificacionesCampana";
 import {
   Search,
   Calendar,
@@ -274,6 +275,7 @@ export default function HomePage() {
 
           {/* Acciones y Autenticación */}
           <div className="flex items-center gap-3">
+            {user && <NotificacionesCampana />}
             <ThemeToggle />
 
             {user ? (
