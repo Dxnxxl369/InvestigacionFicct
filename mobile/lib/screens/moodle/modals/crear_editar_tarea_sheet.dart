@@ -4,6 +4,7 @@ import '../../../models/actividad_grupo_model.dart';
 import '../../../models/modulo_model.dart';
 import '../../../models/tarea_model.dart';
 import '../../../services/api_service.dart';
+import '../../../widgets/liquid_glass.dart';
 
 class CrearEditarTareaModal {
   static void show({
@@ -40,10 +41,8 @@ class CrearEditarTareaModal {
         (actividadesGrupo.isNotEmpty ? actividadesGrupo.first.id : null);
     bool habilitada = tareaExistente?.habilitada ?? true;
 
-    showModalBottomSheet(
+    showLiquidGlassModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
           final isDark = Theme.of(ctx).brightness == Brightness.dark;
@@ -94,36 +93,18 @@ class CrearEditarTareaModal {
             return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
           }
 
-          return Container(
+          return Padding(
             padding: EdgeInsets.only(
               left: 20,
               right: 20,
-              top: 20,
+              top: 10,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-            ),
-            decoration: BoxDecoration(
-              color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(ctx).size.height * 0.9,
             ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppTheme.line,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   Text(
                     isEditing ? 'Configurar / Editar Tarea Académica' : 'Nueva Tarea Académica Moodle',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

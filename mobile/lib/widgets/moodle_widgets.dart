@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../screens/moodle/tarea_entrega_screen.dart';
 import '../screens/moodle/speedgrader_screen.dart';
+import 'liquid_glass.dart';
 
 class RoleBadge extends StatelessWidget {
   final String role;
@@ -159,7 +160,7 @@ class CourseCardMoodle extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                         color: isDark ? AppTheme.darkInk : AppTheme.ink,
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
@@ -295,10 +296,9 @@ void showPerfilParticipanteModal(
   final currentUser = StorageService.getCachedUser();
   final esMismo = (currentUser != null && currentUser.id == usuarioId) || (currentUser?.rol == 'ADMIN');
 
-  showModalBottomSheet(
+  showLiquidGlassModalBottomSheet(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+    maxHeightFactor: 0.85,
     builder: (ctx) {
       return FutureBuilder<Map<String, dynamic>?>(
         future: ApiService.getPerfilPublico(usuarioId),
@@ -322,31 +322,12 @@ void showPerfilParticipanteModal(
           final ocultarCursos = (perfil?['ocultarCursos'] as bool? ?? false) && !esPropioPerfil;
           final cursos = (perfil?['cursos'] as List<dynamic>?) ?? [];
 
-          return Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(ctx).size.height * 0.85,
-            ),
-            decoration: BoxDecoration(
-              color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? AppTheme.darkLine : AppTheme.line,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
                 // Cabecera con Foto, Nombre y Rol
                 Row(
                   children: [
@@ -615,10 +596,9 @@ class _NotificacionBadgeState extends State<NotificacionBadge> {
   }
 
   void _abrirPanelNotificaciones() {
-    showModalBottomSheet(
+    showLiquidGlassModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      maxHeightFactor: 0.80,
       builder: (ctx) => _NotificacionesSheet(
         onCountUpdated: () => _fetchCount(),
       ),
@@ -815,30 +795,13 @@ class _NotificacionesSheetState extends State<_NotificacionesSheet> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final size = MediaQuery.of(context).size;
 
-    return Container(
-      height: size.height * 0.75,
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          // Drag handle
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(top: 12, bottom: 8),
-            decoration: BoxDecoration(
-              color: isDark ? AppTheme.darkLine : AppTheme.lineSoft,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          // Cabecera
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
+    return Column(
+      children: [
+        // Cabecera
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
@@ -959,6 +922,8 @@ class _NotificacionesSheetState extends State<_NotificacionesSheet> {
                                               fontSize: 12,
                                               color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
                                             ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ],
                                       ),
@@ -982,8 +947,7 @@ class _NotificacionesSheetState extends State<_NotificacionesSheet> {
                       ),
           ),
         ],
-      ),
-    );
+      );
   }
 }
 
@@ -994,177 +958,162 @@ class _NotificacionesSheetState extends State<_NotificacionesSheet> {
 void showHistorialVersionesModal(BuildContext context, {required List<Map<String, dynamic>> versiones}) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
 
-  showModalBottomSheet(
+  showLiquidGlassModalBottomSheet(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) => Container(
-      height: MediaQuery.of(ctx).size.height * 0.65,
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(top: 12, bottom: 8),
-            decoration: BoxDecoration(
-              color: isDark ? AppTheme.darkLine : AppTheme.lineSoft,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Row(
-              children: [
-                const Icon(Icons.history_rounded, color: AppTheme.accent, size: 22),
-                const SizedBox(width: 8),
-                Text(
-                  'Historial de Intentos (${versiones.length})',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppTheme.darkInk : AppTheme.ink,
-                  ),
+    maxHeightFactor: 0.75,
+    builder: (ctx) => Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.history_rounded, color: AppTheme.accent, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Historial de Intentos (${versiones.length})',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppTheme.darkInk : AppTheme.ink,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          Expanded(
-            child: versiones.isEmpty
-                ? const Center(child: Text('No hay intentos previos registrados'))
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: versiones.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (ctx, idx) {
-                      final v = versiones[idx];
-                      final intento = v['intento'] ?? (versiones.length - idx);
-                      final nombreArch = (v['nombreArchivo'] ?? 'Entrega').toString();
-                      final fecha = (v['fechaEntrega'] ?? '').toString().replaceFirst('T', ' ');
-                      final conRet = v['conRetraso'] == true;
-                      final comentario = v['comentario'] as String?;
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: versiones.isEmpty
+              ? const Center(child: Text('No hay intentos previos registrados'))
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: versiones.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (ctx, idx) {
+                    final v = versiones[idx];
+                    final intento = v['intento'] ?? (versiones.length - idx);
+                    final nombreArch = (v['nombreArchivo'] ?? 'Entrega').toString();
+                    final fecha = (v['fechaEntrega'] ?? '').toString().replaceFirst('T', ' ');
+                    final conRet = v['conRetraso'] == true;
+                    final comentario = v['comentario'] as String?;
 
-                      return Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: idx == 0
-                                ? AppTheme.accent.withValues(alpha: 0.5)
-                                : (isDark ? AppTheme.darkLine : AppTheme.lineSoft),
-                          ),
+                    return Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: idx == 0
+                              ? AppTheme.accent.withValues(alpha: 0.5)
+                              : (isDark ? AppTheme.darkLine : AppTheme.lineSoft),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.accentSoft,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        'Intento #$intento',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.accentDark,
-                                        ),
-                                      ),
-                                    ),
-                                    if (idx == 0) ...[
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(5),
-                                        ),
-                                        child: const Text(
-                                          'ÚLTIMO',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF10B981),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                if (conRet)
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF97316).withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(5),
+                                      color: AppTheme.accentSoft,
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: const Text(
-                                      'CON RETRASO',
-                                      style: TextStyle(
-                                        fontSize: 9.5,
+                                    child: Text(
+                                      'Intento #$intento',
+                                      style: const TextStyle(
+                                        fontSize: 11,
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFFEA580C),
+                                        color: AppTheme.accentDark,
                                       ),
                                     ),
                                   ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Icon(Icons.attach_file_rounded, size: 16, color: AppTheme.inkFaint),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    nombreArch,
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? AppTheme.darkInk : AppTheme.ink,
+                                  if (idx == 0) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(5),
+                                      ),
+                                      child: const Text(
+                                        'ÚLTIMO',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF10B981),
+                                        ),
+                                      ),
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  ],
+                                ],
+                              ),
+                              if (conRet)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF97316).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: const Text(
+                                    'CON RETRASO',
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFEA580C),
+                                    ),
                                   ),
                                 ),
-                              ],
-                            ),
-                            if (fecha.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                'Enviado: $fecha',
-                                style: const TextStyle(fontSize: 11, color: AppTheme.inkFaint),
-                              ),
                             ],
-                            if (comentario != null && comentario.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Nota del alumno: "$comentario"',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontStyle: FontStyle.italic,
-                                  color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.attach_file_rounded, size: 16, color: AppTheme.inkFaint),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  nombreArch,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? AppTheme.darkInk : AppTheme.ink,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
+                          ),
+                          if (fecha.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Enviado: $fecha',
+                              style: const TextStyle(fontSize: 11, color: AppTheme.inkFaint),
+                            ),
                           ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+                          if (comentario != null && comentario.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Nota del alumno: "$comentario"',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontStyle: FontStyle.italic,
+                                color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     ),
   );
 }

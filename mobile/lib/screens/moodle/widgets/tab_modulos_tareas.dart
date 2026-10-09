@@ -124,6 +124,8 @@ class TabModulosYTareas extends StatelessWidget {
                               Text(
                                 act.titulo,
                                 style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -144,6 +146,8 @@ class TabModulosYTareas extends StatelessWidget {
                         color: tieneGrupo ? const Color(0xFF10B981) : (isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft),
                         fontWeight: tieneGrupo ? FontWeight.bold : FontWeight.normal,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 10),
                     Align(
@@ -297,6 +301,8 @@ class TabModulosYTareas extends StatelessWidget {
                             ? modulo.descripcion
                             : '${modulo.tareas.length} actividades disponibles',
                         style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       children: [
                         if (modulo.tareas.isEmpty)
@@ -395,7 +401,7 @@ class TabModulosYTareas extends StatelessWidget {
                                                     fontSize: 11,
                                                     color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint,
                                                   ),
-                                                  maxLines: 1,
+                                                  maxLines: 2,
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
                                               ],

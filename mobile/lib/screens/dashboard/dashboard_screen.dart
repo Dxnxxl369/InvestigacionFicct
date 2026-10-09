@@ -567,7 +567,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                 ),
               ),
-            const SizedBox(height: 60), // Margen para la barra flotante
+            const SizedBox(height: 95), // Margen para la barra flotante
           ],
         ),
       ),

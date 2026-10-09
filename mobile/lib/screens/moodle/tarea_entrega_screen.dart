@@ -1109,19 +1109,32 @@ class _DateRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 11.5, color: AppTheme.inkFaint)),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.bold,
-            color: valueColor ?? AppTheme.ink,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Flexible(
+            flex: 2,
+            child: Text(label, style: const TextStyle(fontSize: 11.5, color: AppTheme.inkFaint)),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 3,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: valueColor ?? (isDark ? AppTheme.darkInk : AppTheme.ink),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

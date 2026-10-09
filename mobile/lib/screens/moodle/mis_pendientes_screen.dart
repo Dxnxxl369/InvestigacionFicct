@@ -202,7 +202,7 @@ class _MisPendientesScreenState extends State<MisPendientesScreen> {
                                   ],
                                 ),
                                 Text(
-                                  '$entregadas de $total entregadas ($porcentaje%)',
+                                  '$entregadas de $total ($porcentaje%)',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -291,7 +291,7 @@ class _MisPendientesScreenState extends State<MisPendientesScreen> {
                                 ),
                               )
                             : ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+                                padding: const EdgeInsets.fromLTRB(16, 6, 16, 95),
                                 itemCount: _tareasFiltradas.length,
                                 itemBuilder: (ctx, idx) {
                                   final t = _tareasFiltradas[idx];
@@ -397,56 +397,58 @@ class _MisPendientesScreenState extends State<MisPendientesScreen> {
             children: [
               // Fila superior: Badges de estado y urgencia
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: badgeBg,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          badgeLabel,
-                          style: TextStyle(
-                            color: badgeText,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (conRetraso && estado != 'ENTREGADO_CON_RETRASO') ...[
-                        const SizedBox(width: 6),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFEDD5),
-                            borderRadius: BorderRadius.circular(5),
+                            color: badgeBg,
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
-                            'Con retraso',
-                            style: TextStyle(color: Color(0xFFC2410C), fontSize: 9.5, fontWeight: FontWeight.bold),
+                          child: Text(
+                            badgeLabel,
+                            style: TextStyle(
+                              color: badgeText,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ],
-                      if (urgente) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEE2E2),
-                            borderRadius: BorderRadius.circular(5),
+                        if (conRetraso && estado != 'ENTREGADO_CON_RETRASO')
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFEDD5),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: const Text(
+                              'Con retraso',
+                              style: TextStyle(color: Color(0xFFC2410C), fontSize: 9.5, fontWeight: FontWeight.bold),
+                            ),
                           ),
-                          child: const Text(
-                            '¡Vence pronto!',
-                            style: TextStyle(color: Color(0xFFDC2626), fontSize: 9.5, fontWeight: FontWeight.bold),
+                        if (urgente)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEE2E2),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: const Text(
+                              '¡Vence pronto!',
+                              style: TextStyle(color: Color(0xFFDC2626), fontSize: 9.5, fontWeight: FontWeight.bold),
+                            ),
                           ),
-                        ),
                       ],
-                    ],
+                    ),
                   ),
-                  if (tarea.calificacion != null)
+                  if (tarea.calificacion != null) ...[
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
@@ -462,6 +464,7 @@ class _MisPendientesScreenState extends State<MisPendientesScreen> {
                         ),
                       ),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 10),
@@ -501,17 +504,25 @@ class _MisPendientesScreenState extends State<MisPendientesScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.schedule_rounded, size: 15, color: AppTheme.inkFaint),
-                      const SizedBox(width: 6),
-                      Text(
-                        _formatFecha(tarea.fechaLimite),
-                        style: const TextStyle(fontSize: 11.5, color: AppTheme.inkFaint),
-                      ),
-                    ],
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.schedule_rounded, size: 15, color: AppTheme.inkFaint),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _formatFecha(tarea.fechaLimite),
+                            style: const TextStyle(fontSize: 11.5, color: AppTheme.inkFaint),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         estado == 'CALIFICADO'

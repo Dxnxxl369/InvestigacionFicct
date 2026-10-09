@@ -726,10 +726,14 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
                                 fontWeight: FontWeight.bold,
                                 color: isDark ? AppTheme.darkInk : AppTheme.ink,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               email,
                               style: const TextStyle(fontSize: 12, color: AppTheme.inkFaint),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -886,11 +890,14 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Text(
-                          'Entregado: $fechaEntrega',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.w500),
+                        Expanded(
+                          child: Text(
+                            'Entregado: $fechaEntrega',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 8),
                         if (entrega?['id'] != null)
                           OutlinedButton.icon(
                             onPressed: () => _verHistorial((entrega?['id'] as num).toInt()),

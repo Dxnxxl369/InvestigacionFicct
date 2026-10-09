@@ -434,11 +434,15 @@ class TabGruposMoodle extends StatelessWidget {
                           children: [
                             Text(
                               act?.titulo ?? 'Elección de Grupo de Trabajo',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold),
                             ),
                             if (act != null && act.fechaCierre != null)
                               Text(
                                 'Plazo límite: ${MoodleUIHelpers.formatearFechaCorta(act.fechaCierre)}${act.fechaApertura != null ? ' • Apertura: ${MoodleUIHelpers.formatearFechaCorta(act.fechaApertura)}' : ''}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(fontSize: 11, color: AppTheme.inkSoft),
                               ),
                           ],
@@ -637,6 +641,8 @@ class TabGruposMoodle extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               g.miembros.map((m) => m.nombreCompleto).join(', '),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 10.5, color: AppTheme.inkSoft),
                             ),
                           ],

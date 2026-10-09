@@ -360,6 +360,7 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
                           ),
                         );
                       }),
+                    const SizedBox(height: 95),
                   ],
                 ),
               ),

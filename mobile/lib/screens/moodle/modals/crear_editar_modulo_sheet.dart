@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../config/app_theme.dart';
 import '../../../models/modulo_model.dart';
 import '../../../services/api_service.dart';
+import '../../../widgets/liquid_glass.dart';
 
 class CrearEditarModuloModal {
   static void showCrearModuloSheet({
@@ -15,37 +15,20 @@ class CrearEditarModuloModal {
     final ordenCtrl = TextEditingController(text: '${totalModulos + 1}');
     final imgCtrl = TextEditingController();
 
-    showModalBottomSheet(
+    showLiquidGlassModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
+      builder: (ctx) => Padding(
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
-          top: 20,
+          top: 10,
           bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(ctx).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.line,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
               const Text(
                 'Crear Nuevo Módulo',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -152,37 +135,20 @@ class CrearEditarModuloModal {
     final ordenCtrl = TextEditingController(text: '${modulo.orden}');
     final imgCtrl = TextEditingController(text: modulo.imagenPortada ?? '');
 
-    showModalBottomSheet(
+    showLiquidGlassModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
+      builder: (ctx) => Padding(
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
-          top: 20,
+          top: 10,
           bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(ctx).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.line,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
               const Text(
                 'Editar Módulo',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

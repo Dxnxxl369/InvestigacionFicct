@@ -461,7 +461,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               ),
               onPressed: widget.onLogout,
             ),
-            const SizedBox(height: 80),
+            const SizedBox(height: 100),
           ],
         ),
       ),

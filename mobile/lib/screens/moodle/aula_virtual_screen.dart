@@ -11,6 +11,7 @@ import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/moodle_widgets.dart';
+import '../../widgets/liquid_glass.dart';
 
 import 'modals/crear_editar_modulo_sheet.dart';
 import 'modals/crear_editar_tarea_sheet.dart';
@@ -528,34 +529,14 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showModalBottomSheet(
+    showLiquidGlassModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(ctx).size.height * 0.75,
-        ),
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? AppTheme.darkLine : AppTheme.line,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             Row(
               children: [
                 Container(
@@ -687,143 +668,128 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
   // Diálogo de supervisión institucional para Administradores
   void _showTareaAdminSupervisionDialog(TareaModel tarea) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet(
+    showLiquidGlassModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? AppTheme.darkLine : AppTheme.line,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF10B981), size: 24),
                   ),
-                  child: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF10B981), size: 24),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          tarea.esGrupal ? 'ACTIVIDAD GRUPAL' : 'ACTIVIDAD INDIVIDUAL',
-                          style: const TextStyle(
-                            color: Color(0xFF10B981),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            tarea.esGrupal ? 'ACTIVIDAD GRUPAL' : 'ACTIVIDAD INDIVIDUAL',
+                            style: const TextStyle(
+                              color: Color(0xFF10B981),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        tarea.titulo,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Consigna y Descripción:',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    tarea.descripcion.isNotEmpty ? tarea.descripcion : 'Sin descripción consignada.',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (tarea.fechaLimite != null) ...[
-                    const Divider(height: 20),
-                    Row(
-                      children: [
-                        const Icon(Icons.event_outlined, size: 16, color: AppTheme.accent),
-                        const SizedBox(width: 6),
+                        const SizedBox(height: 4),
                         Text(
-                          'Fecha límite: ${tarea.fechaLimite}',
-                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                          tarea.titulo,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.accentSoft.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.accent.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded, color: AppTheme.accent, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Modo Administrador: La revisión de entregas y asignación de notas es competencia de los Docentes y Jurados evaluadores asignados al área.',
-                      style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInk : AppTheme.ink),
-                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDark ? AppTheme.darkPaperRaised : AppTheme.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Consigna y Descripción:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      tarea.descripcion.isNotEmpty ? tarea.descripcion : 'Sin descripción consignada.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (tarea.fechaLimite != null) ...[
+                      const Divider(height: 20),
+                      Row(
+                        children: [
+                          const Icon(Icons.event_outlined, size: 16, color: AppTheme.accent),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Fecha límite: ${tarea.fechaLimite}',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              child: const Text('Entendido'),
-            ),
-          ],
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentSoft.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.accent.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: AppTheme.accent, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Modo Administrador: La revisión de entregas y asignación de notas es competencia de los Docentes y Jurados evaluadores asignados al área.',
+                        style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInk : AppTheme.ink),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? AppTheme.darkPaperRaised : AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('Entendido'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -957,6 +923,8 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                           const SizedBox(height: 10),
                           Text(
                             widget.curso.titulo,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -966,6 +934,8 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                           const SizedBox(height: 4),
                           Text(
                             widget.curso.descripcion,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.9)),
                           ),
                           const SizedBox(height: 14),
@@ -1121,12 +1091,8 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                   const SizedBox(height: 16),
 
                   // 4 Pestañas Replicando Web (Módulos & Tareas, Grupos & Equipos, Participantes, Calificaciones)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? AppTheme.darkPaperRaised : AppTheme.paperSunken,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
-                    ),
+                  LiquidGlassContainer(
+                    borderRadius: 16,
                     padding: const EdgeInsets.all(4),
                     child: Row(
                       children: [
@@ -1239,7 +1205,7 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                       onOpenSpeedGrader: widget.onOpenSpeedGrader,
                     ),
 
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 95),
                 ],
               ),
             ),
