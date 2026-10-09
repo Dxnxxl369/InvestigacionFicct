@@ -1939,6 +1939,57 @@ a {
   text-decoration: underline;
 }
 
+.ficct-word-page .ProseMirror .ficct-toc {
+  margin: 0 0 0.24in;
+  color: #111;
+  font-family: Calibri, Arial, sans-serif;
+  font-size: 11pt;
+}
+
+.ficct-word-page .ProseMirror .ficct-toc-row {
+  display: grid;
+  grid-template-columns: 0.86in minmax(0, 1fr) 0.34in;
+  align-items: baseline;
+  column-gap: 0.08in;
+  margin: 0 0 0.1in;
+  line-height: 1.25;
+}
+
+.ficct-word-page .ProseMirror .ficct-toc-level-2 {
+  padding-left: 0.48in;
+}
+
+.ficct-word-page .ProseMirror .ficct-toc-level-3 {
+  padding-left: 0.82in;
+}
+
+.ficct-word-page .ProseMirror .ficct-toc-number {
+  white-space: nowrap;
+}
+
+.ficct-word-page .ProseMirror .ficct-toc-text {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ficct-word-page .ProseMirror .ficct-toc-text::after {
+  content: "";
+  flex: 1 1 auto;
+  min-width: 0.25in;
+  margin-left: 0.03in;
+  border-bottom: 1px dotted #555;
+  transform: translateY(-0.05em);
+}
+
+.ficct-word-page .ProseMirror .ficct-toc-page {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .ficct-word-page .ProseMirror table[data-type="toc-table"] {
   width: 100%;
   table-layout: fixed;

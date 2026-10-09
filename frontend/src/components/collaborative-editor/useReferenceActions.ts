@@ -142,15 +142,11 @@ export function useReferenceActions({
       const headings = numberedTocEntries(parsed);
       const items = headings.length
         ? headings.map((heading) => (
-          `<tr data-toc-level="${heading.level}">` +
-          `<td>${escapeHtml(heading.label)}</td>` +
-          `<td>${escapeHtml(heading.displayText)}</td>` +
-          `<td>${heading.page}</td>` +
-          `</tr>`
+          `<div data-type="toc-row" data-toc-level="${heading.level}" data-toc-label="${escapeHtml(heading.label)}" data-toc-text="${escapeHtml(heading.displayText)}" data-toc-page="${heading.page}"></div>`
         )).join("")
-        : `<tr data-toc-level="1"><td></td><td>Sin titulos todavia</td><td>1</td></tr>`;
+        : `<div data-type="toc-row" data-toc-level="1" data-toc-label="" data-toc-text="Sin titulos todavia" data-toc-page="1"></div>`;
       editor.chain().focus().insertContent(
-        `<p class="ficct-toc-title">TABLA DE CONTENIDO</p><table data-type="toc-table"><tbody>${items}</tbody></table>`
+        `<div data-type="toc-title" data-toc-title="TABLA DE CONTENIDO"></div>${items}`
       ).run();
       markDirty();
     };

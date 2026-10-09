@@ -953,7 +953,7 @@ export default function CollaborativeDocumentEditor({ documento, currentUserName
 
   const insertManualTableOfContents = () => {
     editor.chain().focus().insertContent(
-      `<p class="ficct-toc-title">TABLA DE CONTENIDO</p><table data-type="toc-table"><tbody><tr data-toc-level="1"><td>1.</td><td>ANTECEDENTES</td><td>1</td></tr><tr data-toc-level="2"><td>1.1.</td><td>Transporte urbano en microbuses</td><td>1</td></tr><tr data-toc-level="2"><td>1.2.</td><td>Uso de sistemas de informacion geografica</td><td>1</td></tr></tbody></table>`
+      `<div data-type="toc-title" data-toc-title="TABLA DE CONTENIDO"></div><div data-type="toc-row" data-toc-level="1" data-toc-label="1." data-toc-text="ANTECEDENTES" data-toc-page="1"></div><div data-type="toc-row" data-toc-level="2" data-toc-label="1.1." data-toc-text="Transporte urbano en microbuses" data-toc-page="1"></div><div data-type="toc-row" data-toc-level="2" data-toc-label="1.2." data-toc-text="Uso de sistemas de informacion geografica" data-toc-page="1"></div>`
     ).run();
     setShowTocMenu(false);
   };

@@ -287,6 +287,82 @@ export const WordFieldNode = TiptapNode.create({
   },
 });
 
+export const TableOfContentsTitleNode = TiptapNode.create({
+  name: "tableOfContentsTitle",
+  group: "block",
+  atom: true,
+  addAttributes() {
+    return {
+      text: {
+        default: "TABLA DE CONTENIDO",
+        parseHTML: (element) => element.getAttribute("data-toc-title") || element.textContent?.trim() || "TABLA DE CONTENIDO",
+        renderHTML: (attributes) => ({ "data-toc-title": attributes.text || "TABLA DE CONTENIDO" }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-type='toc-title']" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        "data-type": "toc-title",
+        class: "ficct-toc-title",
+        contenteditable: "false",
+      }),
+      HTMLAttributes["data-toc-title"] || "TABLA DE CONTENIDO",
+    ];
+  },
+});
+
+export const TableOfContentsRowNode = TiptapNode.create({
+  name: "tableOfContentsRow",
+  group: "block",
+  atom: true,
+  addAttributes() {
+    return {
+      level: {
+        default: 1,
+        parseHTML: (element) => Number(element.getAttribute("data-toc-level") || 1),
+        renderHTML: (attributes) => ({ "data-toc-level": String(attributes.level || 1) }),
+      },
+      label: {
+        default: "1.",
+        parseHTML: (element) => element.getAttribute("data-toc-label") || element.querySelector(".ficct-toc-number")?.textContent || "",
+        renderHTML: (attributes) => ({ "data-toc-label": attributes.label || "" }),
+      },
+      text: {
+        default: "",
+        parseHTML: (element) => element.getAttribute("data-toc-text") || element.querySelector(".ficct-toc-text")?.textContent || "",
+        renderHTML: (attributes) => ({ "data-toc-text": attributes.text || "" }),
+      },
+      page: {
+        default: "1",
+        parseHTML: (element) => element.getAttribute("data-toc-page") || element.querySelector(".ficct-toc-page")?.textContent || "1",
+        renderHTML: (attributes) => ({ "data-toc-page": attributes.page || "1" }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-type='toc-row']" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    const level = Math.min(3, Math.max(1, Number(HTMLAttributes["data-toc-level"] || 1)));
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        "data-type": "toc-row",
+        class: `ficct-toc-row ficct-toc-level-${level}`,
+        contenteditable: "false",
+      }),
+      ["span", { class: "ficct-toc-number" }, HTMLAttributes["data-toc-label"] || ""],
+      ["span", { class: "ficct-toc-text" }, HTMLAttributes["data-toc-text"] || ""],
+      ["span", { class: "ficct-toc-page" }, HTMLAttributes["data-toc-page"] || "1"],
+    ];
+  },
+});
+
 export const CustomImage = Image.extend({
   addAttributes() {
     return {
@@ -567,6 +643,8 @@ export function buildCollaborativeEditorExtensions() {
     WordShapeNode,
     CheckBoxNode,
     WordFieldNode,
+    TableOfContentsTitleNode,
+    TableOfContentsRowNode,
     CommentMark,
     SuggestionMark,
     BookmarkMark,

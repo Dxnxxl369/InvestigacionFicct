@@ -754,3 +754,4 @@
   - La tabla de contenido ahora se genera desde `h1/h2/h3`, calcula numeracion jerarquica visible (`1`, `1.1`, `1.1.1`) y renderiza entradas con puntos guia y numero de pagina alineado a la derecha.
   - El titulo `Tabla de contenido` ya no se inserta como `h2`, para evitar que quede numerado como parte del esquema del documento.
   - Verificacion: `npx tsc --noEmit --pretty false` y `npm run build` completaron correctamente.
+  - Ajuste posterior: la tabla de contenido dejo de insertarse como tabla editable para evitar bordes/cuadricula; ahora usa nodos propios de indice con numero, texto, puntos guia y pagina al extremo derecho, mas parecido a Word.
