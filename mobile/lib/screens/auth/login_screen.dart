@@ -4,6 +4,8 @@ import '../../config/constants.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/fcm_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class LoginScreen extends StatefulWidget {
   final AuthService authService;
@@ -51,6 +53,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final targetEmail = email ?? _emailCtrl.text;
     final targetPass = pass ?? _passCtrl.text;
+
+    if (FcmService.currentToken == null) {
+      try {
+        FcmService.currentToken = await FirebaseMessaging.instance.getToken().timeout(const Duration(seconds: 3));
+      } catch (_) {}
+    }
 
     final ok = await widget.authService.login(targetEmail, targetPass);
 
