@@ -46,6 +46,24 @@ public class FirebaseConfig {
                     return app;
                 }
             } else {
+                java.io.File localFile = new java.io.File("firebase-service-account.json");
+                if (!localFile.exists()) {
+                    localFile = new java.io.File("backend/src/main/resources/firebase-service-account.json");
+                }
+                if (!localFile.exists()) {
+                    localFile = new java.io.File("src/main/resources/firebase-service-account.json");
+                }
+                if (localFile.exists()) {
+                    try (InputStream serviceAccount = new java.io.FileInputStream(localFile)) {
+                        FirebaseOptions options = FirebaseOptions.builder()
+                                .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                                .build();
+                        FirebaseApp app = FirebaseApp.initializeApp(options);
+                        log.info(">>> [FirebaseConfig] Firebase Admin SDK inicializado exitosamente desde archivo: {}", localFile.getAbsolutePath());
+                        return app;
+                    }
+                }
+
                 // Alternativa: Variable de entorno en producción (Render / Cloud / Docker)
                 String envJson = System.getenv("FIREBASE_CREDENTIALS");
                 if (envJson == null || envJson.isBlank()) {

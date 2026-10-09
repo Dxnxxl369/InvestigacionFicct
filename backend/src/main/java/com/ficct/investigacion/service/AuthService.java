@@ -123,6 +123,11 @@ public class AuthService {
             throw new BadCredentialsException("Correo o contraseña incorrectos");
         }
 
+        if (request.getFcmToken() != null && !request.getFcmToken().isBlank()) {
+            user.setFcmToken(request.getFcmToken().trim());
+            userRepository.save(user);
+        }
+
         String jwtToken = jwtService.generateToken(user);
 
         return new AuthResponse(

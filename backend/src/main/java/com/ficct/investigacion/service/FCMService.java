@@ -1,5 +1,7 @@
 package com.ficct.investigacion.service;
 
+import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.AndroidNotification;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
@@ -29,13 +31,29 @@ public class FCMService {
 
     @Async
     public void enviarPush(String fcmToken, String titulo, String cuerpo, Map<String, String> data) {
-        if (firebaseMessaging == null || fcmToken == null || fcmToken.isBlank()) {
+        if (firebaseMessaging == null) {
+            log.warn(">>> [FCMService] No se puede enviar push: FirebaseMessaging no está inicializado (verificar credenciales Firebase).");
+            return;
+        }
+        if (fcmToken == null || fcmToken.isBlank()) {
+            log.warn(">>> [FCMService] No se puede enviar push: token FCM es nulo o vacío.");
             return;
         }
 
         try {
+            AndroidConfig androidConfig = AndroidConfig.builder()
+                    .setPriority(AndroidConfig.Priority.HIGH)
+                    .setNotification(AndroidNotification.builder()
+                            .setChannelId("ficct_notificaciones_channel")
+                            .setSound("default")
+                            .setDefaultSound(true)
+                            .setDefaultVibrateTimings(true)
+                            .build())
+                    .build();
+
             Message.Builder mb = Message.builder()
                     .setToken(fcmToken)
+                    .setAndroidConfig(androidConfig)
                     .setNotification(Notification.builder()
                             .setTitle(titulo)
                             .setBody(cuerpo)

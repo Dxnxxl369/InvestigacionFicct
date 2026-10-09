@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 @Transactional
 public class NotificacionService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NotificacionService.class);
+
     private final NotificacionRepository notificacionRepository;
     private final UserRepository userRepository;
     private final TareaRepository tareaRepository;
@@ -91,11 +93,14 @@ public class NotificacionService {
                         if (convocatoriaId != null) data.put("convocatoriaId", String.valueOf(convocatoriaId));
                         if (tareaId != null) data.put("tareaId", String.valueOf(tareaId));
                         if (entregaId != null) data.put("entregaId", String.valueOf(entregaId));
+                        log.info(">>> [NotificacionService] Enviando push a usuario id={} ({})", usuarioId, dest.getEmail());
                         fcmService.enviarPush(dest.getFcmToken(), titulo, mensaje, data);
+                    } else {
+                        log.warn(">>> [NotificacionService] Usuario id={} ({}) no tiene fcmToken registrado en BD. No se puede enviar push.", usuarioId, dest.getEmail());
                     }
                 });
             } catch (Exception pushErr) {
-                // Silencioso para no romper la transacción principal
+                log.error(">>> [NotificacionService] Error al intentar enviar push para usuario id={}: {}", usuarioId, pushErr.getMessage());
             }
         } catch (Exception e) {
             // Defensivo para no interrumpir flujos de negocio

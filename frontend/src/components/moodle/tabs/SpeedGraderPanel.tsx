@@ -16,6 +16,7 @@ import {
   Award,
   Check,
   ArrowLeft,
+  Eye,
 } from "lucide-react";
 import {
   api,
@@ -27,6 +28,7 @@ import {
   getMediaUrl,
 } from "@/lib/api";
 import { renderArchivoIcon, formatMoodleDate } from "../moodleUtils";
+import VisorArchivoModal from "../modals/VisorArchivoModal";
 
 interface SpeedGraderPanelProps {
   tarea: TareaDTO;
@@ -61,6 +63,7 @@ export default function SpeedGraderPanel({
   const [feedbackDocente, setFeedbackDocente] = useState("");
   const [puntajesCriteriosInput, setPuntajesCriteriosInput] = useState<Record<number, number>>({});
   const [guardandoNota, setGuardandoNota] = useState(false);
+  const [archivoAVisualizar, setArchivoAVisualizar] = useState<{ url: string; nombre?: string } | null>(null);
 
   // Cargar entregas y seguimiento
   useEffect(() => {
@@ -669,10 +672,10 @@ export default function SpeedGraderPanel({
                                 {url && (
                                   <button
                                     type="button"
-                                    onClick={() => window.open(getMediaUrl(url), "_blank")}
+                                    onClick={() => setArchivoAVisualizar({ url, nombre })}
                                     className="px-2.5 py-1.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                                   >
-                                    <ExternalLink className="w-3 h-3 text-accent" /> Ver
+                                    <Eye className="w-3.5 h-3.5 text-accent" /> Ver
                                   </button>
                                 )}
                                 {url && (
@@ -712,12 +715,12 @@ export default function SpeedGraderPanel({
                               type="button"
                               onClick={() => {
                                 const url = selectedEntregaObj.archivoUrl || selectedEntregaObj.nombreArchivo;
-                                if (url) window.open(getMediaUrl(url), "_blank");
+                                if (url) setArchivoAVisualizar({ url, nombre: selectedEntregaObj.nombreArchivo });
                               }}
                               disabled={!selectedEntregaObj.archivoUrl && !selectedEntregaObj.nombreArchivo}
                               className="px-3 py-1.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                             >
-                              <ExternalLink className="w-3.5 h-3.5 text-accent" /> Ver Archivo
+                              <Eye className="w-3.5 h-3.5 text-accent" /> Ver Archivo
                             </button>
                             <button
                               type="button"
@@ -915,6 +918,13 @@ export default function SpeedGraderPanel({
           </div>
         </div>
       </div>
+
+      <VisorArchivoModal
+        isOpen={Boolean(archivoAVisualizar)}
+        onClose={() => setArchivoAVisualizar(null)}
+        archivoUrl={archivoAVisualizar?.url}
+        nombreArchivo={archivoAVisualizar?.nombre}
+      />
     </div>
   );
 }

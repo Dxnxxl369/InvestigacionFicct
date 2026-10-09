@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_theme.dart';
 import '../../models/tarea_model.dart';
 import '../../services/api_service.dart';
 import '../../widgets/moodle_widgets.dart';
+import 'widgets/visor_documento_screen.dart';
 
 class SpeedGraderScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -237,35 +237,23 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
     }
   }
 
-  Future<void> _abrirArchivo(String? archivoUrl) async {
+  Future<void> _abrirArchivo(String? archivoUrl, [String? nombreArchivo]) async {
     if (archivoUrl == null || archivoUrl.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay archivo disponible para abrir.')),
+        const SnackBar(content: Text('No hay archivo disponible para previsualizar.')),
       );
       return;
     }
 
-    final resolved = ApiService.resolveFileUrl(archivoUrl);
-    if (resolved == null) return;
+    final String docTitle = (nombreArchivo != null && nombreArchivo.trim().isNotEmpty)
+        ? nombreArchivo.trim()
+        : archivoUrl.split('/').last.split('?').first;
 
-    try {
-      final uri = Uri.parse(resolved);
-      final canOpen = await canLaunchUrl(uri);
-      if (canOpen) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        await launchUrl(uri);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppTheme.danger,
-            content: Text('No se pudo abrir el archivo: $e'),
-          ),
-        );
-      }
-    }
+    VisorDocumentoScreen.abrir(
+      context,
+      titulo: docTitle.isEmpty ? 'Documento de Entrega' : docTitle,
+      url: archivoUrl,
+    );
   }
 
   Future<void> _verHistorial(int? entregaId) async {
@@ -872,8 +860,8 @@ class _SpeedGraderScreenState extends State<SpeedGraderScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 ElevatedButton.icon(
-                                  onPressed: (fUrl != null && fUrl.isNotEmpty) ? () => _abrirArchivo(fUrl) : null,
-                                  icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                                  onPressed: (fUrl != null && fUrl.isNotEmpty) ? () => _abrirArchivo(fUrl, fName) : null,
+                                  icon: const Icon(Icons.visibility_rounded, size: 14),
                                   label: const Text('Ver', style: TextStyle(fontSize: 11)),
                                   style: ElevatedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

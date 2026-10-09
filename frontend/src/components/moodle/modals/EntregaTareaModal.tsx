@@ -10,7 +10,9 @@ import {
   RefreshCw,
   Edit2,
   Users,
+  Eye,
 } from "lucide-react";
+import VisorArchivoModal from "./VisorArchivoModal";
 import {
   api,
   TareaDTO,
@@ -66,6 +68,7 @@ export default function EntregaTareaModal({
   const [errorValidacionArchivo, setErrorValidacionArchivo] = useState<string | null>(null);
   const [editandoNombreArchivo, setEditandoNombreArchivo] = useState(false);
   const [enviandoEntrega, setEnviandoEntrega] = useState(false);
+  const [archivoAVisualizar, setArchivoAVisualizar] = useState<{ url: string; nombre?: string } | null>(null);
 
   const fileInputEntregaRef = useRef<HTMLInputElement>(null);
 
@@ -442,14 +445,23 @@ export default function EntregaTareaModal({
                   {renderArchivoIcon(nombreArchivoEntrega || "archivo_anterior.pdf", "w-4 h-4")}
                   <span className="truncate font-medium">{nombreArchivoEntrega || "Archivo registrado"}</span>
                 </div>
-                <a
-                  href={getMediaUrl(archivoEntregaPrevioUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" /> Descargar
-                </a>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setArchivoAVisualizar({ url: archivoEntregaPrevioUrl, nombre: nombreArchivoEntrega })}
+                    className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> Ver
+                  </button>
+                  <a
+                    href={getMediaUrl(archivoEntregaPrevioUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Descargar
+                  </a>
+                </div>
               </div>
             )}
             <p className="text-[10px] text-emerald-700">
@@ -718,6 +730,13 @@ export default function EntregaTareaModal({
           </div>
         </form>
       </div>
+
+      <VisorArchivoModal
+        isOpen={Boolean(archivoAVisualizar)}
+        onClose={() => setArchivoAVisualizar(null)}
+        archivoUrl={archivoAVisualizar?.url}
+        nombreArchivo={archivoAVisualizar?.nombre}
+      />
     </div>
   );
 }

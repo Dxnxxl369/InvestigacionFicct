@@ -94,12 +94,19 @@ class ApiService {
   }
 
   // HU-02: Login Real contra PostgreSQL
-  static Future<Map<String, dynamic>> login(String email, String password) async {
+  static Future<Map<String, dynamic>> login(String email, String password, [String? fcmToken]) async {
     try {
+      final Map<String, dynamic> body = {
+        'email': email.trim().toLowerCase(),
+        'password': password,
+      };
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        body['fcmToken'] = fcmToken;
+      }
       final res = await http.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email.trim().toLowerCase(), 'password': password}),
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 6));
 
       if (res.statusCode == 200) {
@@ -1465,13 +1472,23 @@ class ApiService {
   static Future<bool> actualizarFcmToken(String fcmToken) async {
     try {
       final headers = await _headers();
+      if (!headers.containsKey('Authorization')) {
+        debugPrint('[ApiService] actualizarFcmToken omitido: usuario no autenticado aún.');
+        return false;
+      }
       final res = await http.put(
         Uri.parse('$baseUrl/auth/fcm-token'),
         headers: headers,
         body: jsonEncode({'fcmToken': fcmToken}),
       ).timeout(const Duration(seconds: 5));
 
-      return res.statusCode == 200;
+      final ok = res.statusCode == 200;
+      if (ok) {
+        debugPrint('[ApiService] FCM Token guardado exitosamente en el backend.');
+      } else {
+        debugPrint('[ApiService] Error al sincronizar FCM token: HTTP ${res.statusCode} - ${res.body}');
+      }
+      return ok;
     } catch (e) {
       debugPrint('[ApiService] Error al sincronizar FCM token: $e');
       return false;

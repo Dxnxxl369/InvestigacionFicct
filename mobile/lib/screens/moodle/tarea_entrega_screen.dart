@@ -8,6 +8,7 @@ import '../../models/user_model.dart';
 import '../../services/storage_service.dart';
 import '../../services/api_service.dart';
 import 'speedgrader_screen.dart';
+import 'widgets/visor_documento_screen.dart';
 
 class ArchivoAdjuntoItem {
   String nombre;
@@ -923,53 +924,83 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                             final icon = _getFileIcon(arch.nombre);
                             final color = _getFileColor(arch.nombre);
 
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accentSoft.withValues(alpha: 0.5),
+                            final puedeVer = (arch.urlExistente != null && arch.urlExistente!.isNotEmpty) || arch.bytes != null;
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(icon, color: color, size: 26),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          arch.nombre,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
-                                            color: AppTheme.accentDark,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                onTap: puedeVer
+                                    ? () {
+                                        VisorDocumentoScreen.abrir(
+                                          context,
+                                          titulo: arch.nombre,
+                                          url: arch.urlExistente,
+                                          localBytes: arch.bytes,
+                                        );
+                                      }
+                                    : null,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.accentSoft.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(icon, color: color, size: 26),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              arch.nombre,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                color: AppTheme.accentDark,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              arch.tamanoBytes > 0
+                                                  ? '${_formatFileSize(arch.tamanoBytes)} • Toca para previsualizar'
+                                                  : (arch.urlExistente != null ? 'Registrado en servidor • Toca para previsualizar' : 'Listo para enviar'),
+                                              style: const TextStyle(fontSize: 10, color: AppTheme.inkFaint),
+                                            ),
+                                          ],
                                         ),
-                                        Text(
-                                          arch.tamanoBytes > 0
-                                              ? '${_formatFileSize(arch.tamanoBytes)} • Listo para enviar'
-                                              : (arch.urlExistente != null ? 'Registrado en servidor' : 'Listo para enviar'),
-                                          style: const TextStyle(fontSize: 10, color: AppTheme.inkFaint),
+                                      ),
+                                      if (puedeVer)
+                                        IconButton(
+                                          icon: const Icon(Icons.visibility_rounded, size: 18, color: AppTheme.accentDark),
+                                          tooltip: 'Previsualizar archivo',
+                                          onPressed: () {
+                                            VisorDocumentoScreen.abrir(
+                                              context,
+                                              titulo: arch.nombre,
+                                              url: arch.urlExistente,
+                                              localBytes: arch.bytes,
+                                            );
+                                          },
+                                        ),
+                                      if (!haCerrado && !aperturaPendiente) ...[
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_outlined, size: 18),
+                                          tooltip: 'Renombrar',
+                                          onPressed: () => _showRenombrarDialog(index),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.danger, size: 18),
+                                          tooltip: 'Eliminar',
+                                          onPressed: () => _eliminarArchivo(index),
                                         ),
                                       ],
-                                    ),
+                                    ],
                                   ),
-                                  if (!haCerrado && !aperturaPendiente) ...[
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined, size: 18),
-                                      tooltip: 'Renombrar',
-                                      onPressed: () => _showRenombrarDialog(index),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.danger, size: 18),
-                                      tooltip: 'Eliminar',
-                                      onPressed: () => _eliminarArchivo(index),
-                                    ),
-                                  ],
-                                ],
+                                ),
                               ),
                             );
                           },

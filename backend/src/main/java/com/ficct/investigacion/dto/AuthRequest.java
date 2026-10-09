@@ -36,4 +36,14 @@ public class AuthRequest {
     public void setPassword(String password) {
         this.password = password;
     }
+
+    private String fcmToken;
+
+    public String getFcmToken() {
+        return fcmToken;
+    }
+
+    public void setFcmToken(String fcmToken) {
+        this.fcmToken = fcmToken;
+    }
 }

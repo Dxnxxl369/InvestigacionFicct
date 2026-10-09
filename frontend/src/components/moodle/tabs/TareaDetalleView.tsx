@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ArrowLeft,
   ChevronRight,
+  Eye,
 } from "lucide-react";
 import {
   TareaDTO,
@@ -20,6 +21,7 @@ import {
   ConvocatoriaParticipanteDTO,
   getMediaUrl,
 } from "@/lib/api";
+import VisorArchivoModal from "../modals/VisorArchivoModal";
 import {
   formatMoodleDate,
   formatMoodleDateShort,
@@ -56,6 +58,7 @@ export default function TareaDetalleView({
   onVerHistorialVersiones,
 }: TareaDetalleViewProps) {
   const [ahoraMs, setAhoraMs] = React.useState(Date.now());
+  const [archivoAVisualizar, setArchivoAVisualizar] = React.useState<{ url: string; nombre?: string } | null>(null);
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -477,15 +480,14 @@ export default function TareaDetalleView({
                         <div key={idx} className="flex items-center gap-2">
                           {renderArchivoIcon(nombre, "w-4 h-4 text-ink-faint shrink-0")}
                           {url ? (
-                            <a
-                              href={getMediaUrl(url)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-accent hover:underline font-medium inline-flex items-center gap-1.5"
+                            <button
+                              type="button"
+                              onClick={() => setArchivoAVisualizar({ url, nombre })}
+                              className="text-accent hover:underline font-medium inline-flex items-center gap-1.5 cursor-pointer text-left"
                             >
                               {nombre}
-                              <Download className="w-3.5 h-3.5 shrink-0" />
-                            </a>
+                              <Eye className="w-3.5 h-3.5 shrink-0" />
+                            </button>
                           ) : (
                             <span className="font-medium text-ink">{nombre}</span>
                           )}
@@ -496,15 +498,14 @@ export default function TareaDetalleView({
                     <div className="flex items-center gap-2">
                       {renderArchivoIcon(miEntrega.nombreArchivo, "w-4 h-4 text-ink-faint shrink-0")}
                       {miEntrega.archivoUrl ? (
-                        <a
-                          href={getMediaUrl(miEntrega.archivoUrl)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent hover:underline font-medium inline-flex items-center gap-1.5"
+                        <button
+                          type="button"
+                          onClick={() => setArchivoAVisualizar({ url: miEntrega.archivoUrl!, nombre: miEntrega.nombreArchivo })}
+                          className="text-accent hover:underline font-medium inline-flex items-center gap-1.5 cursor-pointer text-left"
                         >
                           {miEntrega.nombreArchivo}
-                          <Download className="w-3.5 h-3.5 shrink-0" />
-                        </a>
+                          <Eye className="w-3.5 h-3.5 shrink-0" />
+                        </button>
                       ) : (
                         <span className="font-medium text-ink">{miEntrega.nombreArchivo}</span>
                       )}
@@ -628,6 +629,13 @@ export default function TareaDetalleView({
           </div>
         </div>
       )}
+
+      <VisorArchivoModal
+        isOpen={Boolean(archivoAVisualizar)}
+        onClose={() => setArchivoAVisualizar(null)}
+        archivoUrl={archivoAVisualizar?.url}
+        nombreArchivo={archivoAVisualizar?.nombre}
+      />
     </div>
   );
 }

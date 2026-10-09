@@ -15,6 +15,7 @@ import 'convocatorias/crear_convocatoria_screen.dart';
 import 'documentos/documentos_screen.dart';
 import 'perfil/perfil_screen.dart';
 import '../config/app_theme.dart';
+import '../services/fcm_service.dart';
 
 class MainScaffold extends StatefulWidget {
   final AuthService authService;
@@ -34,6 +35,30 @@ class MainScaffold extends StatefulWidget {
 
 class _MainScaffoldState extends State<MainScaffold> {
   int _currentTab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    FcmService.syncTokenWithBackend();
+    FcmService.onNotificationTapped = _handleNotificationTapped;
+  }
+
+  void _handleNotificationTapped(Map<String, dynamic> data) {
+    if (!mounted) return;
+    final tareaIdStr = data['tareaId']?.toString();
+    final tipo = data['tipo']?.toString();
+    if (tareaIdStr != null && tareaIdStr.isNotEmpty) {
+      final tid = int.tryParse(tareaIdStr);
+      if (tid != null) {
+        if (widget.authService.isDocente || tipo == 'NUEVA_ENTREGA') {
+          _abrirSpeedGrader(tareaId: tid);
+        } else {
+          _abrirMisPendientes();
+        }
+        return;
+      }
+    }
+  }
 
   void _onTabTapped(int index) {
     setState(() {

@@ -11,6 +11,8 @@ class AuthService extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _currentUser != null;
+  bool get isDocente => _currentUser?.rol == 'DOCENTE';
+  bool get isEstudiante => _currentUser?.rol == 'ESTUDIANTE';
 
   AuthService() {
     _loadSession();
@@ -33,7 +35,7 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await ApiService.login(email, password);
+      final res = await ApiService.login(email, password, FcmService.currentToken);
       if (res['success'] == true) {
         _currentUser = res['user'] as UserModel;
         _isLoading = false;
