@@ -30,9 +30,12 @@ import {
   BookOpen,
   Award,
   Info,
+  Trash2,
+  Archive,
 } from "lucide-react";
 
 // Modales Moodle Modularizados
+import ConfirmarEliminacionModal from "@/components/moodle/modals/ConfirmarEliminacionModal";
 import EntregaTareaModal from "@/components/moodle/modals/EntregaTareaModal";
 import CrearEditarTareaModal from "@/components/moodle/modals/CrearEditarTareaModal";
 import CrearEditarModuloModal from "@/components/moodle/modals/CrearEditarModuloModal";
@@ -152,6 +155,17 @@ export default function ConvocatoriaDetallePage() {
   const [perfilUsuarioModalId, setPerfilUsuarioModalId] = useState<number | null>(null);
   const [perfilUsuarioModalData, setPerfilUsuarioModalData] = useState<any | null>(null);
   const [cargandoPerfilUsuario, setCargandoPerfilUsuario] = useState(false);
+
+  // Estados para Eliminación Confirmada (Módulo, Tarea, Convocatoria)
+  const [itemAEliminar, setItemAEliminar] = useState<{
+    tipo: "TAREA" | "MODULO" | "CONVOCATORIA";
+    id: number;
+    titulo: string;
+    totalEntregas?: number;
+    totalParticipantes?: number;
+    totalTareas?: number;
+  } | null>(null);
+  const [eliminandoItem, setEliminandoItem] = useState(false);
 
   // Estados de interacción en pestaña Grupos
   const [selectedGrupoRadioId, setSelectedGrupoRadioId] = useState<number | null>(null);
@@ -394,23 +408,85 @@ export default function ConvocatoriaDetallePage() {
     }
   };
 
-  // Handlers para Módulos
-  const handleEliminarModulo = async (modId: number) => {
-    if (!confirm("¿Estás seguro de eliminar este módulo? Las tareas dentro del módulo no se eliminarán, pasarán a ser tareas generales fuera de módulos.")) {
-      return;
-    }
+  // Handlers para Módulos, Tareas y Convocatorias
+  const handleAbrirEliminarModulo = (modId: number) => {
+    const mod = modulos.find((m) => m.id === modId);
+    setItemAEliminar({
+      tipo: "MODULO",
+      id: modId,
+      titulo: mod?.titulo || `Módulo #${modId}`,
+    });
+  };
+
+  const handleAbrirEliminarTarea = (t: TareaDTO) => {
+    setItemAEliminar({
+      tipo: "TAREA",
+      id: t.id,
+      titulo: t.titulo,
+      totalEntregas: t.totalEntregas || 0,
+    });
+  };
+
+  const handleAbrirEliminarConvocatoria = () => {
+    if (!convocatoria) return;
+    setItemAEliminar({
+      tipo: "CONVOCATORIA",
+      id: convocatoria.id,
+      titulo: convocatoria.titulo,
+      totalParticipantes: participantes.length,
+      totalTareas: tareas.length,
+    });
+  };
+
+  const handleConfirmarEliminacion = async () => {
+    if (!itemAEliminar) return;
     try {
-      await api.deleteModulo(modId);
-      toast("Módulo eliminado con éxito", "success");
-      if (selectedModuloId === modId) setSelectedModuloId(null);
-      const [mods, updatedTareas] = await Promise.all([
-        api.getModulosConvocatoria(convocatoriaId),
-        api.getTareasConvocatoria(convocatoriaId),
-      ]);
-      setModulos(mods);
-      setTareas(updatedTareas);
+      setEliminandoItem(true);
+      if (itemAEliminar.tipo === "TAREA") {
+        await api.deleteTarea(itemAEliminar.id, true);
+        toast("Tarea eliminada exitosamente", "success");
+        if (activeTareaDetalle?.id === itemAEliminar.id) {
+          setActiveTareaDetalle(null);
+          updateUrlParams({ tarea: null });
+        }
+        const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
+        setTareas(updatedTareas);
+      } else if (itemAEliminar.tipo === "MODULO") {
+        await api.deleteModulo(itemAEliminar.id);
+        toast("Módulo eliminado con éxito", "success");
+        if (selectedModuloId === itemAEliminar.id) {
+          setSelectedModuloId(null);
+        }
+        const [mods, updatedTareas] = await Promise.all([
+          api.getModulosConvocatoria(convocatoriaId),
+          api.getTareasConvocatoria(convocatoriaId),
+        ]);
+        setModulos(mods);
+        setTareas(updatedTareas);
+      } else if (itemAEliminar.tipo === "CONVOCATORIA") {
+        await api.deleteConvocatoria(itemAEliminar.id, true);
+        toast("Área eliminada exitosamente", "success");
+        router.push("/dashboard/convocatorias");
+      }
+      setItemAEliminar(null);
     } catch (err: any) {
-      toast(err.message || "Error al eliminar módulo", "error");
+      toast(err.message || "Error al eliminar elemento", "error");
+    } finally {
+      setEliminandoItem(false);
+    }
+  };
+
+  const handleArchivarConvocatoriaDesdeModal = async () => {
+    try {
+      setEliminandoItem(true);
+      await api.archivarConvocatoria(convocatoriaId);
+      toast("Área archivada exitosamente", "success");
+      setItemAEliminar(null);
+      await cargarDatos();
+    } catch (err: any) {
+      toast(err.message || "Error al archivar área", "error");
+    } finally {
+      setEliminandoItem(false);
     }
   };
 
@@ -768,6 +844,7 @@ export default function ConvocatoriaDetallePage() {
               updateUrlParams({ entregas: t.id });
             }}
             onVerHistorialVersiones={handleVerHistorialVersiones}
+            onEliminarTarea={handleAbrirEliminarTarea}
           />
         </div>
 
@@ -801,6 +878,22 @@ export default function ConvocatoriaDetallePage() {
           <HistorialVersionesModal
             versiones={historialVersiones}
             onClose={() => setShowHistorialModal(false)}
+          />
+        )}
+
+        {/* Modal de Confirmación de Eliminación */}
+        {itemAEliminar && (
+          <ConfirmarEliminacionModal
+            isOpen={!!itemAEliminar}
+            onClose={() => setItemAEliminar(null)}
+            onConfirmEliminar={handleConfirmarEliminacion}
+            onArchivar={handleArchivarConvocatoriaDesdeModal}
+            loading={eliminandoItem}
+            tipo={itemAEliminar.tipo}
+            tituloElemento={itemAEliminar.titulo}
+            totalEntregas={itemAEliminar.totalEntregas}
+            totalParticipantes={itemAEliminar.totalParticipantes}
+            totalTareas={itemAEliminar.totalTareas}
           />
         )}
       </DashboardLayout>
@@ -895,7 +988,7 @@ export default function ConvocatoriaDetallePage() {
                 </div>
 
                 {/* Acciones principales de inscripción o gestión */}
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0 flex-wrap">
                   {user?.rol === "ESTUDIANTE" && !esEstudianteInscrito && convocatoria.estado !== "FINALIZADA" && (
                     <button
                       onClick={() => setShowInscripcionModal(true)}
@@ -903,6 +996,39 @@ export default function ConvocatoriaDetallePage() {
                     >
                       {esEstudianteRechazado ? "Volver a Postular" : "Inscribirme al Área"}
                     </button>
+                  )}
+
+                  {esAdmin && (
+                    <div className="flex items-center gap-2">
+                      {convocatoria.estado !== "FINALIZADA" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItemAEliminar({
+                              tipo: "CONVOCATORIA",
+                              id: convocatoria.id,
+                              titulo: convocatoria.titulo,
+                              totalParticipantes: participantes.length,
+                              totalTareas: tareas.length,
+                            });
+                          }}
+                          className="px-3 py-2 bg-paper hover:bg-paper-sunken border border-line text-ink-soft hover:text-ink rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                          title="Gestionar estado o archivar aula"
+                        >
+                          <Archive className="w-3.5 h-3.5 text-accent" />
+                          <span className="hidden sm:inline">Archivar Área</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleAbrirEliminarConvocatoria}
+                        className="px-3 py-2 bg-paper hover:bg-rose-500/10 border border-line hover:border-rose-300 text-ink-soft hover:text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Eliminar aula definitivamente"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Eliminar Aula</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1015,7 +1141,8 @@ export default function ConvocatoriaDetallePage() {
               setModuloEditing(m);
               setShowModuloModal(true);
             }}
-            onEliminarModulo={handleEliminarModulo}
+            onEliminarModulo={handleAbrirEliminarModulo}
+            onEliminarTarea={handleAbrirEliminarTarea}
             onDeclinarSolicitudPropia={handleDeclinarSolicitudPropia}
             onAbrirInscripcionModal={() => setShowInscripcionModal(true)}
             onSeleccionarActividadGrupo={(act) => {
@@ -1267,6 +1394,22 @@ export default function ConvocatoriaDetallePage() {
             setPerfilUsuarioModalData(null);
           }}
         />
+
+        {/* Modal de Confirmación de Eliminación */}
+        {itemAEliminar && (
+          <ConfirmarEliminacionModal
+            isOpen={!!itemAEliminar}
+            onClose={() => setItemAEliminar(null)}
+            onConfirmEliminar={handleConfirmarEliminacion}
+            onArchivar={handleArchivarConvocatoriaDesdeModal}
+            loading={eliminandoItem}
+            tipo={itemAEliminar.tipo}
+            tituloElemento={itemAEliminar.titulo}
+            totalEntregas={itemAEliminar.totalEntregas}
+            totalParticipantes={itemAEliminar.totalParticipantes}
+            totalTareas={itemAEliminar.totalTareas}
+          />
+        )}
       </div>
     </DashboardLayout>
   );

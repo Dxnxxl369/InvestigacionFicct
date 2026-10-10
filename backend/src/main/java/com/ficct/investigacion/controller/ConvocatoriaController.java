@@ -1,6 +1,7 @@
 package com.ficct.investigacion.controller;
 
 import com.ficct.investigacion.dto.*;
+import com.ficct.investigacion.exception.ConvocatoriaConDatosException;
 import com.ficct.investigacion.model.EstadoConvocatoria;
 import com.ficct.investigacion.service.ConvocatoriaService;
 import jakarta.validation.Valid;
@@ -136,6 +137,54 @@ public class ConvocatoriaController {
             ConvocatoriaDTO actualizada = convocatoriaService.cambiarEstado(id, nuevoEstado);
             return ResponseEntity.ok(actualizada);
         } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
+     * Archivar o finalizar convocatoria/área (Solo ADMIN)
+     */
+    @PutMapping("/{id}/archivar")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> archivarConvocatoria(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            ConvocatoriaDTO archivada = convocatoriaService.archivarConvocatoria(id, userDetails.getUsername());
+            return ResponseEntity.ok(archivada);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
+     * Eliminar definitivamente una convocatoria/área (Solo ADMIN)
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> eliminarConvocatoria(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean forzar,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            convocatoriaService.eliminarConvocatoria(id, forzar, userDetails.getUsername());
+            Map<String, String> resp = new HashMap<>();
+            resp.put("message", "Área eliminada exitosamente.");
+            return ResponseEntity.ok(resp);
+        } catch (ConvocatoriaConDatosException e) {
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("error", e.getMessage());
+            resp.put("tieneDatos", true);
+            resp.put("totalParticipantes", e.getTotalParticipantes());
+            resp.put("totalTareas", e.getTotalTareas());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(resp);
+        } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(error);

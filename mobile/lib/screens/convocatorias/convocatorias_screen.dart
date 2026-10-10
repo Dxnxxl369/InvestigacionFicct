@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/moodle_widgets.dart';
+import '../../widgets/confirmar_eliminacion_dialog.dart';
 
 class ConvocatoriasScreen extends StatefulWidget {
   final Function(ConvocatoriaModel) onOpenDetalle;
@@ -96,6 +97,76 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
         );
       }
     }
+  }
+
+  Future<void> _handleArchivar(ConvocatoriaModel conv) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Archivar Convocatoria'),
+        content: Text('¿Desea archivar "${conv.titulo}"? Pasará a modo solo lectura.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.seal),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Archivar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final ok = await ApiService.archivarConvocatoria(conv.id);
+      if (mounted) {
+        if (ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Color(0xFF10B981),
+              content: Text('Área archivada exitosamente.'),
+            ),
+          );
+          _loadData();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: AppTheme.danger,
+              content: Text('Error al archivar la convocatoria.'),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _handleEliminar(ConvocatoriaModel conv) {
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.convocatoria,
+      titulo: conv.titulo,
+      onArchivar: () => _handleArchivar(conv),
+      onConfirmar: () async {
+        final res = await ApiService.eliminarConvocatoria(conv.id, forzar: true);
+        if (mounted) {
+          if (res['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Área eliminada definitivamente.'),
+              ),
+            );
+            _loadData();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text(res['error']?.toString() ?? 'Error al eliminar el área.'),
+              ),
+            );
+          }
+        }
+      },
+    );
   }
 
   @override
@@ -248,10 +319,10 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
                                                 ),
                                                 child: Text(
                                                   conv.miEstadoInscripcion == 'ACEPTADO'
-                                                      ? '✓ ADMITIDO'
+                                                      ? 'ADMITIDO'
                                                       : conv.miEstadoInscripcion == 'PENDIENTE'
-                                                          ? '⏳ PENDIENTE'
-                                                          : '✕ RECHAZADO',
+                                                          ? 'PENDIENTE'
+                                                          : 'RECHAZADO',
                                                   style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold),
                                                 ),
                                               ),
@@ -311,45 +382,99 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
                                               color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint,
                                             ),
                                           ),
-                                          if (isAdmin && isBorrador)
-                                            ElevatedButton(
-                                              onPressed: () => _handlePublicar(conv.id, conv.titulo),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: const Color(0xFF10B981),
-                                                foregroundColor: Colors.white,
-                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                minimumSize: Size.zero,
-                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                              ),
-                                              child: const Text('Publicar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                            )
-                                          else if (conv.miEstadoInscripcion == 'ACEPTADO')
-                                            const Text(
-                                              '🎓 Ver Aula Virtual →',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF10B981),
-                                              ),
-                                            )
-                                          else if (conv.miEstadoInscripcion == 'PENDIENTE')
-                                            Text(
-                                              '⏳ En Revisión →',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.amber.shade700,
-                                              ),
-                                            )
-                                          else
-                                            const Text(
-                                              'Ver Requisitos →',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppTheme.accent,
-                                              ),
-                                            ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (isAdmin && isBorrador) ...[
+                                                ElevatedButton(
+                                                  onPressed: () => _handlePublicar(conv.id, conv.titulo),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: const Color(0xFF10B981),
+                                                    foregroundColor: Colors.white,
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                    minimumSize: Size.zero,
+                                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                  ),
+                                                  child: const Text('Publicar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                                ),
+                                                const SizedBox(width: 6),
+                                              ],
+                                              if (conv.miEstadoInscripcion == 'ACEPTADO')
+                                                const Text(
+                                                  'Ver Aula Virtual →',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF10B981),
+                                                  ),
+                                                )
+                                              else if (conv.miEstadoInscripcion == 'PENDIENTE')
+                                                Text(
+                                                  'En Revisión →',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.amber.shade700,
+                                                  ),
+                                                )
+                                              else
+                                                const Text(
+                                                  'Ver Requisitos →',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: AppTheme.accent,
+                                                  ),
+                                                ),
+                                              if (isAdmin) ...[
+                                                const SizedBox(width: 4),
+                                                PopupMenuButton<String>(
+                                                  icon: const Icon(Icons.more_vert_rounded, size: 18, color: AppTheme.inkSoft),
+                                                  padding: EdgeInsets.zero,
+                                                  constraints: const BoxConstraints(),
+                                                  tooltip: 'Acciones de administración',
+                                                  onSelected: (val) {
+                                                    if (val == 'publicar') _handlePublicar(conv.id, conv.titulo);
+                                                    if (val == 'archivar') _handleArchivar(conv);
+                                                    if (val == 'eliminar') _handleEliminar(conv);
+                                                  },
+                                                  itemBuilder: (ctx) => [
+                                                    if (isBorrador)
+                                                      const PopupMenuItem(
+                                                        value: 'publicar',
+                                                        child: Row(
+                                                          children: [
+                                                            Icon(Icons.check_circle_outline_rounded, size: 16, color: Color(0xFF10B981)),
+                                                            SizedBox(width: 8),
+                                                            Text('Publicar'),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    const PopupMenuItem(
+                                                      value: 'archivar',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.archive_outlined, size: 16),
+                                                          SizedBox(width: 8),
+                                                          Text('Archivar'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    const PopupMenuItem(
+                                                      value: 'eliminar',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.delete_outline_rounded, size: 16, color: AppTheme.danger),
+                                                          SizedBox(width: 8),
+                                                          Text('Eliminar', style: TextStyle(color: AppTheme.danger)),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ],
+                                          ),
                                         ],
                                       ),
                                     ],

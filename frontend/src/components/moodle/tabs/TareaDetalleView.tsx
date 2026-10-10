@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Eye,
+  Trash2,
 } from "lucide-react";
 import {
   TareaDTO,
@@ -39,6 +40,7 @@ interface TareaDetalleViewProps {
   onVolver: () => void;
   onAbrirEntregaModal: (t: TareaDTO) => void;
   onAbrirEditarTarea: (t: TareaDTO) => void;
+  onEliminarTarea?: (t: TareaDTO) => void;
   onToggleHabilitar: (tId: number) => void;
   onVerEntregas: (t: TareaDTO) => void;
   onVerHistorialVersiones: (entregaId: number) => void;
@@ -53,6 +55,7 @@ export default function TareaDetalleView({
   onVolver,
   onAbrirEntregaModal,
   onAbrirEditarTarea,
+  onEliminarTarea,
   onToggleHabilitar,
   onVerEntregas,
   onVerHistorialVersiones,
@@ -284,6 +287,17 @@ export default function TareaDetalleView({
                   {tarea.habilitada ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
                   {tarea.habilitada ? "Cerrar Recepción" : "Habilitar Recepción"}
                 </button>
+                {onEliminarTarea && (
+                  <button
+                    type="button"
+                    onClick={() => onEliminarTarea(tarea)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-line hover:border-rose-300 bg-paper-sunken hover:bg-rose-500/10 text-ink-soft hover:text-rose-600 flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Eliminar tarea definitivamente"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Eliminar Tarea
+                  </button>
+                )}
               </div>
             )}
           </div>

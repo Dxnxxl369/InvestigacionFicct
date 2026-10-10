@@ -1,9 +1,11 @@
 package com.ficct.investigacion.controller;
 
 import com.ficct.investigacion.dto.*;
+import com.ficct.investigacion.exception.TareaConEntregasException;
 import com.ficct.investigacion.service.TareaService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -79,6 +81,26 @@ public class TareaController {
         try {
             TareaDTO actualizada = tareaService.actualizarTarea(id, request, userDetails.getUsername());
             return ResponseEntity.ok(actualizada);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/tareas/{id}")
+    public ResponseEntity<?> eliminarTarea(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean forzar,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            tareaService.eliminarTarea(id, forzar, userDetails.getUsername());
+            return ResponseEntity.ok(Map.of("message", "Tarea eliminada exitosamente."));
+        } catch (TareaConEntregasException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "error", e.getMessage(),
+                    "tieneEntregas", true,
+                    "totalEntregas", e.getTotalEntregas()
+            ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

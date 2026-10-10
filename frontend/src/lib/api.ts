@@ -293,6 +293,30 @@ export const convocatoriasAPI = {
     return handleResponse<Convocatoria>(res);
   },
 
+  async archivar(id: number): Promise<Convocatoria> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/archivar`, {
+      method: "PUT",
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
+    return handleResponse<Convocatoria>(res);
+  },
+
+  async delete(id: number, forzar = false): Promise<{ message?: string; tieneDatos?: boolean; totalParticipantes?: number; totalTareas?: number; error?: string }> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}?forzar=${forzar}`, {
+      method: "DELETE",
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
+    if (res.status === 409) {
+      const data = await res.json().catch(() => ({}));
+      return { tieneDatos: true, totalParticipantes: data.totalParticipantes || 0, totalTareas: data.totalTareas || 0, error: data.error };
+    }
+    return handleResponse<{ message: string }>(res);
+  },
+
   async getEncargadosDisponibles(): Promise<{ docentes: UserDTO[]; jurados: UserDTO[] }> {
     try {
       const res = await fetch(`${API_BASE_URL}/convocatorias/encargados-disponibles`, {
@@ -977,6 +1001,18 @@ export const tareasAPI = {
     if (!res.ok) throw new Error(`Error ${res.status} exportando notas`);
     return res.blob();
   },
+
+  async delete(id: number, forzar = false): Promise<{ message?: string; tieneEntregas?: boolean; totalEntregas?: number; error?: string }> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${id}?forzar=${forzar}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    if (res.status === 409) {
+      const data = await res.json().catch(() => ({}));
+      return { tieneEntregas: true, totalEntregas: data.totalEntregas || 0, error: data.error };
+    }
+    return handleResponse<{ message: string }>(res);
+  },
 };
 
 // 9. Notificaciones API
@@ -1334,6 +1370,8 @@ export const api = {
   createConvocatoria: convocatoriasAPI.create,
   updateConvocatoria: convocatoriasAPI.update,
   publicarConvocatoria: convocatoriasAPI.publish,
+  archivarConvocatoria: convocatoriasAPI.archivar,
+  deleteConvocatoria: convocatoriasAPI.delete,
   getEncargadosDisponibles: convocatoriasAPI.getEncargadosDisponibles,
   getParticipantesConvocatoria: convocatoriasAPI.getParticipantes,
   designarParticipante: convocatoriasAPI.designarParticipante,
@@ -1391,6 +1429,7 @@ export const api = {
   entregarTarea: tareasAPI.submitEntrega,
   getEntregasTarea: tareasAPI.getEntregas,
   calificarEntrega: tareasAPI.calificar,
+  deleteTarea: tareasAPI.delete,
   // Mejoras
   getSeguimiento: tareasAPI.getSeguimiento,
   getSeguimientoTarea: tareasAPI.getSeguimiento,

@@ -9,6 +9,7 @@ import '../../services/storage_service.dart';
 import '../../services/api_service.dart';
 import 'speedgrader_screen.dart';
 import 'widgets/visor_documento_screen.dart';
+import '../../widgets/confirmar_eliminacion_dialog.dart';
 
 class ArchivoAdjuntoItem {
   String nombre;
@@ -561,11 +562,44 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
     return AppTheme.accent;
   }
 
+  void _confirmarEliminarTarea() {
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.tarea,
+      titulo: widget.tarea.titulo,
+      totalEntregas: widget.tarea.totalEntregas,
+      onConfirmar: () async {
+        setState(() => _isLoading = true);
+        final res = await ApiService.eliminarTarea(widget.tarea.id, forzar: true);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (res['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Tarea eliminada correctamente.'),
+              ),
+            );
+            widget.onBack();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text(res['error']?.toString() ?? 'Error al eliminar la tarea.'),
+              ),
+            );
+          }
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDocenteOJurado = _currentUser != null && (_currentUser!.rol == 'DOCENTE' || _currentUser!.rol == 'JURADO');
     final isAdmin = _currentUser != null && _currentUser!.rol == 'ADMIN';
+    final isDocenteOAdmin = _currentUser != null && (_currentUser!.rol == 'DOCENTE' || _currentUser!.rol == 'ADMIN');
 
     final aperturaPendiente = _esAperturaPendiente();
     final haCerrado = _esFechaCortePasada();
@@ -578,6 +612,14 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
           onPressed: widget.onBack,
         ),
         title: const Text('Entrega de Tarea'),
+        actions: [
+          if (isDocenteOAdmin)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.danger),
+              tooltip: 'Eliminar Tarea',
+              onPressed: _confirmarEliminarTarea,
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),

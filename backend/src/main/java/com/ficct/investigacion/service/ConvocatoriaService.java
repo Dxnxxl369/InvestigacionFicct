@@ -1,6 +1,7 @@
 package com.ficct.investigacion.service;
 
 import com.ficct.investigacion.dto.*;
+import com.ficct.investigacion.exception.ConvocatoriaConDatosException;
 import com.ficct.investigacion.model.*;
 import com.ficct.investigacion.repository.*;
 import org.springframework.security.access.AccessDeniedException;
@@ -20,17 +21,44 @@ public class ConvocatoriaService {
     private final UserRepository userRepository;
     private final RequisitoRepository requisitoRepository;
     private final NotificacionService notificacionService;
+    private final DocumentoRepository documentoRepository;
+    private final TareaRepository tareaRepository;
+    private final EntregaTareaRepository entregaRepository;
+    private final EntregaPuntajeCriterioRepository puntajeCriterioRepository;
+    private final EntregaVersionRepository entregaVersionRepository;
+    private final RubricaCriterioRepository rubricaCriterioRepository;
+    private final ActividadGrupoRepository actividadGrupoRepository;
+    private final GrupoRepository grupoRepository;
+    private final ModuloRepository moduloRepository;
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
                                ConvocatoriaParticipanteRepository participanteRepository,
                                UserRepository userRepository,
                                RequisitoRepository requisitoRepository,
-                               @org.springframework.context.annotation.Lazy NotificacionService notificacionService) {
+                               @org.springframework.context.annotation.Lazy NotificacionService notificacionService,
+                               DocumentoRepository documentoRepository,
+                               TareaRepository tareaRepository,
+                               EntregaTareaRepository entregaRepository,
+                               EntregaPuntajeCriterioRepository puntajeCriterioRepository,
+                               EntregaVersionRepository entregaVersionRepository,
+                               RubricaCriterioRepository rubricaCriterioRepository,
+                               ActividadGrupoRepository actividadGrupoRepository,
+                               GrupoRepository grupoRepository,
+                               ModuloRepository moduloRepository) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.userRepository = userRepository;
         this.requisitoRepository = requisitoRepository;
         this.notificacionService = notificacionService;
+        this.documentoRepository = documentoRepository;
+        this.tareaRepository = tareaRepository;
+        this.entregaRepository = entregaRepository;
+        this.puntajeCriterioRepository = puntajeCriterioRepository;
+        this.entregaVersionRepository = entregaVersionRepository;
+        this.rubricaCriterioRepository = rubricaCriterioRepository;
+        this.actividadGrupoRepository = actividadGrupoRepository;
+        this.grupoRepository = grupoRepository;
+        this.moduloRepository = moduloRepository;
     }
 
     @Transactional
@@ -232,6 +260,104 @@ public class ConvocatoriaService {
         c.setEstado(nuevoEstado);
         Convocatoria updated = convocatoriaRepository.save(c);
         return new ConvocatoriaDTO(updated);
+    }
+
+    @Transactional
+    public ConvocatoriaDTO archivarConvocatoria(Long id, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        if (user.getRol() != Rol.ADMIN) {
+            throw new AccessDeniedException("Solo un Administrador puede archivar un área o convocatoria.");
+        }
+        Convocatoria c = convocatoriaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + id));
+
+        c.setEstado(EstadoConvocatoria.FINALIZADA);
+        Convocatoria updated = convocatoriaRepository.save(c);
+        return new ConvocatoriaDTO(updated);
+    }
+
+    @Transactional
+    public void eliminarConvocatoria(Long id, boolean forzar, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        if (user.getRol() != Rol.ADMIN) {
+            throw new AccessDeniedException("Solo un Administrador puede eliminar definitivamente un área o convocatoria.");
+        }
+        Convocatoria c = convocatoriaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + id));
+
+        int totalParticipantes = c.getParticipantes() != null ? c.getParticipantes().size() : 0;
+        int totalTareas = c.getTareas() != null ? c.getTareas().size() : 0;
+
+        if ((totalParticipantes > 0 || totalTareas > 0) && !forzar) {
+            throw new ConvocatoriaConDatosException(
+                    "El área contiene " + totalParticipantes + " participante(s) y " + totalTareas + " tarea(s) registrada(s). Requiere confirmación para eliminarla definitivamente.",
+                    totalParticipantes,
+                    totalTareas
+            );
+        }
+
+        // 1. Desvincular documentos asociados
+        List<Documento> docs = documentoRepository.findByConvocatoriaIdOrderByUpdatedAtDesc(id);
+        if (docs != null) {
+            for (Documento d : docs) {
+                d.setConvocatoria(null);
+                documentoRepository.save(d);
+            }
+        }
+
+        // 2. Tareas y entregas
+        if (c.getTareas() != null && !c.getTareas().isEmpty()) {
+            for (Tarea t : c.getTareas()) {
+                if (t.getEntregas() != null && !t.getEntregas().isEmpty()) {
+                    for (EntregaTarea et : t.getEntregas()) {
+                        puntajeCriterioRepository.deleteByEntrega(et);
+                        entregaVersionRepository.deleteByEntrega(et);
+                    }
+                    entregaRepository.deleteAll(t.getEntregas());
+                    t.getEntregas().clear();
+                }
+                if (t.getRubrica() != null && !t.getRubrica().isEmpty()) {
+                    rubricaCriterioRepository.deleteByTarea(t);
+                    t.getRubrica().clear();
+                }
+            }
+            tareaRepository.deleteAll(c.getTareas());
+            c.getTareas().clear();
+        }
+
+        // 3. Actividades de grupo y grupos
+        List<ActividadGrupo> actividades = actividadGrupoRepository.findByConvocatoriaIdOrderByFechaCreacionDesc(id);
+        if (actividades != null && !actividades.isEmpty()) {
+            for (ActividadGrupo ag : actividades) {
+                if (ag.getGrupos() != null && !ag.getGrupos().isEmpty()) {
+                    for (Grupo g : ag.getGrupos()) {
+                        g.getMiembros().clear();
+                    }
+                    grupoRepository.deleteAll(ag.getGrupos());
+                    ag.getGrupos().clear();
+                }
+            }
+            actividadGrupoRepository.deleteAll(actividades);
+        }
+
+        List<Grupo> gruposRestantes = grupoRepository.findByConvocatoriaIdOrderByNombreAsc(id);
+        if (gruposRestantes != null && !gruposRestantes.isEmpty()) {
+            for (Grupo g : gruposRestantes) {
+                g.getMiembros().clear();
+            }
+            grupoRepository.deleteAll(gruposRestantes);
+        }
+
+        // 4. Módulos
+        List<Modulo> modulos = moduloRepository.findByConvocatoriaOrderByOrdenAscCreatedAtAsc(c);
+        if (modulos != null && !modulos.isEmpty()) {
+            moduloRepository.deleteAll(modulos);
+        }
+
+        // 5. Eliminar Convocatoria (participantes y requisitos eliminados vía cascade orphanRemoval)
+        convocatoriaRepository.delete(c);
     }
 
     @Transactional(readOnly = true)

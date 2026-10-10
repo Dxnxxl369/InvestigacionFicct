@@ -46,6 +46,7 @@ interface TabTareasProps {
   onSelectTarea: (t: TareaDTO) => void;
   onAbrirCrearTarea: (moduloId?: number) => void;
   onAbrirEditarTarea: (t: TareaDTO) => void;
+  onEliminarTarea: (t: TareaDTO) => void;
   onAbrirCrearModulo: () => void;
   onAbrirEditarModulo: (m: ModuloDTO) => void;
   onEliminarModulo: (modId: number) => void;
@@ -71,6 +72,7 @@ export default function TabTareas({
   onSelectTarea,
   onAbrirCrearTarea,
   onAbrirEditarTarea,
+  onEliminarTarea,
   onAbrirCrearModulo,
   onAbrirEditarModulo,
   onEliminarModulo,
@@ -459,17 +461,30 @@ export default function TabTareas({
                             {t.habilitada ? "Abierta" : "Cerrada"}
                           </span>
                           {puedeGestionarTareas && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onAbrirEditarTarea(t);
-                              }}
-                              title="Editar tarea (plazos, restricciones y detalles)"
-                              className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onAbrirEditarTarea(t);
+                                }}
+                                title="Editar tarea (plazos, restricciones y detalles)"
+                                className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onEliminarTarea(t);
+                                }}
+                                title="Eliminar tarea"
+                                className="p-1 text-ink-soft hover:text-rose-600 hover:bg-rose-500/10 rounded-lg border border-line hover:border-rose-300 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           )}
                         </div>
                       )}
@@ -541,6 +556,12 @@ export default function TabTareas({
               className="px-3 py-2 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer"
             >
               <Pencil className="w-3.5 h-3.5" /> Editar
+            </button>
+            <button
+              onClick={() => onEliminarModulo(moduloActual.id)}
+              className="px-3 py-2 bg-paper hover:bg-rose-500/10 border border-line hover:border-rose-300 text-ink-soft hover:text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Eliminar
             </button>
           </div>
         )}
@@ -748,17 +769,30 @@ export default function TabTareas({
                         {t.habilitada ? "Abierta" : "Cerrada"}
                       </span>
                       {puedeGestionarTareas && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAbrirEditarTarea(t);
-                          }}
-                          title="Editar tarea (plazos, restricciones y detalles)"
-                          className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAbrirEditarTarea(t);
+                            }}
+                            title="Editar tarea (plazos, restricciones y detalles)"
+                            className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEliminarTarea(t);
+                            }}
+                            title="Eliminar tarea"
+                            className="p-1 text-ink-soft hover:text-rose-600 hover:bg-rose-500/10 rounded-lg border border-line hover:border-rose-300 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}

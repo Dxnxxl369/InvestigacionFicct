@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/moodle_widgets.dart';
+import '../../widgets/confirmar_eliminacion_dialog.dart';
 import 'crear_convocatoria_screen.dart';
 
 class ConvocatoriaDetalleScreen extends StatefulWidget {
@@ -75,6 +76,81 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
       });
     }
     _refreshDetalleYEstado();
+  }
+
+  Future<void> _handleArchivar() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Archivar Convocatoria'),
+        content: Text('¿Desea archivar "${widget.convocatoria.titulo}"? Pasará a modo solo lectura.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.seal),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Archivar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isActionLoading = true);
+      final ok = await ApiService.archivarConvocatoria(widget.convocatoria.id);
+      if (mounted) {
+        setState(() => _isActionLoading = false);
+        if (ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Color(0xFF10B981),
+              content: Text('Área archivada exitosamente.'),
+            ),
+          );
+          widget.onBack();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: AppTheme.danger,
+              content: Text('Error al archivar la convocatoria.'),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _handleEliminar() {
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.convocatoria,
+      titulo: widget.convocatoria.titulo,
+      totalParticipantes: _participantes.length,
+      onArchivar: _handleArchivar,
+      onConfirmar: () async {
+        setState(() => _isActionLoading = true);
+        final res = await ApiService.eliminarConvocatoria(widget.convocatoria.id, forzar: true);
+        if (mounted) {
+          setState(() => _isActionLoading = false);
+          if (res['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Área eliminada definitivamente.'),
+              ),
+            );
+            widget.onBack();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text(res['error']?.toString() ?? 'Error al eliminar el área.'),
+              ),
+            );
+          }
+        }
+      },
+    );
   }
 
   Future<void> _handleInscribirse() async {
@@ -492,7 +568,7 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
         ),
         title: const Text('Detalle de Feria & Convocatoria'),
         actions: [
-          if (isAdmin)
+          if (isAdmin) ...[
             IconButton(
               icon: const Icon(Icons.edit_note_rounded, size: 26),
               tooltip: 'Editar Convocatoria',
@@ -511,6 +587,37 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                 );
               },
             ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              tooltip: 'Opciones de administración',
+              onSelected: (val) {
+                if (val == 'archivar') _handleArchivar();
+                if (val == 'eliminar') _handleEliminar();
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'archivar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.archive_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Archivar Convocatoria'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'eliminar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline_rounded, size: 18, color: AppTheme.danger),
+                      SizedBox(width: 8),
+                      Text('Eliminar Convocatoria', style: TextStyle(color: AppTheme.danger)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
           const NotificacionBadge(),
         ],
       ),
@@ -571,7 +678,7 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              _miEstado == 'ACEPTADO' ? '✓ ADMITIDO' : '⏳ PENDIENTE',
+                              _miEstado == 'ACEPTADO' ? 'ADMITIDO' : 'PENDIENTE',
                               style: TextStyle(
                                 color: _miEstado == 'ACEPTADO' ? const Color(0xFF10B981) : AppTheme.gold,
                                 fontSize: 11,

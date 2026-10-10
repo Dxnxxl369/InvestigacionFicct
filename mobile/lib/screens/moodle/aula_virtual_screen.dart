@@ -12,6 +12,7 @@ import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/moodle_widgets.dart';
 import '../../widgets/liquid_glass.dart';
+import '../../widgets/confirmar_eliminacion_dialog.dart';
 
 import 'modals/crear_editar_modulo_sheet.dart';
 import 'modals/crear_editar_tarea_sheet.dart';
@@ -469,6 +470,150 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
     );
   }
 
+  void _confirmarEliminarModulo(ModuloModel modulo) {
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.modulo,
+      titulo: modulo.titulo,
+      onConfirmar: () async {
+        setState(() => _isLoading = true);
+        final ok = await ApiService.eliminarModulo(modulo.id);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (ok) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Módulo eliminado exitosamente. Sus tareas ahora son generales.'),
+              ),
+            );
+            _loadModulos();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text('No se pudo eliminar el módulo.'),
+              ),
+            );
+          }
+        }
+      },
+    );
+  }
+
+  void _confirmarEliminarTarea(TareaModel tarea) {
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.tarea,
+      titulo: tarea.titulo,
+      totalEntregas: tarea.totalEntregas,
+      onConfirmar: () async {
+        setState(() => _isLoading = true);
+        final res = await ApiService.eliminarTarea(tarea.id, forzar: true);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (res['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Tarea eliminada correctamente.'),
+              ),
+            );
+            _loadModulos();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text(res['error']?.toString() ?? 'Error al eliminar la tarea.'),
+              ),
+            );
+          }
+        }
+      },
+    );
+  }
+
+  void _confirmarArchivarConvocatoria() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Archivar Convocatoria'),
+        content: Text(
+          '¿Desea archivar "${widget.curso.titulo}"? El área pasará a modo solo lectura.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.seal),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              setState(() => _isLoading = true);
+              final ok = await ApiService.archivarConvocatoria(widget.curso.id);
+              if (mounted) {
+                setState(() => _isLoading = false);
+                if (ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Color(0xFF10B981),
+                      content: Text('Área archivada exitosamente.'),
+                    ),
+                  );
+                  widget.onBack();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: AppTheme.danger,
+                      content: Text('Error al archivar la convocatoria.'),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Archivar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmarEliminarConvocatoria() {
+    final totalTareas = _modulos.fold<int>(0, (sum, m) => sum + m.tareas.length);
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.convocatoria,
+      titulo: widget.curso.titulo,
+      totalParticipantes: _participantes.length,
+      totalTareas: totalTareas,
+      onArchivar: _confirmarArchivarConvocatoria,
+      onConfirmar: () async {
+        setState(() => _isLoading = true);
+        final res = await ApiService.eliminarConvocatoria(widget.curso.id, forzar: true);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (res['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Área eliminada definitivamente.'),
+              ),
+            );
+            widget.onBack();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text(res['error']?.toString() ?? 'Error al eliminar el área.'),
+              ),
+            );
+          }
+        }
+      },
+    );
+  }
+
   void _showCrearOEditarTareaSheet({TareaModel? tareaExistente, int? moduloIdPredefinido}) {
     CrearEditarTareaModal.show(
       context: context,
@@ -867,6 +1012,37 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
               _loadAllData();
             },
           ),
+          if (isAdmin)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              tooltip: 'Opciones de administración',
+              onSelected: (val) {
+                if (val == 'archivar') _confirmarArchivarConvocatoria();
+                if (val == 'eliminar') _confirmarEliminarConvocatoria();
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'archivar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.archive_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Archivar Área'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'eliminar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_forever_rounded, size: 18, color: AppTheme.danger),
+                      SizedBox(width: 8),
+                      Text('Eliminar Área', style: TextStyle(color: AppTheme.danger)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
       body: _isLoading
@@ -1119,8 +1295,10 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                       onShowAdminSupervision: _showTareaAdminSupervisionDialog,
                       onCrearModulo: _showCrearModuloSheet,
                       onEditarModulo: _showEditarModuloSheet,
+                      onEliminarModulo: _confirmarEliminarModulo,
                       onCrearTarea: ({int? moduloId}) => _showCrearOEditarTareaSheet(moduloIdPredefinido: moduloId),
                       onEditarTarea: (t) => _showCrearOEditarTareaSheet(tareaExistente: t),
+                      onEliminarTarea: _confirmarEliminarTarea,
                       onToggleHabilitarTarea: (id) async {
                         await ApiService.toggleHabilitarTarea(id);
                         _loadModulos();

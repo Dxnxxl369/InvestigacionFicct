@@ -245,6 +245,55 @@ class ApiService {
     return null;
   }
 
+  // Admin: Archivar Convocatoria / Área en PostgreSQL
+  static Future<bool> archivarConvocatoria(int convocatoriaId) async {
+    try {
+      final headers = await _headers();
+      final res = await http.put(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId/archivar'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 8));
+
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('[ApiService] Error al archivar convocatoria $convocatoriaId: $e');
+      return false;
+    }
+  }
+
+  // Admin: Eliminar definitivamente Convocatoria / Área en PostgreSQL
+  static Future<Map<String, dynamic>> eliminarConvocatoria(int convocatoriaId, {bool forzar = false}) async {
+    try {
+      final headers = await _headers();
+      final res = await http.delete(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId?forzar=$forzar'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        return {'success': true};
+      }
+      if (res.statusCode == 409) {
+        final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        return {
+          'success': false,
+          'tieneDatos': true,
+          'totalParticipantes': body['totalParticipantes'] ?? 0,
+          'totalTareas': body['totalTareas'] ?? 0,
+          'error': body['error'] ?? 'El área contiene participantes o tareas.',
+        };
+      }
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      return {
+        'success': false,
+        'error': body is Map ? body['error'] ?? 'Error al eliminar área' : 'Error al eliminar área',
+      };
+    } catch (e) {
+      debugPrint('[ApiService] Error al eliminar convocatoria $convocatoriaId: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   // Inscribirse en Convocatoria / Área (PostgreSQL)
   static Future<bool> inscribirseConvocatoria(int convocatoriaId, {String? nombreEquipo}) async {
     try {
@@ -602,6 +651,38 @@ class ApiService {
     } catch (e) {
       debugPrint('[ApiService] Error al alternar habilitación de tarea $tareaId: $e');
       return false;
+    }
+  }
+
+  // Docente / Admin: Eliminar Tarea en PostgreSQL
+  static Future<Map<String, dynamic>> eliminarTarea(int tareaId, {bool forzar = false}) async {
+    try {
+      final headers = await _headers();
+      final res = await http.delete(
+        Uri.parse('$baseUrl/tareas/$tareaId?forzar=$forzar'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        return {'success': true};
+      }
+      if (res.statusCode == 409) {
+        final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        return {
+          'success': false,
+          'tieneEntregas': true,
+          'totalEntregas': body['totalEntregas'] ?? 0,
+          'error': body['error'] ?? 'La tarea tiene entregas registradas.',
+        };
+      }
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      return {
+        'success': false,
+        'error': body is Map ? body['error'] ?? 'Error al eliminar tarea' : 'Error al eliminar tarea',
+      };
+    } catch (e) {
+      debugPrint('[ApiService] Error al eliminar tarea $tareaId: $e');
+      return {'success': false, 'error': e.toString()};
     }
   }
 

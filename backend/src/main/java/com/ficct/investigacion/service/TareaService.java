@@ -1,6 +1,7 @@
 package com.ficct.investigacion.service;
 
 import com.ficct.investigacion.dto.*;
+import com.ficct.investigacion.exception.TareaConEntregasException;
 import com.ficct.investigacion.model.*;
 import com.ficct.investigacion.repository.*;
 import org.springframework.context.annotation.Lazy;
@@ -1181,6 +1182,43 @@ public class TareaService {
         }
 
         return dto;
+    }
+
+    @Transactional
+    public void eliminarTarea(Long tareaId, boolean forzar, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        Tarea tarea = tareaRepository.findById(tareaId)
+                .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
+
+        if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) {
+            throw new AccessDeniedException("Solo un Docente asignado a esta área o un Administrador puede eliminar tareas.");
+        }
+
+        int totalEntregas = tarea.getEntregas() != null ? tarea.getEntregas().size() : 0;
+        if (totalEntregas > 0 && !forzar) {
+            throw new TareaConEntregasException(
+                    "La tarea cuenta con " + totalEntregas + " entrega(s) registrada(s). Requiere confirmación para eliminarla definitivamente.",
+                    totalEntregas
+            );
+        }
+
+        // Limpiar entregas y sus versiones/criterios
+        if (tarea.getEntregas() != null && !tarea.getEntregas().isEmpty()) {
+            for (EntregaTarea entrega : tarea.getEntregas()) {
+                puntajeCriterioRepository.deleteByEntrega(entrega);
+                entregaVersionRepository.deleteByEntrega(entrega);
+            }
+            entregaRepository.deleteAll(tarea.getEntregas());
+            tarea.getEntregas().clear();
+        }
+
+        // Limpiar rúbrica
+        if (tarea.getRubrica() != null && !tarea.getRubrica().isEmpty()) {
+            rubricaCriterioRepository.deleteByTarea(tarea);
+            tarea.getRubrica().clear();
+        }
+
+        tareaRepository.delete(tarea);
     }
 
     private User getUserByEmail(String email) {

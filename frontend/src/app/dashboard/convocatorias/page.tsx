@@ -20,7 +20,10 @@ import {
   ShieldCheck,
   Award,
   GraduationCap,
+  Trash2,
+  Archive,
 } from "lucide-react";
+import ConfirmarEliminacionModal from "@/components/moodle/modals/ConfirmarEliminacionModal";
 
 export default function ConvocatoriasListPage() {
   const { user, canEditModule } = useAuth();
@@ -38,6 +41,10 @@ export default function ConvocatoriasListPage() {
   const [selectedConvForInscripcion, setSelectedConvForInscripcion] = useState<ConvocatoriaDTO | null>(null);
   const [nombreEquipo, setNombreEquipo] = useState("");
   const [inscribiendo, setInscribiendo] = useState(false);
+
+  // Modal para eliminar o archivar área (Admin)
+  const [convocatoriaAEliminar, setConvocatoriaAEliminar] = useState<ConvocatoriaDTO | null>(null);
+  const [eliminandoConv, setEliminandoConv] = useState(false);
 
   const fetchConvocatorias = useCallback(async () => {
     try {
@@ -98,6 +105,39 @@ export default function ConvocatoriasListPage() {
       setError(err.message || "No se pudo publicar la convocatoria");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleConfirmarEliminarConvocatoria = async () => {
+    if (!convocatoriaAEliminar) return;
+    try {
+      setEliminandoConv(true);
+      await api.deleteConvocatoria(convocatoriaAEliminar.id, true);
+      setActionSuccess("Área o convocatoria eliminada exitosamente.");
+      setConvocatoriaAEliminar(null);
+      await fetchConvocatorias();
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err: any) {
+      setError(err.message || "Error al eliminar el área.");
+    } finally {
+      setEliminandoConv(false);
+    }
+  };
+
+  const handleArchivarDesdeListado = async (convId?: number) => {
+    const id = convId || convocatoriaAEliminar?.id;
+    if (!id) return;
+    try {
+      setEliminandoConv(true);
+      await api.archivarConvocatoria(id);
+      setActionSuccess("Área o convocatoria archivada exitosamente.");
+      setConvocatoriaAEliminar(null);
+      await fetchConvocatorias();
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err: any) {
+      setError(err.message || "Error al archivar el área.");
+    } finally {
+      setEliminandoConv(false);
     }
   };
 
@@ -477,6 +517,27 @@ export default function ConvocatoriasListPage() {
                             {actionLoading === conv.id ? "Publicando..." : "Publicar"}
                           </button>
                         )}
+
+                        {esAdmin && (
+                          <div className="flex items-center gap-1.5">
+                            {conv.estado !== "FINALIZADA" && (
+                              <button
+                                onClick={() => handleArchivarDesdeListado(conv.id)}
+                                title="Archivar área"
+                                className="p-1.5 text-ink-soft hover:text-ink rounded-lg border border-line hover:bg-paper-sunken transition-colors cursor-pointer"
+                              >
+                                <Archive className="w-3.5 h-3.5 text-accent" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setConvocatoriaAEliminar(conv)}
+                              title="Eliminar área"
+                              className="p-1.5 text-ink-soft hover:text-rose-600 rounded-lg border border-line hover:border-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </>
                     )}
 
@@ -563,6 +624,20 @@ export default function ConvocatoriasListPage() {
               </form>
             </div>
           </div>
+        )}
+
+        {/* Modal de Confirmación para Eliminar / Archivar Convocatoria */}
+        {convocatoriaAEliminar && (
+          <ConfirmarEliminacionModal
+            isOpen={!!convocatoriaAEliminar}
+            onClose={() => setConvocatoriaAEliminar(null)}
+            onConfirmEliminar={handleConfirmarEliminarConvocatoria}
+            onArchivar={() => handleArchivarDesdeListado(convocatoriaAEliminar.id)}
+            loading={eliminandoConv}
+            tipo="CONVOCATORIA"
+            tituloElemento={convocatoriaAEliminar.titulo}
+            totalParticipantes={convocatoriaAEliminar.totalAdmitidos || 0}
+          />
         )}
       </div>
     </DashboardLayout>

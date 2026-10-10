@@ -30,6 +30,8 @@ class TareaModel {
   final String? convocatoriaTitulo;
   final List<Map<String, dynamic>> rubrica;
 
+  final int totalEntregas;
+
   TareaModel({
     required this.id,
     required this.titulo,
@@ -58,6 +60,7 @@ class TareaModel {
     this.convocatoriaId,
     this.convocatoriaTitulo,
     this.rubrica = const [],
+    this.totalEntregas = 0,
   });
 
   factory TareaModel.fromJson(Map<String, dynamic> json) {
@@ -124,6 +127,7 @@ class TareaModel {
       convocatoriaId: (json['convocatoriaId'] as num?)?.toInt(),
       convocatoriaTitulo: json['convocatoriaTitulo'] as String?,
       rubrica: rubricaParsed,
+      totalEntregas: (json['totalEntregas'] as num?)?.toInt() ?? 0,
     );
   }
 
