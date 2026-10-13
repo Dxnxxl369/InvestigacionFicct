@@ -11,30 +11,30 @@ const config: Config = {
     extend: {
       colors: {
         ink: {
-          DEFAULT: "var(--ink)",
+          DEFAULT: "rgb(var(--ink-rgb) / <alpha-value>)",
           soft: "var(--ink-soft)",
           faint: "var(--ink-faint)",
         },
         paper: {
-          DEFAULT: "var(--paper)",
-          raised: "var(--paper-raised)",
-          sunken: "var(--paper-sunken)",
+          DEFAULT: "rgb(var(--paper-rgb) / <alpha-value>)",
+          raised: "rgb(var(--paper-raised-rgb) / <alpha-value>)",
+          sunken: "rgb(var(--paper-sunken-rgb) / <alpha-value>)",
         },
         line: {
-          DEFAULT: "var(--line)",
+          DEFAULT: "rgb(var(--line-rgb) / <alpha-value>)",
           soft: "var(--line-soft)",
         },
         accent: {
-          DEFAULT: "var(--accent)",
+          DEFAULT: "rgb(var(--accent-rgb) / <alpha-value>)",
           dark: "var(--accent-dark)",
           soft: "var(--accent-soft)",
         },
         seal: {
-          DEFAULT: "var(--seal)",
+          DEFAULT: "rgb(var(--seal-rgb) / <alpha-value>)",
           soft: "var(--seal-soft)",
         },
         danger: {
-          DEFAULT: "var(--danger)",
+          DEFAULT: "rgb(var(--danger-rgb) / <alpha-value>)",
           soft: "var(--danger-soft)",
         },
         ficct: {

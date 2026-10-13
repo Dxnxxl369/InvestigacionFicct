@@ -16,6 +16,7 @@
   --paper-sunken: #F0F4F8;
   --paper-sunken-rgb: 240, 244, 248;
   --line: #CBD8E6;
+  --line-rgb: 203, 216, 230;
   --line-soft: #E2EAF2;
   --accent: #4CA64B;
   --accent-dark: #3F8B3E;
@@ -49,6 +50,7 @@ html[data-theme="dark"], .dark {
   --paper-sunken: #091526;
   --paper-sunken-rgb: 9, 21, 38;
   --line: #1E3A5F;
+  --line-rgb: 30, 58, 95;
   --line-soft: #142842;
   --accent: #4CA64B;
   --accent-dark: #52BD51;
@@ -320,3 +322,36 @@ a {
 .dark .glow-card:hover {
   box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.7), 0 0 24px -2px rgba(var(--accent-rgb), 0.25);
 }
+
+/* ================= COMPATIBILIDAD FROSTED GLASS CROSS-BROWSER ================= */
+@layer utilities {
+  .backdrop-blur-none {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .backdrop-blur-xs {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  .backdrop-blur-sm {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .backdrop-blur-md {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+  .backdrop-blur-lg {
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+  .backdrop-blur-xl {
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+  }
+  .backdrop-blur-2xl {
+    -webkit-backdrop-filter: blur(40px);
+    backdrop-filter: blur(40px);
+  }
+}
+
