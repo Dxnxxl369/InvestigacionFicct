@@ -4,10 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-    name = "tarea_entregas",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"tarea_id", "estudiante_id"})
-)
+@Table(name = "tarea_entregas")
 public class EntregaTarea {
 
     @Id
@@ -23,7 +20,10 @@ public class EntregaTarea {
     private User estudiante;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "documento_id")
+    @JoinColumn(name = "feria_postulacion_id")
+    private FeriaPostulacion feriaPostulacion;
+
+    @Transient
     private Documento documento;
 
     @Column(name = "nombre_archivo", columnDefinition = "TEXT")
@@ -114,6 +114,9 @@ public class EntregaTarea {
     public User getEstudiante() {
         return estudiante;
     }
+
+    public FeriaPostulacion getFeriaPostulacion() { return feriaPostulacion; }
+    public void setFeriaPostulacion(FeriaPostulacion feriaPostulacion) { this.feriaPostulacion = feriaPostulacion; }
 
     public void setEstudiante(User estudiante) {
         this.estudiante = estudiante;

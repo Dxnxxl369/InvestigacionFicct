@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   XCircle,
   UploadCloud,
@@ -10,14 +10,14 @@ import {
   RefreshCw,
   Edit2,
   Users,
+  Eye,
 } from "lucide-react";
+import VisorArchivoModal from "./VisorArchivoModal";
 import {
   api,
   TareaDTO,
   EntregaRequest,
-  DocumentoDTO,
   GrupoDTO,
-  ActividadGrupoDTO,
   User,
   getMediaUrl,
 } from "@/lib/api";
@@ -32,9 +32,7 @@ interface EntregaTareaModalProps {
   tarea: TareaDTO;
   convocatoriaId: number;
   user: User | null;
-  documentosUsuario: DocumentoDTO[];
   gruposArea: GrupoDTO[];
-  actividadesGrupo: ActividadGrupoDTO[];
   onClose: () => void;
   onSuccess: (updatedTareas: TareaDTO[]) => void;
   onNavigateToGrupos?: () => void;
@@ -45,9 +43,7 @@ export default function EntregaTareaModal({
   tarea,
   convocatoriaId,
   user,
-  documentosUsuario,
   gruposArea,
-  actividadesGrupo,
   onClose,
   onSuccess,
   onNavigateToGrupos,
@@ -60,13 +56,12 @@ export default function EntregaTareaModal({
   const [archivoEntregaTamano, setArchivoEntregaTamano] = useState(0);
   const [archivoEntregaPrevioUrl, setArchivoEntregaPrevioUrl] = useState("");
   const [comentarioEstudiante, setComentarioEstudiante] = useState("");
-  const [docVinculadoId, setDocVinculadoId] = useState<number | "">("");
-  const [selectedGrupoId, setSelectedGrupoId] = useState<number | "">("");
 
   const [isDraggingEntrega, setIsDraggingEntrega] = useState(false);
   const [errorValidacionArchivo, setErrorValidacionArchivo] = useState<string | null>(null);
   const [editandoNombreArchivo, setEditandoNombreArchivo] = useState(false);
   const [enviandoEntrega, setEnviandoEntrega] = useState(false);
+  const [archivoAVisualizar, setArchivoAVisualizar] = useState<{ url: string; nombre?: string } | null>(null);
 
   const fileInputEntregaRef = useRef<HTMLInputElement>(null);
 
@@ -77,13 +72,11 @@ export default function EntregaTareaModal({
       setArchivoEntregaOriginalName(tarea.miEntrega.nombreArchivo || "");
       setArchivoEntregaPrevioUrl(tarea.miEntrega.archivoUrl || "");
       setComentarioEstudiante(tarea.miEntrega.comentarioEstudiante || "");
-      setDocVinculadoId(tarea.miEntrega.documentoId || "");
     } else {
       setNombreArchivoEntrega("");
       setArchivoEntregaOriginalName("");
       setArchivoEntregaPrevioUrl("");
       setComentarioEstudiante("");
-      setDocVinculadoId("");
     }
     setArchivosEntregaFiles([]);
     setArchivoEntregaFile(null);
@@ -92,61 +85,12 @@ export default function EntregaTareaModal({
     setEditandoNombreArchivo(false);
   }, [tarea]);
 
-  // Resolver a qué grupo pertenece el estudiante para esta tarea específica (Moodle Grouping)
-  const perteneceAlUsuario = (grupo: GrupoDTO) =>
-    grupo.miembros?.some(
-      (m) =>
+  // Una tarea grupal usa el equipo al que pertenece el estudiante en el aula.
+  const miGrupoParaEstaTarea: GrupoDTO | null = tarea.esGrupal && !tarea.feriaPostulacionId
+    ? gruposArea.find((g) => g.miembros?.some((m) =>
         m.usuarioId === user?.id ||
         (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
-    ) || false;
-
-  const actividadAsociada = tarea.esGrupal && tarea.actividadGrupoId
-    ? actividadesGrupo.find((a) => a.id === tarea.actividadGrupoId) || null
-    : null;
-
-  const gruposDisponiblesParaEntrega = useMemo(() => {
-    if (!tarea.esGrupal) return [];
-    const candidatos: GrupoDTO[] = [];
-
-    if (actividadAsociada) {
-      candidatos.push(...(actividadAsociada.grupos || []).filter((g) => perteneceAlUsuario(g)));
-    } else {
-      candidatos.push(...gruposArea.filter((g) => perteneceAlUsuario(g)));
-      actividadesGrupo.forEach((actividad) => {
-        candidatos.push(...(actividad.grupos || []).filter((g) => perteneceAlUsuario(g)));
-      });
-    }
-
-    const vistos = new Set<number>();
-    return candidatos.filter((grupo) => {
-      if (!grupo.id || vistos.has(grupo.id)) return false;
-      vistos.add(grupo.id);
-      return true;
-    });
-  }, [actividadAsociada, actividadesGrupo, gruposArea, tarea.esGrupal, user?.email, user?.id]);
-
-  const gruposDisponiblesIds = gruposDisponiblesParaEntrega.map((g) => g.id).join(",");
-
-  useEffect(() => {
-    if (!tarea.esGrupal) {
-      setSelectedGrupoId("");
-      return;
-    }
-
-    const ids = gruposDisponiblesParaEntrega.map((g) => g.id);
-    if (selectedGrupoId && ids.includes(Number(selectedGrupoId))) return;
-
-    const entregaGrupoId = tarea.miEntrega?.grupoId;
-    if (entregaGrupoId && ids.includes(entregaGrupoId)) {
-      setSelectedGrupoId(entregaGrupoId);
-      return;
-    }
-
-    setSelectedGrupoId(ids[0] || "");
-  }, [gruposDisponiblesIds, selectedGrupoId, tarea.esGrupal, tarea.miEntrega?.grupoId]);
-
-  const miGrupoParaEstaTarea = tarea.esGrupal
-    ? gruposDisponiblesParaEntrega.find((g) => g.id === Number(selectedGrupoId)) || gruposDisponiblesParaEntrega[0] || null
+      )) || null
     : null;
 
   // Agregar lote de archivos con validación acumulada
@@ -232,10 +176,8 @@ export default function EntregaTareaModal({
 
     const tieneArchivosNuevos = archivosEntregaFiles.length > 0 || Boolean(archivoEntregaFile);
     const tieneArchivoPrevio = Boolean(archivoEntregaPrevioUrl);
-    const tieneDocVinculado = Boolean(docVinculadoId);
-
-    if (!tieneArchivosNuevos && !tieneArchivoPrevio && !tieneDocVinculado) {
-      toast("Debes adjuntar al menos un archivo o vincular un documento de investigación para realizar la entrega.", "error");
+    if (!tieneArchivosNuevos && !tieneArchivoPrevio) {
+      toast("Debes adjuntar al menos un archivo para realizar la entrega.", "error");
       setErrorValidacionArchivo("Por favor arrastra o selecciona al menos un archivo para tu entrega.");
       return;
     }
@@ -297,15 +239,15 @@ export default function EntregaTareaModal({
       // Grupo ID para entrega grupal
       let finalGrupoId: number | undefined = undefined;
       if (tarea.esGrupal) {
-        finalGrupoId = selectedGrupoId ? Number(selectedGrupoId) : miGrupoParaEstaTarea?.id;
+        finalGrupoId = miGrupoParaEstaTarea?.id;
       }
 
       const req: EntregaRequest = {
-        documentoId: docVinculadoId ? Number(docVinculadoId) : undefined,
         nombreArchivo: finalNombreArchivo || undefined,
         archivoUrl: finalArchivoUrl,
         comentarioEstudiante: comentarioEstudiante.trim() || undefined,
         grupoId: finalGrupoId,
+        feriaPostulacionId: tarea.feriaPostulacionId,
       };
 
       await api.entregarTarea(tarea.id, req);
@@ -329,8 +271,8 @@ export default function EntregaTareaModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in-0 duration-200">
+      <div className="bg-paper-raised dark:bg-slate-900 border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
             <UploadCloud className="w-5 h-5 text-accent" /> Envío de Tarea Académica (Moodle)
@@ -366,39 +308,21 @@ export default function EntregaTareaModal({
             <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
               Máx: {tarea.tamanoMaximoMb} MB
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
-              Corte: {tarea.fechaCorte ? new Date(tarea.fechaCorte).toLocaleString() : "Abierto"}
-            </span>
           </div>
         </div>
 
-        {/* Alerta de Agrupamiento y Equipo (Moodle Grouping) */}
-        {tarea.esGrupal && (
+        {/* Equipo al que se asignará la entrega grupal */}
+        {tarea.feriaPostulacionId ? (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold text-blue-900">
+            Esta entrega corresponde al equipo {tarea.codigoEquipo}. El archivo y la calificación se guardarán para ese equipo.
+          </div>
+        ) : tarea.esGrupal && (
           miGrupoParaEstaTarea ? (
             <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-200">
                 <Users className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <span>Entrega grupal en representación de: <u>{miGrupoParaEstaTarea.nombre}</u></span>
               </div>
-              {actividadAsociada && (
-                <p className="text-[11px] text-blue-700 dark:text-blue-300">
-                  Actividad de agrupamiento: <strong>{actividadAsociada.titulo}</strong>
-                </p>
-              )}
-              {gruposDisponiblesParaEntrega.length > 1 && (
-                <label className="block pt-2 text-[11px] font-semibold text-blue-900 dark:text-blue-200">
-                  Presentar desde el grupo
-                  <select
-                    value={selectedGrupoId}
-                    onChange={(e) => setSelectedGrupoId(e.target.value ? Number(e.target.value) : "")}
-                    className="mt-1 w-full px-3 py-2 bg-paper text-ink border border-blue-200 dark:border-blue-900/60 rounded-xl focus:outline-none focus:border-accent"
-                  >
-                    {gruposDisponiblesParaEntrega.map((grupo) => (
-                      <option key={grupo.id} value={grupo.id}>{grupo.nombre}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
               {miGrupoParaEstaTarea.miembros && miGrupoParaEstaTarea.miembros.length > 0 && (
                 <p className="text-[10px] text-blue-600 dark:text-blue-400">
                   Integrantes beneficiados: {miGrupoParaEstaTarea.miembros.map((m) => m.nombreCompleto || m.email).join(", ")}
@@ -410,7 +334,7 @@ export default function EntregaTareaModal({
               <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200 font-semibold">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span>
-                  Esta tarea es grupal{actividadAsociada ? ` y corresponde a la actividad "${actividadAsociada.titulo}"` : ""}. Aún no estás registrado en ningún grupo de este agrupamiento.
+                  Esta tarea es grupal. Aún no estás registrado en ningún equipo de esta aula.
                 </span>
               </div>
               <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
@@ -465,14 +389,23 @@ export default function EntregaTareaModal({
                   {renderArchivoIcon(nombreArchivoEntrega || "archivo_anterior.pdf", "w-4 h-4")}
                   <span className="truncate font-medium">{nombreArchivoEntrega || "Archivo registrado"}</span>
                 </div>
-                <a
-                  href={getMediaUrl(archivoEntregaPrevioUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" /> Descargar
-                </a>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setArchivoAVisualizar({ url: archivoEntregaPrevioUrl, nombre: nombreArchivoEntrega })}
+                    className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> Ver
+                  </button>
+                  <a
+                    href={getMediaUrl(archivoEntregaPrevioUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Descargar
+                  </a>
+                </div>
               </div>
             )}
             <p className="text-[10px] text-emerald-700">
@@ -676,27 +609,6 @@ export default function EntregaTareaModal({
             )}
           </div>
 
-          {/* Vincular Documento de Investigación si aplica */}
-          {documentosUsuario.length > 0 && (
-            <div>
-              <label className="font-semibold text-ink block mb-1">
-                Vincular Documento de Investigación de la Plataforma (Opcional)
-              </label>
-              <select
-                value={docVinculadoId}
-                onChange={(e) => setDocVinculadoId(e.target.value ? Number(e.target.value) : "")}
-                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
-              >
-                <option value="">-- No vincular documento del repositorio --</option>
-                {documentosUsuario.map((doc) => (
-                  <option key={doc.id} value={doc.id}>
-                    {doc.titulo} ({doc.categoria})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Comentario para el Docente */}
           <div>
             <label className="font-semibold text-ink block mb-1">
@@ -723,8 +635,8 @@ export default function EntregaTareaModal({
               </button>
               <button
                 type="submit"
-                disabled={enviandoEntrega || Boolean(tarea.esGrupal && !miGrupoParaEstaTarea)}
-                title={tarea.esGrupal && !miGrupoParaEstaTarea ? "Debes unirte a un grupo para poder realizar la entrega" : ""}
+                disabled={enviandoEntrega || Boolean(tarea.esGrupal && !tarea.feriaPostulacionId && !miGrupoParaEstaTarea)}
+                title={tarea.esGrupal && !tarea.feriaPostulacionId && !miGrupoParaEstaTarea ? "Debes unirte a un grupo para poder realizar la entrega" : ""}
                 className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
               >
                 {enviandoEntrega ? (
@@ -741,6 +653,13 @@ export default function EntregaTareaModal({
           </div>
         </form>
       </div>
+
+      <VisorArchivoModal
+        isOpen={Boolean(archivoAVisualizar)}
+        onClose={() => setArchivoAVisualizar(null)}
+        archivoUrl={archivoAVisualizar?.url}
+        nombreArchivo={archivoAVisualizar?.nombre}
+      />
     </div>
   );
 }

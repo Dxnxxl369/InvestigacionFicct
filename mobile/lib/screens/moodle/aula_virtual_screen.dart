@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../config/app_theme.dart';
 import '../../models/convocatoria_model.dart';
 import '../../models/modulo_model.dart';
@@ -8,6 +11,8 @@ import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/moodle_widgets.dart';
+import '../../widgets/liquid_glass.dart';
+import '../../widgets/confirmar_eliminacion_dialog.dart';
 
 import 'modals/crear_editar_modulo_sheet.dart';
 import 'modals/crear_editar_tarea_sheet.dart';
@@ -16,6 +21,7 @@ import 'widgets/tab_modulos_tareas.dart';
 import 'widgets/tab_grupos_moodle.dart';
 import 'widgets/tab_participantes_moodle.dart';
 import 'widgets/tab_calificaciones_moodle.dart';
+import 'widgets/tab_jurados_moodle.dart';
 
 class AulaVirtualScreen extends StatefulWidget {
   final ConvocatoriaModel curso;
@@ -422,13 +428,21 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
     final csv = await ApiService.exportarNotasConvocatoria(widget.curso.id);
     if (mounted) {
       if (csv != null && csv.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF10B981),
-            content:
-                Text('Libro de calificaciones exportado exitosamente (${csv.split('\n').length - 1} registros).'),
-          ),
-        );
+        try {
+          final bytes = Uint8List.fromList(utf8.encode(csv));
+          final xFile = XFile.fromData(bytes, name: 'libro_calificaciones_${widget.curso.id}.csv', mimeType: 'text/csv');
+          // ignore: deprecated_member_use
+          await Share.shareXFiles([xFile], text: 'Libro de Calificaciones - ${widget.curso.titulo}');
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF10B981),
+              content:
+                  Text('Libro de calificaciones exportado exitosamente (${csv.split('\n').length - 1} registros).'),
+            ),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -457,12 +471,155 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
     );
   }
 
+  void _confirmarEliminarModulo(ModuloModel modulo) {
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.modulo,
+      titulo: modulo.titulo,
+      onConfirmar: () async {
+        setState(() => _isLoading = true);
+        final ok = await ApiService.eliminarModulo(modulo.id);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (ok) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Módulo eliminado exitosamente. Sus tareas ahora son generales.'),
+              ),
+            );
+            _loadModulos();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text('No se pudo eliminar el módulo.'),
+              ),
+            );
+          }
+        }
+      },
+    );
+  }
+
+  void _confirmarEliminarTarea(TareaModel tarea) {
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.tarea,
+      titulo: tarea.titulo,
+      totalEntregas: tarea.totalEntregas,
+      onConfirmar: () async {
+        setState(() => _isLoading = true);
+        final res = await ApiService.eliminarTarea(tarea.id, forzar: true);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (res['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Tarea eliminada correctamente.'),
+              ),
+            );
+            _loadModulos();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text(res['error']?.toString() ?? 'Error al eliminar la tarea.'),
+              ),
+            );
+          }
+        }
+      },
+    );
+  }
+
+  void _confirmarArchivarConvocatoria() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Archivar Convocatoria'),
+        content: Text(
+          '¿Desea archivar "${widget.curso.titulo}"? El área pasará a modo solo lectura.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.seal),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              setState(() => _isLoading = true);
+              final ok = await ApiService.archivarConvocatoria(widget.curso.id);
+              if (mounted) {
+                setState(() => _isLoading = false);
+                if (ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Color(0xFF10B981),
+                      content: Text('Área archivada exitosamente.'),
+                    ),
+                  );
+                  widget.onBack();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: AppTheme.danger,
+                      content: Text('Error al archivar la convocatoria.'),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Archivar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmarEliminarConvocatoria() {
+    final totalTareas = _modulos.fold<int>(0, (sum, m) => sum + m.tareas.length);
+    ConfirmarEliminacionDialog.mostrar(
+      context: context,
+      tipo: TipoEliminacion.convocatoria,
+      titulo: widget.curso.titulo,
+      totalParticipantes: _participantes.length,
+      totalTareas: totalTareas,
+      onArchivar: _confirmarArchivarConvocatoria,
+      onConfirmar: () async {
+        setState(() => _isLoading = true);
+        final res = await ApiService.eliminarConvocatoria(widget.curso.id, forzar: true);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (res['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF10B981),
+                content: Text('Área eliminada definitivamente.'),
+              ),
+            );
+            widget.onBack();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppTheme.danger,
+                content: Text(res['error']?.toString() ?? 'Error al eliminar el área.'),
+              ),
+            );
+          }
+        }
+      },
+    );
+  }
+
   void _showCrearOEditarTareaSheet({TareaModel? tareaExistente, int? moduloIdPredefinido}) {
     CrearEditarTareaModal.show(
       context: context,
       cursoId: widget.curso.id,
       modulos: _modulos,
-      actividadesGrupo: _actividadesGrupo,
       tareaExistente: tareaExistente,
       moduloIdPredefinido: moduloIdPredefinido,
       onTareaGuardada: _loadModulos,
@@ -517,34 +674,14 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showModalBottomSheet(
+    showLiquidGlassModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(ctx).size.height * 0.75,
-        ),
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? AppTheme.darkLine : AppTheme.line,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             Row(
               children: [
                 Container(
@@ -676,143 +813,128 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
   // Diálogo de supervisión institucional para Administradores
   void _showTareaAdminSupervisionDialog(TareaModel tarea) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet(
+    showLiquidGlassModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? AppTheme.darkLine : AppTheme.line,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF10B981), size: 24),
                   ),
-                  child: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF10B981), size: 24),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          tarea.esGrupal ? 'ACTIVIDAD GRUPAL' : 'ACTIVIDAD INDIVIDUAL',
-                          style: const TextStyle(
-                            color: Color(0xFF10B981),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            tarea.esGrupal ? 'ACTIVIDAD GRUPAL' : 'ACTIVIDAD INDIVIDUAL',
+                            style: const TextStyle(
+                              color: Color(0xFF10B981),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        tarea.titulo,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Consigna y Descripción:',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    tarea.descripcion.isNotEmpty ? tarea.descripcion : 'Sin descripción consignada.',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (tarea.fechaLimite != null) ...[
-                    const Divider(height: 20),
-                    Row(
-                      children: [
-                        const Icon(Icons.event_outlined, size: 16, color: AppTheme.accent),
-                        const SizedBox(width: 6),
+                        const SizedBox(height: 4),
                         Text(
-                          'Fecha límite: ${tarea.fechaLimite}',
-                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                          tarea.titulo,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.accentSoft.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.accent.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded, color: AppTheme.accent, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Modo Administrador: La revisión de entregas y asignación de notas es competencia de los Docentes y Jurados evaluadores asignados al área.',
-                      style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInk : AppTheme.ink),
-                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDark ? AppTheme.darkPaperRaised : AppTheme.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Consigna y Descripción:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      tarea.descripcion.isNotEmpty ? tarea.descripcion : 'Sin descripción consignada.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (tarea.fechaLimite != null) ...[
+                      const Divider(height: 20),
+                      Row(
+                        children: [
+                          const Icon(Icons.event_outlined, size: 16, color: AppTheme.accent),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Fecha límite: ${tarea.fechaLimite}',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              child: const Text('Entendido'),
-            ),
-          ],
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentSoft.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.accent.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: AppTheme.accent, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Modo Administrador: La revisión de entregas y asignación de notas es competencia de los Docentes y Jurados evaluadores asignados al área.',
+                        style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInk : AppTheme.ink),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? AppTheme.darkPaperRaised : AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('Entendido'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -890,6 +1012,37 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
               _loadAllData();
             },
           ),
+          if (isAdmin)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              tooltip: 'Opciones de administración',
+              onSelected: (val) {
+                if (val == 'archivar') _confirmarArchivarConvocatoria();
+                if (val == 'eliminar') _confirmarEliminarConvocatoria();
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'archivar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.archive_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Archivar Área'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'eliminar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_forever_rounded, size: 18, color: AppTheme.danger),
+                      SizedBox(width: 8),
+                      Text('Eliminar Área', style: TextStyle(color: AppTheme.danger)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
       body: _isLoading
@@ -946,6 +1099,8 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                           const SizedBox(height: 10),
                           Text(
                             widget.curso.titulo,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -955,6 +1110,8 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                           const SizedBox(height: 4),
                           Text(
                             widget.curso.descripcion,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.9)),
                           ),
                           const SizedBox(height: 14),
@@ -1110,12 +1267,8 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                   const SizedBox(height: 16),
 
                   // 4 Pestañas Replicando Web (Módulos & Tareas, Grupos & Equipos, Participantes, Calificaciones)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? AppTheme.darkPaperRaised : AppTheme.paperSunken,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
-                    ),
+                  LiquidGlassContainer(
+                    borderRadius: 16,
                     padding: const EdgeInsets.all(4),
                     child: Row(
                       children: [
@@ -1123,6 +1276,7 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                         _buildTabButton(1, Icons.groups_rounded, 'Grupos', isDark),
                         _buildTabButton(2, Icons.people_outline_rounded, 'Personas', isDark),
                         _buildTabButton(3, Icons.grade_rounded, 'Notas', isDark),
+                        if (isDocenteOAdmin) _buildTabButton(4, Icons.workspace_premium_outlined, 'Jurados', isDark),
                       ],
                     ),
                   ),
@@ -1142,8 +1296,10 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                       onShowAdminSupervision: _showTareaAdminSupervisionDialog,
                       onCrearModulo: _showCrearModuloSheet,
                       onEditarModulo: _showEditarModuloSheet,
+                      onEliminarModulo: _confirmarEliminarModulo,
                       onCrearTarea: ({int? moduloId}) => _showCrearOEditarTareaSheet(moduloIdPredefinido: moduloId),
                       onEditarTarea: (t) => _showCrearOEditarTareaSheet(tareaExistente: t),
+                      onEliminarTarea: _confirmarEliminarTarea,
                       onToggleHabilitarTarea: (id) async {
                         await ApiService.toggleHabilitarTarea(id);
                         _loadModulos();
@@ -1211,7 +1367,7 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                       onAdmitirLote: _handleAdmitirLote,
                       onRechazarLote: _handleRechazarLote,
                     )
-                  else
+                  else if (_currentTab == 3)
                     TabCalificacionesMoodle(
                       isLoadingGradebook: _isLoadingGradebook,
                       isDark: isDark,
@@ -1226,9 +1382,12 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                       onExportarCSV: _exportarLibroCalificacionesCSV,
                       onReloadGradebook: _loadGradebookData,
                       onOpenSpeedGrader: widget.onOpenSpeedGrader,
-                    ),
+                    )
+                  else if (isDocenteOAdmin)
+                    TabJuradosMoodle(convocatoriaId: widget.curso.id,
+                        onChanged: _loadParticipantes),
 
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 95),
                 ],
               ),
             ),

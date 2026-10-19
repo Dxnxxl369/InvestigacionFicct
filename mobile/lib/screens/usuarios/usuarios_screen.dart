@@ -447,7 +447,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> with SingleTickerProvid
   }
 
   Widget _buildTabPermisos(bool isDark) {
-    final modulosList = ['CONVOCATORIAS', 'MOODLE', 'DOCUMENTOS', 'SPEEDGRADER', 'USUARIOS'];
+    final modulosList = ['CONVOCATORIAS', 'MOODLE', 'SPEEDGRADER', 'USUARIOS'];
 
     final permisosDelRol = _permisos.where((p) => p['rol'] == _selectedPermisoRole).toList();
 
@@ -613,8 +613,6 @@ class _UsuariosScreenState extends State<UsuariosScreen> with SingleTickerProvid
         return 'Creación, edición y publicación de ferias';
       case 'MOODLE':
         return 'Aulas virtuales, módulos y tareas';
-      case 'DOCUMENTOS':
-        return 'Repositorio colaborativo y Asistente IA';
       case 'SPEEDGRADER':
         return 'Evaluación y calificación de entregas';
       case 'USUARIOS':

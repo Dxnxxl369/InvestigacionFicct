@@ -18,7 +18,6 @@ import {
   UploadCloud,
   Image as ImageIcon,
   ShieldCheck,
-  Award,
   Search,
   Check,
   Trash2,
@@ -62,6 +61,7 @@ export default function EditarConvocatoriaPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [tipo, setTipo] = useState<"FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION">("FERIA");
+  const [modalidadInscripcion, setModalidadInscripcion] = useState<"INDIVIDUAL" | "GRUPAL">("GRUPAL");
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
 
@@ -69,24 +69,22 @@ export default function EditarConvocatoriaPage() {
   const [imageMode, setImageMode] = useState<"LOCAL" | "URL">("LOCAL");
   const [imagenPortada, setImagenPortada] = useState("");
   const [imagenNombre, setImagenNombre] = useState<string>("");
+  const [archivoInformacion, setArchivoInformacion] = useState<File | null>(null);
+  const [archivoInformacionUrl, setArchivoInformacionUrl] = useState("");
+  const [archivoInformacionNombre, setArchivoInformacionNombre] = useState("");
 
   const [fechaCierre, setFechaCierre] = useState("");
-  const [inscripcionGrupal, setInscripcionGrupal] = useState(false);
-  const [cuposMinEquipo, setCuposMinEquipo] = useState(1);
+  const [cuposMinEquipo, setCuposMinEquipo] = useState(2);
   const [cuposMaxEquipo, setCuposMaxEquipo] = useState(4);
   const [requisitos, setRequisitos] = useState<string[]>([]);
   const [newReq, setNewReq] = useState("");
   const [estadoActual, setEstadoActual] = useState<string>("BORRADOR");
 
-  // Asignación de Encargados (Docentes y Jurados)
+  // Asignación de docentes encargados
   const [availableDocentes, setAvailableDocentes] = useState<UserDTO[]>([]);
-  const [availableJurados, setAvailableJurados] = useState<UserDTO[]>([]);
   const [selectedDocenteIds, setSelectedDocenteIds] = useState<number[]>([]);
-  const [selectedJuradoIds, setSelectedJuradoIds] = useState<number[]>([]);
   const [originalDocenteIds, setOriginalDocenteIds] = useState<number[]>([]);
-  const [originalJuradoIds, setOriginalJuradoIds] = useState<number[]>([]);
   const [searchDocente, setSearchDocente] = useState("");
-  const [searchJurado, setSearchJurado] = useState("");
   const [loadingEncargados, setLoadingEncargados] = useState(true);
 
   // LocalStorage State
@@ -108,7 +106,10 @@ export default function EditarConvocatoriaPage() {
         setTitulo(data.titulo);
         setDescripcion(data.descripcion);
         setTipo(data.tipo);
+        setModalidadInscripcion(data.modalidadInscripcion || (data.tipo === "FERIA" ? "GRUPAL" : "INDIVIDUAL"));
         setImagenPortada(data.imagenPortada || "");
+        setArchivoInformacionUrl(data.archivoInformacionUrl || "");
+        setArchivoInformacionNombre(data.archivoInformacionNombre || "");
         if (
           data.imagenPortada &&
           (data.imagenPortada.startsWith("http://") || data.imagenPortada.startsWith("https://")) &&
@@ -119,25 +120,17 @@ export default function EditarConvocatoriaPage() {
           setImageMode("LOCAL");
         }
         setFechaCierre(data.fechaCierre || "");
-        setInscripcionGrupal(Boolean(data.inscripcionGrupal));
         setEstadoActual(data.estado);
 
-        // Extraer participantes existentes (docentes y jurados) de ambas fuentes para máxima robustez
+        // Extraer docentes existentes de ambas fuentes
         const existingDocs = data.docenteIds && data.docenteIds.length > 0
           ? data.docenteIds
           : parts.filter((p) => p.rol === "DOCENTE").map((p) => p.usuarioId);
 
-        const existingJurs = data.juradoIds && data.juradoIds.length > 0
-          ? data.juradoIds
-          : parts.filter((p) => p.rol === "JURADO").map((p) => p.usuarioId);
-
         setSelectedDocenteIds(existingDocs);
-        setSelectedJuradoIds(existingJurs);
         setOriginalDocenteIds(existingDocs);
-        setOriginalJuradoIds(existingJurs);
 
         setAvailableDocentes(encargados.docentes || []);
-        setAvailableJurados(encargados.jurados || []);
 
         if (data.tamanoEquipo) {
           const nums = data.tamanoEquipo.match(/\d+/g);
@@ -147,7 +140,7 @@ export default function EditarConvocatoriaPage() {
           } else if (nums && nums.length === 1) {
             const val = Number(nums[0]);
             if (data.tamanoEquipo.toLowerCase().includes("hasta")) {
-              setCuposMinEquipo(1);
+              setCuposMinEquipo(2);
               setCuposMaxEquipo(val);
             } else {
               setCuposMinEquipo(val);
@@ -168,13 +161,12 @@ export default function EditarConvocatoriaPage() {
             if (d.titulo) setTitulo(d.titulo);
             if (d.descripcion !== undefined) setDescripcion(d.descripcion);
             if (d.tipo) setTipo(d.tipo);
+            if (d.modalidadInscripcion) setModalidadInscripcion(d.modalidadInscripcion);
             if (d.fechaCierre) setFechaCierre(d.fechaCierre);
-            if (typeof d.inscripcionGrupal === "boolean") setInscripcionGrupal(d.inscripcionGrupal);
             if (d.cuposMinEquipo) setCuposMinEquipo(d.cuposMinEquipo);
             if (d.cuposMaxEquipo) setCuposMaxEquipo(d.cuposMaxEquipo);
             if (d.requisitos) setRequisitos(d.requisitos);
             if (d.selectedDocenteIds) setSelectedDocenteIds(d.selectedDocenteIds);
-            if (d.selectedJuradoIds) setSelectedJuradoIds(d.selectedJuradoIds);
             if (d.imagenPortada) setImagenPortada(d.imagenPortada);
             if (d.imagenNombre) setImagenNombre(d.imagenNombre);
             if (d.imageMode) setImageMode(d.imageMode);
@@ -203,13 +195,12 @@ export default function EditarConvocatoriaPage() {
       titulo,
       descripcion,
       tipo,
+      modalidadInscripcion,
       fechaCierre,
-      inscripcionGrupal,
       cuposMinEquipo,
       cuposMaxEquipo,
       requisitos,
       selectedDocenteIds,
-      selectedJuradoIds,
       imagenPortada,
       imagenNombre,
       imageMode,
@@ -226,13 +217,12 @@ export default function EditarConvocatoriaPage() {
     titulo,
     descripcion,
     tipo,
+    modalidadInscripcion,
     fechaCierre,
-    inscripcionGrupal,
     cuposMinEquipo,
     cuposMaxEquipo,
     requisitos,
     selectedDocenteIds,
-    selectedJuradoIds,
     imagenPortada,
     imagenNombre,
     imageMode,
@@ -287,13 +277,6 @@ export default function EditarConvocatoriaPage() {
     );
   };
 
-  // Toggle jurado
-  const handleToggleJurado = (id: number) => {
-    setSelectedJuradoIds((prev) =>
-      prev.includes(id) ? prev.filter((jId) => jId !== id) : [...prev, id]
-    );
-  };
-
   const computedTamanoEquipo =
     cuposMinEquipo === cuposMaxEquipo
       ? `Hasta ${cuposMaxEquipo} integrantes`
@@ -305,10 +288,15 @@ export default function EditarConvocatoriaPage() {
       setError("El título de la convocatoria es obligatorio.");
       return;
     }
+    if (modalidadInscripcion === "GRUPAL" && (cuposMinEquipo < 2 || cuposMaxEquipo < cuposMinEquipo || cuposMaxEquipo > 50)) {
+      setError("La inscripción grupal requiere entre 2 y 50 integrantes y un máximo igual o mayor que el mínimo.");
+      return;
+    }
 
     setSaving(true);
     try {
       let finalImageUrl: string | undefined = imagenPortada.trim() || undefined;
+      const documento = archivoInformacion ? await api.uploadArchivo(archivoInformacion) : null;
 
       // Si la imagen es un Base64 local no subido aún, ahora sí la persistimos físicamente
       if (imagenPortada && imagenPortada.startsWith("data:image/")) {
@@ -325,29 +313,25 @@ export default function EditarConvocatoriaPage() {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         tipo,
+        modalidadInscripcion,
         fechaCierre: fechaCierre || undefined,
-        inscripcionGrupal,
-        minIntegrantesGrupo: cuposMinEquipo,
-        maxIntegrantesGrupo: cuposMaxEquipo,
-        tamanoEquipo: computedTamanoEquipo,
+        tamanoEquipo: modalidadInscripcion === "GRUPAL" ? computedTamanoEquipo : undefined,
+        maxIntegrantesFeria: modalidadInscripcion === "GRUPAL" ? cuposMaxEquipo : undefined,
         imagenPortada: finalImageUrl,
+        archivoInformacionUrl: documento?.relativePath ?? archivoInformacionUrl,
+        archivoInformacionNombre: archivoInformacion?.name ?? archivoInformacionNombre,
         requisitos: requisitos,
         docenteIds: selectedDocenteIds,
-        juradoIds: selectedJuradoIds,
       };
 
       await api.updateConvocatoria(convId, payload);
 
       // Sincronizar participantes agregados / removidos (compatibilidad con cualquier backend)
       const docsToAdd = selectedDocenteIds.filter((id) => !originalDocenteIds.includes(id));
-      const jursToAdd = selectedJuradoIds.filter((id) => !originalJuradoIds.includes(id));
 
       const assignPromises = [
         ...docsToAdd.map((dId) =>
           api.designarParticipante(convId, { usuarioId: dId, rol: "DOCENTE" }).catch(() => {})
-        ),
-        ...jursToAdd.map((jId) =>
-          api.designarParticipante(convId, { usuarioId: jId, rol: "JURADO" }).catch(() => {})
         ),
       ];
       await Promise.all(assignPromises);
@@ -383,16 +367,7 @@ export default function EditarConvocatoriaPage() {
     return full.includes(qDoc) || email.includes(qDoc);
   });
 
-  const qJur = normalizeText(searchJurado);
-  const filteredJurados = availableJurados.filter((j) => {
-    if (!qJur) return true;
-    const full = normalizeText(`${j.nombre} ${j.apellido}`);
-    const email = normalizeText(j.email);
-    return full.includes(qJur) || email.includes(qJur);
-  });
-
   const selectedDocentesObj = availableDocentes.filter((d) => selectedDocenteIds.includes(d.id));
-  const selectedJuradosObj = availableJurados.filter((j) => selectedJuradoIds.includes(j.id));
 
   if (!canEditModule("CONVOCATORIAS")) {
     return (
@@ -451,7 +426,7 @@ export default function EditarConvocatoriaPage() {
               Editar Convocatoria
             </h1>
             <p className="text-xs text-ink-soft mt-1">
-              Modifica los datos generales, personal docente/jurados asignados o actualiza la foto de portada.
+              Modifica los datos generales, docentes asignados o actualiza la foto de portada.
             </p>
           </div>
 
@@ -502,7 +477,7 @@ export default function EditarConvocatoriaPage() {
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setTipo(item.key as any)}
+                    onClick={() => { setTipo(item.key as any); setModalidadInscripcion(item.key === "FERIA" ? "GRUPAL" : "INDIVIDUAL"); }}
                     className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                       tipo === item.key
                         ? "bg-accent-soft text-accent-dark font-semibold border-2 border-accent"
@@ -513,6 +488,19 @@ export default function EditarConvocatoriaPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="p-4 bg-paper rounded-xl border border-line space-y-2">
+              <span className="block text-xs font-semibold text-ink">Modalidad de inscripción</span>
+              <div className="flex gap-4 text-sm text-ink">
+                <label className="flex items-center gap-2"><input type="radio" name="modalidad" checked={modalidadInscripcion === "INDIVIDUAL"}
+                  onChange={() => setModalidadInscripcion("INDIVIDUAL")} /> Individual</label>
+                <label className="flex items-center gap-2"><input type="radio" name="modalidad" checked={modalidadInscripcion === "GRUPAL"}
+                  onChange={() => setModalidadInscripcion("GRUPAL")} /> Grupal</label>
+              </div>
+              <p className="text-xs text-ink-soft">{modalidadInscripcion === "GRUPAL"
+                ? "El responsable registra a su equipo; tras la aprobación se asigna un código G001, G002…"
+                : "Cada persona se inscribe por separado. Los grupos se configuran después en Grupos y Elección."}</p>
             </div>
 
             {/* Título */}
@@ -541,6 +529,19 @@ export default function EditarConvocatoriaPage() {
                 placeholder="Describe el objetivo y alcance de la actividad..."
                 className="w-full px-3.5 py-2.5 rounded-md border border-line bg-paper text-ink text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
               />
+            </div>
+
+            <div className="p-4 bg-paper rounded-xl border border-line space-y-2">
+              <label className="block text-xs font-semibold text-ink">Archivo con información del evento (opcional)</label>
+              <p className="text-xs text-ink-soft">PDF, DOC o DOCX para consultar las bases o indicaciones de la convocatoria.</p>
+              {archivoInformacionUrl && !archivoInformacion && <a href={getMediaUrl(archivoInformacionUrl)} target="_blank" rel="noopener noreferrer"
+                className="block text-sm text-accent underline">{archivoInformacionNombre || "Ver archivo actual"}</a>}
+              <input key={archivoInformacion?.name ?? "sin-archivo"} type="file" accept=".pdf,.doc,.docx" onChange={e => setArchivoInformacion(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-ink" />
+              {archivoInformacion && <p className="text-xs text-ink-soft">Nuevo archivo: {archivoInformacion.name}</p>}
+              {(archivoInformacion || archivoInformacionUrl) && <button type="button"
+                onClick={() => { setArchivoInformacion(null); setArchivoInformacionUrl(""); setArchivoInformacionNombre(""); }}
+                className="text-xs text-danger">Quitar archivo</button>}
             </div>
 
             {/* SECCIÓN: FOTO DE PORTADA CON PREVISUALIZACIÓN IN SITU EN EL RECUADRO */}
@@ -676,14 +677,14 @@ export default function EditarConvocatoriaPage() {
               )}
             </div>
 
-            {/* SECCIÓN: ENCARGADOS Y JURADOS (N DOCENTES Y N JURADOS) */}
+            {/* SECCIÓN: DOCENTES ENCARGADOS */}
             <div className="space-y-4 pt-2 border-t border-line-soft">
               <div>
                 <span className="block text-xs font-semibold text-ink uppercase tracking-wider mb-1">
                   Personal a Cargo de la Convocatoria
                 </span>
                 <p className="text-[11px] text-ink-soft">
-                  Selecciona y asigna <b>N docentes guías</b> y <b>N jurados evaluadores</b>.
+                  Selecciona los <b>docentes guías</b>. Los jurados se administran desde la sección Jurados de la convocatoria.
                 </p>
               </div>
 
@@ -786,104 +787,6 @@ export default function EditarConvocatoriaPage() {
                 )}
               </div>
 
-              {/* 2. Jurados Evaluadores */}
-              <div className="p-4 bg-paper rounded-xl border border-line space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Award className="w-4 h-4 text-purple-600" />
-                    <span className="text-xs font-semibold text-ink">Jurados Evaluadores</span>
-                  </div>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">
-                    {selectedJuradoIds.length} asignado(s)
-                  </span>
-                </div>
-
-                {/* Buscador de jurados */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-                  <input
-                    type="text"
-                    placeholder="Buscar jurado por nombre o correo (ej: Carlos, cfernandez@uagrm.edu.bo)..."
-                    value={searchJurado}
-                    onChange={(e) => setSearchJurado(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-paper-sunken border border-line-soft focus:border-accent focus:outline-none"
-                  />
-                </div>
-
-                {/* Lista de selección de jurados */}
-                <div className="max-h-44 overflow-y-auto border border-line-soft rounded-lg divide-y divide-line-soft bg-paper">
-                  {loadingEncargados ? (
-                    <div className="p-3 text-center text-xs text-ink-faint">Cargando jurados disponibles...</div>
-                  ) : filteredJurados.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-ink-soft">
-                      No se encontró ningún jurado con &quot;{searchJurado}&quot;.
-                    </div>
-                  ) : (
-                    filteredJurados.map((jur) => {
-                      const isSelected = selectedJuradoIds.includes(jur.id);
-                      return (
-                        <div
-                          key={jur.id}
-                          onClick={() => handleToggleJurado(jur.id)}
-                          className={`p-2.5 flex items-center justify-between cursor-pointer transition-colors text-xs ${
-                            isSelected ? "bg-purple-50 hover:bg-purple-100" : "hover:bg-paper-sunken"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-purple-200 text-purple-800 font-bold flex items-center justify-center text-[11px]">
-                              {jur.nombre.charAt(0)}{jur.apellido ? jur.apellido.charAt(0) : ""}
-                            </div>
-                            <div>
-                              <span className="font-semibold text-ink block">{jur.nombre} {jur.apellido}</span>
-                              <span className="text-[10px] text-ink-faint">{jur.email}</span>
-                            </div>
-                          </div>
-                          <div className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all ${
-                            isSelected
-                              ? "bg-purple-600 text-white"
-                              : "bg-paper-sunken text-ink-soft hover:bg-purple-600 hover:text-white"
-                          }`}>
-                            {isSelected ? (
-                              <>
-                                <Check className="w-3 h-3" /> Asignado
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-3 h-3" /> Agregar
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* Chips de jurados seleccionados */}
-                {selectedJuradosObj.length > 0 && (
-                  <div className="space-y-1.5 pt-1">
-                    <span className="text-[11px] font-medium text-ink-faint">Jurados que evaluarán a los proyectos:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedJuradosObj.map((jur) => (
-                        <span
-                          key={jur.id}
-                          className="inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-900 text-xs font-medium shadow-2xs"
-                        >
-                          <span>{jur.nombre} {jur.apellido}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleJurado(jur.id)}
-                            className="w-4 h-4 rounded-full hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center text-ink-soft"
-                            title="Quitar de la lista"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Fechas y Equipos */}
@@ -900,31 +803,17 @@ export default function EditarConvocatoriaPage() {
                 />
               </div>
 
-              <div>
+              {modalidadInscripcion === "GRUPAL" && <div>
                 <label className="block text-xs font-medium text-ink-soft mb-1.5">
-                  Modo y tamaño de equipo
-                </label>
-                <label className="mb-2 flex items-center justify-between gap-3 rounded-md border border-line bg-paper-sunken px-3 py-2 text-xs text-ink">
-                  <span>
-                    <b>Inscripción por grupos</b>
-                    <span className="block text-[11px] text-ink-faint">
-                      Los estudiantes postulan con número/nombre de grupo e integrantes.
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={inscripcionGrupal}
-                    onChange={(e) => setInscripcionGrupal(e.target.checked)}
-                    className="h-4 w-4 accent-accent"
-                  />
+                  Integrantes por equipo
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <div className="text-[11px] text-ink-faint mb-1">Mínimo</div>
                     <input
                       type="number"
-                      min={1}
-                      max={5}
+                      min={2}
+                      max={50}
                       value={cuposMinEquipo}
                       onChange={(e) => setCuposMinEquipo(Number(e.target.value) || 1)}
                       placeholder="Min"
@@ -935,8 +824,8 @@ export default function EditarConvocatoriaPage() {
                     <div className="text-[11px] text-ink-faint mb-1">Máximo</div>
                     <input
                       type="number"
-                      min={1}
-                      max={5}
+                      min={2}
+                      max={50}
                       value={cuposMaxEquipo}
                       onChange={(e) => setCuposMaxEquipo(Number(e.target.value) || 1)}
                       placeholder="Max"
@@ -944,12 +833,14 @@ export default function EditarConvocatoriaPage() {
                     />
                   </div>
                 </div>
-                <div className="text-[11px] text-accent font-medium mt-1.5">
-                  {cuposMinEquipo === cuposMaxEquipo
+                <div className={`text-[11px] font-medium mt-1.5 ${cuposMinEquipo < 2 || cuposMaxEquipo < cuposMinEquipo || cuposMaxEquipo > 50 ? "text-danger" : "text-accent"}`}>
+                  {cuposMinEquipo < 2 || cuposMaxEquipo < cuposMinEquipo || cuposMaxEquipo > 50
+                    ? "Ingresa un rango válido entre 2 y 50 integrantes"
+                    : cuposMinEquipo === cuposMaxEquipo
                     ? `Hasta ${cuposMaxEquipo} integrantes`
                     : `De ${cuposMinEquipo} a ${cuposMaxEquipo} integrantes`}
                 </div>
-              </div>
+              </div>}
             </div>
 
             {/* Requisitos de Inscripción */}
@@ -1015,7 +906,7 @@ export default function EditarConvocatoriaPage() {
                 type="button"
                 disabled={saving}
                 onClick={() => handleSave(false)}
-                className="px-5 py-2.5 rounded-lg bg-ink text-white hover:bg-black text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                className="px-5 py-2.5 rounded-lg bg-ink text-white dark:bg-ficct-green-dark hover:opacity-90 text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Save className="w-4 h-4 text-accent" />
                 {saving ? "Guardando en BD..." : "Guardar cambios en BD"}
@@ -1083,21 +974,13 @@ export default function EditarConvocatoriaPage() {
                 </p>
 
                 {/* Encargados seleccionados en preview */}
-                {(selectedDocentesObj.length > 0 || selectedJuradosObj.length > 0) && (
+                {selectedDocentesObj.length > 0 && (
                   <div className="p-2.5 rounded-lg bg-paper-sunken border border-line-soft space-y-1.5 text-[11px]">
                     {selectedDocentesObj.length > 0 && (
                       <div className="flex items-center gap-1.5 text-accent-dark">
                         <ShieldCheck className="w-3.5 h-3.5 text-accent flex-shrink-0" />
                         <span className="truncate">
                           <b>Docente(s):</b> {selectedDocentesObj.map((d) => `${d.nombre} ${d.apellido}`).join(", ")}
-                        </span>
-                      </div>
-                    )}
-                    {selectedJuradosObj.length > 0 && (
-                      <div className="flex items-center gap-1.5 text-purple-900">
-                        <Award className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
-                        <span className="truncate">
-                          <b>Jurado(s):</b> {selectedJuradosObj.map((j) => `${j.nombre} ${j.apellido}`).join(", ")}
                         </span>
                       </div>
                     )}

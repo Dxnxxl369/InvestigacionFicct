@@ -148,7 +148,7 @@ class _MisAreasScreenState extends State<MisAreasScreen> {
                               ))
                           .toList(),
                     ),
-                  const SizedBox(height: 70),
+                  const SizedBox(height: 95),
                 ],
               ),
             ),

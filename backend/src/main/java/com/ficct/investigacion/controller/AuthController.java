@@ -87,6 +87,17 @@ public class AuthController {
         return updateProfile(userDetails, request);
     }
 
+    @PutMapping("/fcm-token")
+    public ResponseEntity<?> updateFcmToken(@AuthenticationPrincipal UserDetails userDetails,
+                                            @RequestBody Map<String, String> body) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String token = body != null ? body.get("fcmToken") : null;
+        authService.updateFcmToken(userDetails.getUsername(), token);
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
     /**
      * Ficha Académica / Perfil Público de un usuario (para consulta entre participantes de la facultad)
      */

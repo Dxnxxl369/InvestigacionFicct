@@ -28,7 +28,7 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
   final _urlImagenCtrl = TextEditingController();
 
   // Entrada numérica natural estricta (Only INT)
-  final _cuposMinCtrl = TextEditingController(text: '1');
+  final _cuposMinCtrl = TextEditingController(text: '2');
   final _cuposMaxCtrl = TextEditingController(text: '4');
 
   final _nuevaRestriccionCtrl = TextEditingController();
@@ -39,18 +39,20 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
   ];
 
   String _tipo = 'FERIA';
+  String _modalidadInscripcion = 'GRUPAL';
   DateTime _fechaCierre = DateTime.now().add(const Duration(days: 30));
   bool _publicarInmediatamente = true;
   bool _isSubmitting = false;
   bool _isUploadingImage = false;
   String? _imagenSeleccionada;
+  String? _archivoInformacionUrl;
+  String? _archivoInformacionNombre;
+  PlatformFile? _archivoInformacionPendiente;
   int _modoImagen = 0; // 0: Prediseñadas, 1: URL Personalizada, 2: Subir Archivo
 
-  // Catálogo de docentes y jurados de la base de datos
+  // Catálogo de docentes de la base de datos
   List<Map<String, dynamic>> _docentesDisponibles = [];
-  List<Map<String, dynamic>> _juradosDisponibles = [];
   final Set<int> _selectedDocenteIds = {};
-  final Set<int> _selectedJuradoIds = {};
   bool _cargandoEncargados = true;
 
   bool get isEditing => widget.convocatoriaParaEditar != null;
@@ -82,8 +84,11 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
       _tituloCtrl.text = c.titulo;
       _descCtrl.text = c.descripcion;
       _tipo = c.tipo;
+      _modalidadInscripcion = c.modalidadInscripcion;
       _publicarInmediatamente = c.estado == 'PUBLICADA';
       _imagenSeleccionada = c.imagenPortada ?? _imagenesPredeterminadas[0]['url'];
+      _archivoInformacionUrl = c.archivoInformacionUrl;
+      _archivoInformacionNombre = c.archivoInformacionNombre;
       _urlImagenCtrl.text = c.imagenPortada ?? '';
       _restricciones = List.from(c.requisitos);
 
@@ -105,7 +110,6 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
       }
 
       _selectedDocenteIds.addAll(c.docenteIds);
-      _selectedJuradoIds.addAll(c.juradoIds);
     } else {
       _imagenSeleccionada = _imagenesPredeterminadas[0]['url'];
     }
@@ -129,11 +133,10 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
     if (mounted) {
       setState(() {
         _docentesDisponibles = data['docentes'] ?? [];
-        _juradosDisponibles = data['jurados'] ?? [];
       });
 
       // Si estamos editando y los IDs no venían en el objeto, consultar los participantes asignados
-      if (isEditing && _selectedDocenteIds.isEmpty && _selectedJuradoIds.isEmpty) {
+      if (isEditing && _selectedDocenteIds.isEmpty) {
         final partes = await ApiService.getParticipantes(widget.convocatoriaParaEditar!.id);
         if (mounted) {
           setState(() {
@@ -141,7 +144,6 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
               final uid = (p['usuarioId'] ?? p['id'] as num?)?.toInt();
               if (uid != null) {
                 if (p['rol'] == 'DOCENTE') _selectedDocenteIds.add(uid);
-                if (p['rol'] == 'JURADO') _selectedJuradoIds.add(uid);
               }
             }
           });
@@ -326,144 +328,25 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
     );
   }
 
-  // Selector Modal con Buscador en Vivo para Jurados
-  Future<void> _showBuscarJuradosModal() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    String searchQuery = '';
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final filtrados = _juradosDisponibles.where((jur) {
-            final nombre = '${jur['nombre'] ?? ""} ${jur['apellido'] ?? ""}'.toLowerCase();
-            final email = (jur['email'] ?? '').toString().toLowerCase();
-            final q = searchQuery.toLowerCase().trim();
-            return nombre.contains(q) || email.contains(q);
-          }).toList();
-
-          return Container(
-            height: MediaQuery.of(ctx).size.height * 0.75,
-            decoration: BoxDecoration(
-              color: isDark ? AppTheme.darkPaper : AppTheme.paper,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? AppTheme.darkLine : AppTheme.line,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    const Icon(Icons.gavel_rounded, color: AppTheme.seal),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Asignar Jurados Evaluadores',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Text(
-                      '${_selectedJuradoIds.length} sel.',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.seal),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Buscar jurado por nombre o correo...',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    filled: true,
-                    fillColor: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
-                  ),
-                  onChanged: (val) => setSheetState(() => searchQuery = val),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: filtrados.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No se encontraron jurados con ese criterio.',
-                            style: TextStyle(color: AppTheme.inkSoft, fontSize: 13),
-                          ),
-                        )
-                      : ListView.separated(
-                          itemCount: filtrados.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, idx) {
-                            final jur = filtrados[idx];
-                            final id = (jur['id'] as num?)?.toInt() ?? 0;
-                            final nombre = '${jur['nombre'] ?? ""} ${jur['apellido'] ?? ""}'.trim();
-                            final email = jur['email'] ?? '';
-                            final isSel = _selectedJuradoIds.contains(id);
-
-                            return CheckboxListTile(
-                              value: isSel,
-                              activeColor: AppTheme.seal,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              title: Text(
-                                nombre.isNotEmpty ? nombre : email,
-                                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
-                              ),
-                              subtitle: Text(email, style: const TextStyle(fontSize: 11.5, color: AppTheme.inkSoft)),
-                              secondary: CircleAvatar(
-                                radius: 18,
-                                backgroundColor: isSel ? AppTheme.accentSoft : (isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken),
-                                child: Text(
-                                  nombre.isNotEmpty ? nombre[0].toUpperCase() : 'J',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: isSel ? AppTheme.seal : AppTheme.inkSoft,
-                                  ),
-                                ),
-                              ),
-                              onChanged: (val) {
-                                setSheetState(() {
-                                  if (val == true) {
-                                    _selectedJuradoIds.add(id);
-                                  } else {
-                                    _selectedJuradoIds.remove(id);
-                                  }
-                                });
-                                setState(() {});
-                              },
-                            );
-                          },
-                        ),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.seal,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                  ),
-                  child: Text('Confirmar Selección (${_selectedJuradoIds.length})'),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+  // Subir imagen real desde el dispositivo usando FilePicker
+  Future<void> _seleccionarArchivoInformacion() async {
+    final resultado = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx'],
+      withData: true,
     );
+    if (resultado == null || resultado.files.isEmpty) return;
+    final archivo = resultado.files.first;
+    if (archivo.bytes == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo leer el archivo seleccionado.')));
+      }
+      return;
+    }
+    if (mounted) setState(() => _archivoInformacionPendiente = archivo);
   }
 
-  // Subir imagen real desde el dispositivo usando FilePicker
   Future<void> _pickAndUploadImage() async {
     try {
       final result = await FilePicker.pickFiles(
@@ -540,8 +423,29 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
       );
       return;
     }
+    if (_modalidadInscripcion == 'GRUPAL' && (cuposMin < 2 || cuposMax > 50)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La inscripción grupal requiere entre 2 y 50 integrantes.')),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
+
+    if (_archivoInformacionPendiente != null) {
+      final archivo = _archivoInformacionPendiente!;
+      final subida = await ApiService.subirDocumento(archivo.bytes!, archivo.name);
+      if (subida == null) {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo subir el archivo informativo.')));
+        }
+        return;
+      }
+      _archivoInformacionUrl = (subida['relativePath'] ?? subida['url']) as String?;
+      _archivoInformacionNombre = archivo.name;
+    }
 
     final fechaStr = '${_fechaCierre.year}-${_fechaCierre.month.toString().padLeft(2, '0')}-${_fechaCierre.day.toString().padLeft(2, '0')}';
 
@@ -559,12 +463,15 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
       'titulo': _tituloCtrl.text.trim(),
       'descripcion': _descCtrl.text.trim(),
       'tipo': _tipo,
+      'modalidadInscripcion': _modalidadInscripcion,
       'fechaCierre': fechaStr,
-      'tamanoEquipo': tamanoEquipoStr,
+      'tamanoEquipo': _modalidadInscripcion == 'GRUPAL' ? tamanoEquipoStr : null,
+      if (_modalidadInscripcion == 'GRUPAL') 'maxIntegrantesFeria': cuposMax,
       'imagenPortada': finalImage,
+      'archivoInformacionUrl': _archivoInformacionUrl ?? '',
+      'archivoInformacionNombre': _archivoInformacionNombre ?? '',
       'requisitos': _restricciones,
       'docenteIds': _selectedDocenteIds.toList(),
-      'juradoIds': _selectedJuradoIds.toList(),
     };
 
     if (isEditing) {
@@ -712,7 +619,7 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
 
                       // Tipo de Convocatoria
                       DropdownButtonFormField<String>(
-                        value: _tipo,
+                        initialValue: _tipo,
                         decoration: const InputDecoration(
                           labelText: 'Tipo de Evento Académico',
                           prefixIcon: Icon(Icons.category_rounded),
@@ -724,10 +631,22 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
                           DropdownMenuItem(value: 'INVESTIGACION', child: Text('Investigación & Taller de Grado')),
                         ],
                         onChanged: (val) {
-                          if (val != null) setState(() => _tipo = val);
+                          if (val != null) {
+                            setState(() {
+                              _tipo = val;
+                              _modalidadInscripcion = val == 'FERIA' ? 'GRUPAL' : 'INDIVIDUAL';
+                            });
+                          }
                         },
                       ),
                       const SizedBox(height: 16),
+
+                      const Text('Modalidad de inscripción', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ChoiceChip(label: const Text('Individual'), selected: _modalidadInscripcion == 'INDIVIDUAL',
+                        onSelected: (_) => setState(() => _modalidadInscripcion = 'INDIVIDUAL')),
+                      ChoiceChip(label: const Text('Grupal'), selected: _modalidadInscripcion == 'GRUPAL',
+                        onSelected: (_) => setState(() => _modalidadInscripcion = 'GRUPAL')),
+                      const SizedBox(height: 8),
 
                       // Descripción
                       TextFormField(
@@ -744,6 +663,28 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
                           return null;
                         },
                       ),
+                      const SizedBox(height: 16),
+
+                      const Text('Archivo con información del evento (opcional)',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      const Text('PDF, DOC o DOCX con bases o indicaciones.'),
+                      OutlinedButton.icon(
+                        onPressed: _isSubmitting ? null : _seleccionarArchivoInformacion,
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Seleccionar archivo'),
+                      ),
+                      if (_archivoInformacionPendiente != null || _archivoInformacionUrl != null)
+                        Row(children: [
+                          Expanded(child: Text(_archivoInformacionPendiente?.name
+                            ?? _archivoInformacionNombre ?? 'Archivo actual')),
+                          IconButton(icon: const Icon(Icons.close), tooltip: 'Quitar archivo',
+                            onPressed: () => setState(() {
+                              _archivoInformacionPendiente = null;
+                              _archivoInformacionUrl = null;
+                              _archivoInformacionNombre = null;
+                            })),
+                        ]),
                       const SizedBox(height: 16),
 
                       // Fecha Límite de Inscripción
@@ -765,7 +706,7 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
                       const SizedBox(height: 16),
 
                       // Integrantes por Equipo (Min y Max)
-                      Row(
+                      if (_modalidadInscripcion == 'GRUPAL') Row(
                         children: [
                           Expanded(
                             child: TextFormField(
@@ -863,65 +804,6 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
                               backgroundColor: AppTheme.accentSoft,
                               deleteIconColor: AppTheme.accentDark,
                               onDeleted: () => setState(() => _selectedDocenteIds.remove(id)),
-                            );
-                          }).toList(),
-                        ),
-                      const SizedBox(height: 18),
-
-                      // ==========================================
-                      // PARÁMETRO: ASIGNACIÓN DE JURADOS (MÚLTIPLES)
-                      // ==========================================
-                      Row(
-                        children: [
-                          const Icon(Icons.gavel_rounded, size: 18, color: AppTheme.seal),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Jurados Evaluadores (Opcional)',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _cargandoEncargados ? null : _showBuscarJuradosModal,
-                            icon: const Icon(Icons.search_rounded, size: 16),
-                            label: const Text('Buscar / Asignar', style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
-                      ),
-                      if (_selectedJuradoIds.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppTheme.darkPaperSunken : AppTheme.paperSunken,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
-                          ),
-                          child: const Text(
-                            'Sin jurados asignados (pueden ser asignados posteriormente).',
-                            style: TextStyle(fontSize: 11.5, color: AppTheme.inkSoft, fontStyle: FontStyle.italic),
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: _selectedJuradoIds.map((id) {
-                            final jur = _juradosDisponibles.firstWhere(
-                              (j) => ((j['id'] as num?)?.toInt()) == id,
-                              orElse: () => {'nombre': 'Jurado', 'apellido': '#$id', 'email': ''},
-                            );
-                            final nombre = '${jur['nombre'] ?? ""} ${jur['apellido'] ?? ""}'.trim();
-                            return InputChip(
-                              avatar: CircleAvatar(
-                                backgroundColor: AppTheme.seal,
-                                child: Text(
-                                  nombre.isNotEmpty ? nombre[0].toUpperCase() : 'J',
-                                  style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              label: Text(nombre.isNotEmpty ? nombre : jur['email'] ?? 'Jurado', style: const TextStyle(fontSize: 11.5)),
-                              backgroundColor: AppTheme.accentSoft,
-                              deleteIconColor: AppTheme.seal,
-                              onDeleted: () => setState(() => _selectedJuradoIds.remove(id)),
                             );
                           }).toList(),
                         ),
@@ -1167,7 +1049,7 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
                             ),
                             Switch(
                               value: _publicarInmediatamente,
-                              activeColor: const Color(0xFF10B981),
+                              activeThumbColor: const Color(0xFF10B981),
                               onChanged: (val) => setState(() => _publicarInmediatamente = val),
                             ),
                           ],

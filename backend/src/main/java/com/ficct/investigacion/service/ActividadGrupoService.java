@@ -70,6 +70,23 @@ public class ActividadGrupoService {
                 .orElseThrow(() -> new IllegalArgumentException("Convocatoria no encontrada"));
         verificarPermisoGestion(convocatoria, username);
 
+        if (convocatoria.getModalidadInscripcion() != ModalidadInscripcion.INDIVIDUAL) {
+            throw new IllegalArgumentException("La elección libre de grupos solo corresponde a inscripciones individuales.");
+        }
+        if (!actividadGrupoRepository.findByConvocatoriaIdOrderByFechaCreacionDesc(convocatoriaId).isEmpty()) {
+            throw new IllegalArgumentException("Esta convocatoria ya tiene una elección de grupos configurada.");
+        }
+        if (request.getPermitirCambio() == null) {
+            throw new IllegalArgumentException("Selecciona si se permite cambiar de grupo.");
+        }
+        if (request.getCapacidadPorGrupo() == null || request.getCapacidadPorGrupo() < 1) {
+            throw new IllegalArgumentException("Indica el máximo de integrantes por grupo.");
+        }
+        if (!Boolean.TRUE.equals(request.getGenerarGrupos()) || request.getCantidadGrupos() == null
+                || request.getCantidadGrupos() < 1 || request.getCantidadGrupos() > 50) {
+            throw new IllegalArgumentException("Indica cuántos grupos se crearán (entre 1 y 50).");
+        }
+
         User usuario = userRepository.findByEmail(username).orElse(null);
 
         Modulo modulo = null;
@@ -99,13 +116,13 @@ public class ActividadGrupoService {
                     ? request.getCantidadGrupos()
                     : 10;
             String prefijo = (request.getPrefijoGrupos() != null && !request.getPrefijoGrupos().trim().isEmpty())
-                    ? request.getPrefijoGrupos().trim() + " "
-                    : "Gr1erPar ";
+                    ? request.getPrefijoGrupos().trim()
+                    : "G";
             Integer capacidad = request.getCapacidadPorGrupo() != null ? request.getCapacidadPorGrupo() : 5;
 
             List<Grupo> nuevos = new ArrayList<>();
             for (int i = 1; i <= cantidad; i++) {
-                Grupo g = new Grupo(convocatoria, guardada, prefijo + i, "Grupo " + i, capacidad, usuario);
+                Grupo g = new Grupo(convocatoria, guardada, prefijo + String.format("%03d", i), "Grupo " + i, capacidad, usuario);
                 nuevos.add(g);
             }
             grupoRepository.saveAll(nuevos);
@@ -140,7 +157,15 @@ public class ActividadGrupoService {
             actividad.setFechaCierre(request.getFechaCierre());
         }
         if (request.getCapacidadPorGrupo() != null && request.getCapacidadPorGrupo() > 0) {
-            actividad.setCapacidadPorGrupo(request.getCapacidadPorGrupo());
+            int nuevoCupo = request.getCapacidadPorGrupo();
+            for (Grupo grupo : actividad.getGrupos()) {
+                if (participanteRepository.findMiembrosPorGrupoId(grupo.getId()).size() > nuevoCupo) {
+                    throw new IllegalArgumentException("El nuevo cupo es menor que los integrantes actuales de " + grupo.getNombre() + ".");
+                }
+                grupo.setCapacidadMaxima(nuevoCupo);
+            }
+            grupoRepository.saveAll(actividad.getGrupos());
+            actividad.setCapacidadPorGrupo(nuevoCupo);
         }
         if (request.getPermitirCambio() != null) {
             actividad.setPermitirCambio(request.getPermitirCambio());
@@ -186,6 +211,10 @@ public class ActividadGrupoService {
             throw new IllegalArgumentException("La actividad no pertenece a esta convocatoria.");
         }
 
+        if (actividad.getConvocatoria().getModalidadInscripcion() != ModalidadInscripcion.INDIVIDUAL) {
+            throw new IllegalArgumentException("Esta convocatoria asigna los equipos durante la inscripción.");
+        }
+
         if (actividad.isCerrada()) {
             throw new IllegalArgumentException("Lamentablemente esta actividad cerró y ya no está disponible.");
         }
@@ -200,12 +229,18 @@ public class ActividadGrupoService {
         if (participante.getEstadoInscripcion() != EstadoInscripcion.ACEPTADO) {
             throw new IllegalArgumentException("Tu solicitud de inscripción aún no ha sido admitida por el docente.");
         }
+        if (participante.getRol() != Rol.ESTUDIANTE) {
+            throw new IllegalArgumentException("Solo los estudiantes pueden elegir un grupo.");
+        }
 
         Grupo grupo = grupoRepository.findById(grupoId)
                 .orElseThrow(() -> new IllegalArgumentException("Grupo no encontrado"));
 
         if (!grupo.getConvocatoria().getId().equals(convocatoriaId)) {
             throw new IllegalArgumentException("El grupo no pertenece a esta convocatoria.");
+        }
+        if (grupo.getActividadGrupo() == null || !grupo.getActividadGrupo().getId().equals(actividadId)) {
+            throw new IllegalArgumentException("El grupo no pertenece a esta elección.");
         }
 
         // Buscar si el participante ya tiene un grupo asignado en ESTA actividad específica

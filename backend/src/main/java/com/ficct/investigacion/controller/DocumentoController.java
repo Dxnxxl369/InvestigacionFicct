@@ -6,6 +6,7 @@ import com.ficct.investigacion.dto.DocumentoRequest;
 import com.ficct.investigacion.dto.DocumentoVersionDTO;
 import com.ficct.investigacion.service.DocumentoService;
 import jakarta.validation.Valid;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
+@ConditionalOnProperty(name = "feature.documentos-colaborativos.enabled", havingValue = "true")
 @RequestMapping("/api/documentos")
 public class DocumentoController {
 

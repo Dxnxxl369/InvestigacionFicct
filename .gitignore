@@ -9,6 +9,7 @@ target/
 # Frontend specific
 frontend/node_modules/
 frontend/.next/
+frontend/.next-dev/
 frontend/out/
 frontend/build/
 frontend/tsconfig.tsbuildinfo
@@ -25,6 +26,8 @@ backend/.project
 backend/.classpath
 
 # Ignored non-code directories as requested
+docs/
+uploads/
 diagramas/
 scrum/
 scrum-data/
@@ -48,5 +51,5 @@ Thumbs.db
 *.zip
 *.apk
 apks/
-backend/uploads/
 .tools/
+**/firebase-service-account.json

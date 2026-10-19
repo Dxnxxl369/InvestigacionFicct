@@ -6,6 +6,7 @@ import {
   Check,
   Download,
   Users,
+  Eye,
   Award,
   PlusCircle,
   Trash2,
@@ -15,7 +16,7 @@ import {
   TareaDTO,
   TareaRequest,
   ModuloDTO,
-  ActividadGrupoDTO,
+  AdjuntoTareaDTO,
   EntregaTareaDTO,
   CriterioRequest,
   getMediaUrl,
@@ -33,7 +34,6 @@ interface CrearEditarTareaModalProps {
   tareaEditing: TareaDTO | null;
   moduloIdDefault: number | null;
   modulos: ModuloDTO[];
-  actividadesGrupo: ActividadGrupoDTO[];
   onSuccess: (updatedTareas: TareaDTO[], updatedTareaDetalle?: TareaDTO) => void;
   toast: (text: string, type?: "success" | "error" | "info") => void;
 }
@@ -45,14 +45,14 @@ export default function CrearEditarTareaModal({
   tareaEditing,
   moduloIdDefault,
   modulos,
-  actividadesGrupo,
   onSuccess,
   toast,
 }: CrearEditarTareaModalProps) {
   const [tituloTarea, setTituloTarea] = useState("");
   const [descTarea, setDescTarea] = useState("");
+  const [adjuntosGuardados, setAdjuntosGuardados] = useState<AdjuntoTareaDTO[]>([]);
+  const [archivosNuevos, setArchivosNuevos] = useState<File[]>([]);
   const [tareaModuloId, setTareaModuloId] = useState<number | "">("");
-  const [tareaActividadGrupoId, setTareaActividadGrupoId] = useState<number | "">("");
   const [fechaHabilitacion, setFechaHabilitacion] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [fechaCorte, setFechaCorte] = useState("");
@@ -60,7 +60,7 @@ export default function CrearEditarTareaModal({
   const [tamanoMb, setTamanoMb] = useState(15);
   const [puntajeMax, setPuntajeMax] = useState(100);
   const [esGrupalTarea, setEsGrupalTarea] = useState(false);
-  const [documentoColaborativoHabilitado, setDocumentoColaborativoHabilitado] = useState(false);
+  const [visibleJurados, setVisibleJurados] = useState(false);
   const [tieneRubricaTarea, setTieneRubricaTarea] = useState(false);
   const [criteriosRubricaTarea, setCriteriosRubricaTarea] = useState<CriterioRequest[]>([]);
   const [creandoTarea, setCreandoTarea] = useState(false);
@@ -75,13 +75,10 @@ export default function CrearEditarTareaModal({
           ? tareaEditing.moduloId
           : ""
       );
-      setTareaActividadGrupoId(
-        tareaEditing.actividadGrupoId !== undefined && tareaEditing.actividadGrupoId !== null
-          ? tareaEditing.actividadGrupoId
-          : ""
-      );
       setTituloTarea(tareaEditing.titulo || "");
       setDescTarea(tareaEditing.descripcion || "");
+      setAdjuntosGuardados(tareaEditing.adjuntos || []);
+      setArchivosNuevos([]);
       setFechaHabilitacion(formatForDateTimeLocal(tareaEditing.fechaHabilitacion));
       setFechaEntrega(formatForDateTimeLocal(tareaEditing.fechaEntrega || tareaEditing.fechaLimite));
       setFechaCorte(formatForDateTimeLocal(tareaEditing.fechaCorte));
@@ -89,7 +86,7 @@ export default function CrearEditarTareaModal({
       setTamanoMb(tareaEditing.tamanoMaximoMb || 15);
       setPuntajeMax(tareaEditing.puntajeMaximo || 100);
       setEsGrupalTarea(Boolean(tareaEditing.esGrupal));
-      setDocumentoColaborativoHabilitado(Boolean(tareaEditing.documentoColaborativoHabilitado));
+      setVisibleJurados(Boolean(tareaEditing.visibleJurados));
 
       if (tareaEditing.rubrica && tareaEditing.rubrica.length > 0) {
         setTieneRubricaTarea(true);
@@ -115,8 +112,9 @@ export default function CrearEditarTareaModal({
     } else {
       setTituloTarea("");
       setDescTarea("");
+      setAdjuntosGuardados([]);
+      setArchivosNuevos([]);
       setTareaModuloId(moduloIdDefault !== null && moduloIdDefault !== undefined ? moduloIdDefault : "");
-      setTareaActividadGrupoId("");
       setFechaHabilitacion("");
       setFechaEntrega("");
       setFechaCorte("");
@@ -124,7 +122,7 @@ export default function CrearEditarTareaModal({
       setTamanoMb(15);
       setPuntajeMax(100);
       setEsGrupalTarea(false);
-      setDocumentoColaborativoHabilitado(false);
+      setVisibleJurados(false);
       setTieneRubricaTarea(false);
       setCriteriosRubricaTarea([]);
       setEntregasTareaEditing([]);
@@ -137,11 +135,6 @@ export default function CrearEditarTareaModal({
     e.preventDefault();
     if (!tituloTarea.trim()) {
       toast("El título de la tarea es obligatorio", "error");
-      return;
-    }
-
-    if (documentoColaborativoHabilitado && (!esGrupalTarea || !tareaActividadGrupoId)) {
-      toast("El documento colaborativo debe estar vinculado a una actividad de grupos.", "error");
       return;
     }
 
@@ -169,11 +162,20 @@ export default function CrearEditarTareaModal({
 
     try {
       setCreandoTarea(true);
+      const nuevosAdjuntos = await Promise.all(archivosNuevos.map(async (archivo) => {
+        const subida = await api.uploadArchivo(archivo);
+        return {
+          nombre: archivo.name,
+          ruta: subida.relativePath,
+          tamanoBytes: subida.size,
+        };
+      }));
       const payload: TareaRequest = {
         convocatoriaId,
         moduloId: tareaModuloId ? Number(tareaModuloId) : 0,
         titulo: tituloTarea.trim(),
         descripcion: descTarea.trim() || undefined,
+        adjuntos: [...adjuntosGuardados, ...nuevosAdjuntos],
         fechaHabilitacion: formatDateTimeForBackend(fechaHabilitacion),
         fechaEntrega: formatDateTimeForBackend(fechaEntrega),
         fechaCorte: formatDateTimeForBackend(fechaCorte),
@@ -182,8 +184,7 @@ export default function CrearEditarTareaModal({
         tamanoMaximoMb: Number(tamanoMb) || 15,
         puntajeMaximo: Number(puntajeMax) || 100,
         esGrupal: esGrupalTarea,
-        actividadGrupoId: esGrupalTarea && tareaActividadGrupoId ? Number(tareaActividadGrupoId) : undefined,
-        documentoColaborativoHabilitado,
+        visibleJurados,
         rubrica: tieneRubricaTarea
           ? criteriosRubricaTarea.map((c) => ({
               id: c.id,
@@ -216,8 +217,8 @@ export default function CrearEditarTareaModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-paper border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in-0 duration-200">
+      <div className="bg-paper-raised dark:bg-slate-900 border border-line rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div>
             <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
@@ -354,6 +355,44 @@ export default function CrearEditarTareaModal({
             />
           </div>
 
+          <div className="rounded-xl border border-line bg-paper-sunken/40 p-3 space-y-2">
+            <label htmlFor="adjuntos-tarea" className="font-semibold text-ink block">Archivos de apoyo</label>
+            <p className="text-[11px] text-ink-soft">Agrega indicaciones, plantillas u otros materiales para que los estudiantes los consulten y descarguen. Máximo 10 archivos de 50 MB cada uno.</p>
+            <input
+              id="adjuntos-tarea"
+              type="file"
+              multiple
+              onChange={(event) => {
+                const elegidos = Array.from(event.target.files || []);
+                if (elegidos.some((archivo) => archivo.size > 50 * 1024 * 1024)) {
+                  toast("Cada archivo de apoyo debe pesar como máximo 50 MB.", "error");
+                } else if (adjuntosGuardados.length + archivosNuevos.length + elegidos.length > 10) {
+                  toast("La tarea admite como máximo 10 archivos de apoyo.", "error");
+                } else {
+                  setArchivosNuevos((prev) => [...prev, ...elegidos]);
+                }
+                event.target.value = "";
+              }}
+              className="block w-full text-xs text-ink-soft file:mr-3 file:rounded-lg file:border file:border-line file:bg-paper file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-ink"
+            />
+            {(adjuntosGuardados.length > 0 || archivosNuevos.length > 0) && (
+              <ul className="space-y-1 pt-1">
+                {adjuntosGuardados.map((adjunto, index) => (
+                  <li key={`${adjunto.ruta}-${index}`} className="flex items-center justify-between gap-2 rounded-lg bg-paper px-2 py-1.5 text-xs">
+                    <a href={getMediaUrl(adjunto.ruta)} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-accent hover:underline">{adjunto.nombre}</a>
+                    <button type="button" aria-label={`Quitar ${adjunto.nombre}`} onClick={() => setAdjuntosGuardados((prev) => prev.filter((_, i) => i !== index))} className="shrink-0 text-danger hover:opacity-70"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </li>
+                ))}
+                {archivosNuevos.map((archivo, index) => (
+                  <li key={`${archivo.name}-${archivo.size}-${index}`} className="flex items-center justify-between gap-2 rounded-lg bg-paper px-2 py-1.5 text-xs">
+                    <span className="min-w-0 truncate text-ink">{archivo.name} <span className="text-ink-faint">(nuevo)</span></span>
+                    <button type="button" aria-label={`Quitar ${archivo.name}`} onClick={() => setArchivosNuevos((prev) => prev.filter((_, i) => i !== index))} className="shrink-0 text-danger hover:opacity-70"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {/* TRIPLE CONTROL DE FECHAS */}
           <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line space-y-3">
             <span className="font-bold text-ink block text-[11px] uppercase tracking-wider text-accent">
@@ -442,68 +481,34 @@ export default function CrearEditarTareaModal({
               <input
                 type="checkbox"
                 checked={esGrupalTarea}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setEsGrupalTarea(checked);
-                  if (!checked) {
-                    setDocumentoColaborativoHabilitado(false);
-                    setTareaActividadGrupoId("");
-                  }
-                }}
+                onChange={(e) => setEsGrupalTarea(e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-9 h-5 bg-paper-sunken peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-line"></div>
             </label>
           </div>
 
-          <div className="p-3 bg-sky-500/5 rounded-xl border border-sky-500/20 flex items-center justify-between">
+          <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line flex items-center justify-between">
             <div className="pr-3">
-              <label className="font-bold text-ink block text-xs flex items-center gap-1.5 cursor-pointer">
-                <FileText className="w-4 h-4 text-sky-600" />
-                Documento colaborativo por grupo
+              <label htmlFor="visible-jurados-tarea" className="font-bold text-ink text-xs flex items-center gap-1.5 cursor-pointer">
+                <Eye className="w-4 h-4 text-accent" />
+                Visible para jurados
               </label>
               <p className="text-[10px] text-ink-faint mt-0.5">
-                Crea un documento tipo Word para que editen solo los estudiantes del grupo seleccionado. El docente lo abre en modo vista.
+                Marca la documentación que se mostrará a los jurados en su vista de entregas.
               </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer shrink-0">
               <input
+                id="visible-jurados-tarea"
                 type="checkbox"
-                checked={documentoColaborativoHabilitado}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setDocumentoColaborativoHabilitado(checked);
-                  if (checked) setEsGrupalTarea(true);
-                }}
+                checked={visibleJurados}
+                onChange={(e) => setVisibleJurados(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-paper-sunken peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600 border border-line"></div>
+              <span className="w-9 h-5 bg-paper-sunken peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-line" />
             </label>
           </div>
-
-          {/* Agrupamiento / Actividad de Grupos */}
-          {esGrupalTarea && (
-            <div className="p-3 bg-paper-sunken/40 rounded-xl border border-line space-y-1.5">
-              <label className="font-semibold text-ink block text-xs">
-                Agrupamiento / Actividad de Grupos (Moodle Grouping)
-              </label>
-              <p className="text-[11px] text-ink-soft">
-                Asocia la tarea al conjunto de grupos de una actividad específica (ej: grupos de laboratorio vs proyecto).
-              </p>
-              <select
-                value={tareaActividadGrupoId}
-                onChange={(e) => setTareaActividadGrupoId(e.target.value ? Number(e.target.value) : "")}
-                className="w-full px-3 py-2 bg-paper border border-line rounded-xl text-ink focus:outline-none focus:border-accent text-xs"
-              >
-                <option value="">-- Todos los grupos generales del aula --</option>
-                {actividadesGrupo.map((act) => (
-                  <option key={act.id} value={act.id}>
-                    {act.titulo} ({act.grupos?.length || 0} grupos)
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {/* Rúbrica Pedagógica */}
           <div className="p-3 bg-paper-sunken/60 rounded-xl border border-line space-y-3">

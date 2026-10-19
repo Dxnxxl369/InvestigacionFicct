@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import {
   FileText,
   Users,
@@ -9,13 +8,12 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   Download,
   History,
-  BookOpen,
   Award,
   Check,
   ArrowLeft,
+  Eye,
 } from "lucide-react";
 import {
   api,
@@ -27,6 +25,7 @@ import {
   getMediaUrl,
 } from "@/lib/api";
 import { renderArchivoIcon, formatMoodleDate } from "../moodleUtils";
+import VisorArchivoModal from "../modals/VisorArchivoModal";
 
 interface SpeedGraderPanelProps {
   tarea: TareaDTO;
@@ -61,6 +60,7 @@ export default function SpeedGraderPanel({
   const [feedbackDocente, setFeedbackDocente] = useState("");
   const [puntajesCriteriosInput, setPuntajesCriteriosInput] = useState<Record<number, number>>({});
   const [guardandoNota, setGuardandoNota] = useState(false);
+  const [archivoAVisualizar, setArchivoAVisualizar] = useState<{ url: string; nombre?: string } | null>(null);
 
   // Cargar entregas y seguimiento
   useEffect(() => {
@@ -517,7 +517,7 @@ export default function SpeedGraderPanel({
 
         {/* Panel Derecho de Revisión y Calificación */}
         <div className="lg:col-span-8 bg-paper border border-line rounded-2xl flex flex-col overflow-hidden shadow-xs">
-          <div className="p-4 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-paper-sunken/40">
+          <div className="sticky top-14 lg:top-0 z-10 bg-paper-raised/85 dark:bg-slate-900/85 backdrop-blur-md p-4 border-b border-line/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors">
             <div className="flex items-center gap-3">
               {selectedEstudianteObj ? (
                 <div>
@@ -669,10 +669,10 @@ export default function SpeedGraderPanel({
                                 {url && (
                                   <button
                                     type="button"
-                                    onClick={() => window.open(getMediaUrl(url), "_blank")}
+                                    onClick={() => setArchivoAVisualizar({ url, nombre })}
                                     className="px-2.5 py-1.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                                   >
-                                    <ExternalLink className="w-3 h-3 text-accent" /> Ver
+                                    <Eye className="w-3.5 h-3.5 text-accent" /> Ver
                                   </button>
                                 )}
                                 {url && (
@@ -712,12 +712,12 @@ export default function SpeedGraderPanel({
                               type="button"
                               onClick={() => {
                                 const url = selectedEntregaObj.archivoUrl || selectedEntregaObj.nombreArchivo;
-                                if (url) window.open(getMediaUrl(url), "_blank");
+                                if (url) setArchivoAVisualizar({ url, nombre: selectedEntregaObj.nombreArchivo });
                               }}
                               disabled={!selectedEntregaObj.archivoUrl && !selectedEntregaObj.nombreArchivo}
                               className="px-3 py-1.5 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                             >
-                              <ExternalLink className="w-3.5 h-3.5 text-accent" /> Ver Archivo
+                              <Eye className="w-3.5 h-3.5 text-accent" /> Ver Archivo
                             </button>
                             <button
                               type="button"
@@ -744,28 +744,6 @@ export default function SpeedGraderPanel({
                           </div>
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {/* Documento de investigación vinculado */}
-                  {selectedEntregaObj.documentoId && (
-                    <div className="p-3.5 bg-paper rounded-xl border border-line flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <BookOpen className="w-5 h-5 text-blue-600 shrink-0" />
-                        <div>
-                          <span className="font-bold text-ink block">Documento de Investigación Vinculado</span>
-                          <span className="text-[10px] text-ink-faint">
-                            {selectedEntregaObj.documentoTitulo || `ID: #${selectedEntregaObj.documentoId}`}
-                          </span>
-                        </div>
-                      </div>
-                      <Link
-                        href={`/dashboard/documentos/${selectedEntregaObj.documentoId}`}
-                        target="_blank"
-                        className="text-xs text-accent font-semibold hover:underline flex items-center gap-1"
-                      >
-                        Abrir Documento <ExternalLink className="w-3 h-3" />
-                      </Link>
                     </div>
                   )}
 
@@ -915,6 +893,13 @@ export default function SpeedGraderPanel({
           </div>
         </div>
       </div>
+
+      <VisorArchivoModal
+        isOpen={Boolean(archivoAVisualizar)}
+        onClose={() => setArchivoAVisualizar(null)}
+        archivoUrl={archivoAVisualizar?.url}
+        nombreArchivo={archivoAVisualizar?.nombre}
+      />
     </div>
   );
 }

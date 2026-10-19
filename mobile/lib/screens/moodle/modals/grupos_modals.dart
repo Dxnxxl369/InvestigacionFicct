@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/app_theme.dart';
 import '../../../models/actividad_grupo_model.dart';
 import '../../../services/api_service.dart';
+import '../../../widgets/liquid_glass.dart';
 
 class GruposModals {
   static Future<void> showCrearGrupo({
@@ -13,43 +14,47 @@ class GruposModals {
     final nombreCtrl = TextEditingController();
     final capCtrl = TextEditingController(text: '5');
 
-    final confirm = await showDialog<bool>(
+    final confirm = await showLiquidGlassDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.group_add_rounded, color: AppTheme.accent),
-            SizedBox(width: 8),
-            Text('Nuevo Grupo de Trabajo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: nombreCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del Grupo',
-                hintText: 'Ej. Grupo Alpha o Gr1erPar 11',
-              ),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.group_add_rounded, color: AppTheme.accent),
+              SizedBox(width: 8),
+              Text('Nuevo Grupo de Trabajo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: nombreCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Nombre del Grupo',
+              hintText: 'Ej. Grupo Alpha o Gr1erPar 11',
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: capCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Capacidad Máxima de Integrantes',
-                hintText: 'Ej. 5',
-              ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: capCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Capacidad Máxima de Integrantes',
+              hintText: 'Ej. 5',
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Crear Grupo'),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Crear Grupo'),
+              ),
+            ],
           ),
         ],
       ),
@@ -89,65 +94,69 @@ class GruposModals {
     final capCtrl = TextEditingController(text: '5');
     int? actId = actividadesGrupo.isNotEmpty ? actividadesGrupo.first.id : null;
 
-    final confirm = await showDialog<bool>(
+    final confirm = await showLiquidGlassDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.auto_awesome, color: AppTheme.accent),
-            SizedBox(width: 8),
-            Text('Generar Lote de Grupos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Genera múltiples grupos secuenciales de forma automática (ej. Gr1erPar 1, Gr1erPar 2...).',
-              style: TextStyle(fontSize: 11.5, color: AppTheme.inkSoft),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.auto_awesome, color: AppTheme.accent),
+              SizedBox(width: 8),
+              Text('Generar Lote de Grupos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Genera múltiples grupos secuenciales de forma automática (ej. Gr1erPar 1, Gr1erPar 2...).',
+            style: TextStyle(fontSize: 11.5, color: AppTheme.inkSoft),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: prefijoCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Prefijo de los Grupos',
+              hintText: 'Ej. Gr1erPar o Equipo ',
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: prefijoCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Prefijo de los Grupos',
-                hintText: 'Ej. Gr1erPar o Equipo ',
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: cantidadCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Cantidad a Crear',
+                    hintText: '8',
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: cantidadCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Cantidad a Crear',
-                      hintText: '8',
-                    ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: capCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Cupo por Grupo',
+                    hintText: '5',
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: capCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Cupo por Grupo',
-                      hintText: '5',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Generar Lote'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Generar Lote'),
+              ),
+            ],
           ),
         ],
       ),
@@ -189,9 +198,8 @@ class GruposModals {
         text: actividadExistente?.descripcion ?? 'Selecciona tu grupo de trabajo antes de la fecha límite.');
     final capCtrl = TextEditingController(text: '${actividadExistente?.capacidadPorGrupo ?? 5}');
     final cantGruposCtrl = TextEditingController(text: '8');
-    final prefijoCtrl = TextEditingController(text: 'Equipo ');
-    bool generarGruposAuto = !isEditing;
-    bool permitirCambio = actividadExistente?.permitirCambio ?? true;
+    final prefijoCtrl = TextEditingController(text: 'G');
+    bool? permitirCambio = actividadExistente?.permitirCambio;
     bool mostrarMiembros = actividadExistente?.mostrarMiembros ?? true;
 
     DateTime fechaApertura = actividadExistente?.fechaApertura != null
@@ -210,7 +218,7 @@ class GruposModals {
       return '$d/$m/$y $h:$min';
     }
 
-    final confirm = await showDialog<bool>(
+    final confirm = await showLiquidGlassDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
@@ -244,22 +252,25 @@ class GruposModals {
             }
           }
 
-          return AlertDialog(
-            title: Row(
+          return SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(isEditing ? Icons.edit_calendar_rounded : Icons.how_to_reg_rounded, color: AppTheme.accent),
-                const SizedBox(width: 8),
-                Text(
-                  isEditing ? 'Editar Actividad de Grupos' : 'Nueva Actividad de Grupos',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Icon(isEditing ? Icons.edit_calendar_rounded : Icons.how_to_reg_rounded, color: AppTheme.accent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isEditing ? 'Editar Actividad de Grupos' : 'Nueva Actividad de Grupos',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+                const SizedBox(height: 16),
                   TextField(
                     controller: tituloCtrl,
                     decoration: const InputDecoration(labelText: 'Título de la Actividad *'),
@@ -334,14 +345,9 @@ class GruposModals {
                   ),
                   const SizedBox(height: 10),
 
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    value: permitirCambio,
-                    activeColor: AppTheme.accent,
-                    title: const Text('Permitir a estudiantes cambiar de grupo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                    onChanged: (val) => setDialogState(() => permitirCambio = val),
-                  ),
+                  const Text('Después de elegir un grupo *', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ChoiceChip(label: const Text('No podrá cambiar de grupo'), selected: permitirCambio == false, onSelected: (_) => setDialogState(() => permitirCambio = false)),
+                  ChoiceChip(label: const Text('Podrá cambiar libremente'), selected: permitirCambio == true, onSelected: (_) => setDialogState(() => permitirCambio = true)),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
@@ -353,15 +359,8 @@ class GruposModals {
 
                   if (!isEditing) ...[
                     const Divider(),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: generarGruposAuto,
-                      activeColor: AppTheme.accent,
-                      title: const Text('Generar Lote de Grupos Inicial', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Crea los grupos vacíos automáticamente.', style: TextStyle(fontSize: 10.5)),
-                      onChanged: (val) => setDialogState(() => generarGruposAuto = val),
-                    ),
-                    if (generarGruposAuto) ...[
+                    const Text('Grupos disponibles para elegir', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ...[
                       Row(
                         children: [
                           Expanded(
@@ -382,22 +381,26 @@ class GruposModals {
                       ),
                     ],
                   ],
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: permitirCambio == null ? null : () => Navigator.pop(ctx, true),
+                        child: Text(isEditing ? 'Guardar Cambios' : 'Crear Actividad'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(isEditing ? 'Guardar Cambios' : 'Crear Actividad'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+            );
+          },
+        ),
+      );
 
-    if (confirm == true && tituloCtrl.text.trim().isNotEmpty) {
+    if (confirm == true && tituloCtrl.text.trim().isNotEmpty && permitirCambio != null) {
       final cap = int.tryParse(capCtrl.text.trim()) ?? 5;
       final cant = int.tryParse(cantGruposCtrl.text.trim()) ?? 8;
       final data = {
@@ -408,10 +411,9 @@ class GruposModals {
         'fechaCierre': fechaCierre.toIso8601String(),
         'permitirCambio': permitirCambio,
         'mostrarMiembros': mostrarMiembros,
-        if (!isEditing) 'generarGrupos': generarGruposAuto,
-        if (!isEditing && generarGruposAuto) 'cantidadGrupos': cant,
-        if (!isEditing && generarGruposAuto)
-          'prefijoGrupos': prefijoCtrl.text.trim().isNotEmpty ? prefijoCtrl.text.trim() : 'Equipo ',
+        if (!isEditing) 'generarGrupos': true,
+        if (!isEditing) 'cantidadGrupos': cant,
+        if (!isEditing) 'prefijoGrupos': prefijoCtrl.text.trim().isNotEmpty ? prefijoCtrl.text.trim() : 'G',
       };
 
       if (isEditing) {

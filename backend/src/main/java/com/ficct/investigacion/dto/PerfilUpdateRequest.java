@@ -5,6 +5,8 @@ public class PerfilUpdateRequest {
     private String fotoPerfil;
     private String descripcion;
     private Boolean ocultarCursos;
+    private String registroUniversitario;
+    private String celular;
 
     public PerfilUpdateRequest() {
     }
@@ -38,4 +40,12 @@ public class PerfilUpdateRequest {
     public void setOcultarCursos(Boolean ocultarCursos) {
         this.ocultarCursos = ocultarCursos;
     }
+
+    public String getRegistroUniversitario() { return registroUniversitario; }
+
+    public void setRegistroUniversitario(String registroUniversitario) { this.registroUniversitario = registroUniversitario; }
+
+    public String getCelular() { return celular; }
+
+    public void setCelular(String celular) { this.celular = celular; }
 }

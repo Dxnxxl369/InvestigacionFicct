@@ -1,13 +1,18 @@
 package com.ficct.investigacion.service;
 
 import com.ficct.investigacion.dto.*;
+import com.ficct.investigacion.exception.ConvocatoriaConDatosException;
 import com.ficct.investigacion.model.*;
 import com.ficct.investigacion.repository.*;
+import com.ficct.investigacion.util.CorreoPermitido;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -15,25 +20,64 @@ import java.util.stream.Collectors;
 @Service
 public class ConvocatoriaService {
 
+    @Value("${feature.documentos-colaborativos.enabled:false}")
+    private boolean documentosColaborativosHabilitados;
+
     private final ConvocatoriaRepository convocatoriaRepository;
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final UserRepository userRepository;
     private final RequisitoRepository requisitoRepository;
-    private final GrupoRepository grupoRepository;
     private final NotificacionService notificacionService;
+    private final DocumentoRepository documentoRepository;
+    private final TareaRepository tareaRepository;
+    private final EntregaTareaRepository entregaRepository;
+    private final EntregaPuntajeCriterioRepository puntajeCriterioRepository;
+    private final EntregaVersionRepository entregaVersionRepository;
+    private final RubricaCriterioRepository rubricaCriterioRepository;
+    private final ActividadGrupoRepository actividadGrupoRepository;
+    private final GrupoRepository grupoRepository;
+    private final ModuloRepository moduloRepository;
+    private final FeriaPostulacionRepository feriaPostulacionRepository;
+    private final JuradoAsignacionRepository juradoAsignacionRepository;
+    private final FeriaMembresiaService feriaMembresiaService;
+    private final PasswordEncoder passwordEncoder;
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
                                ConvocatoriaParticipanteRepository participanteRepository,
                                UserRepository userRepository,
                                RequisitoRepository requisitoRepository,
+                               @org.springframework.context.annotation.Lazy NotificacionService notificacionService,
+                               DocumentoRepository documentoRepository,
+                               TareaRepository tareaRepository,
+                               EntregaTareaRepository entregaRepository,
+                               EntregaPuntajeCriterioRepository puntajeCriterioRepository,
+                               EntregaVersionRepository entregaVersionRepository,
+                               RubricaCriterioRepository rubricaCriterioRepository,
+                               ActividadGrupoRepository actividadGrupoRepository,
                                GrupoRepository grupoRepository,
-                               @org.springframework.context.annotation.Lazy NotificacionService notificacionService) {
+                               ModuloRepository moduloRepository,
+                               FeriaPostulacionRepository feriaPostulacionRepository,
+                               JuradoAsignacionRepository juradoAsignacionRepository,
+                               FeriaMembresiaService feriaMembresiaService,
+                               PasswordEncoder passwordEncoder) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.userRepository = userRepository;
         this.requisitoRepository = requisitoRepository;
-        this.grupoRepository = grupoRepository;
         this.notificacionService = notificacionService;
+        this.documentoRepository = documentoRepository;
+        this.tareaRepository = tareaRepository;
+        this.entregaRepository = entregaRepository;
+        this.puntajeCriterioRepository = puntajeCriterioRepository;
+        this.entregaVersionRepository = entregaVersionRepository;
+        this.rubricaCriterioRepository = rubricaCriterioRepository;
+        this.actividadGrupoRepository = actividadGrupoRepository;
+        this.grupoRepository = grupoRepository;
+        this.moduloRepository = moduloRepository;
+        this.feriaPostulacionRepository = feriaPostulacionRepository;
+        this.juradoAsignacionRepository = juradoAsignacionRepository;
+        this.feriaMembresiaService = feriaMembresiaService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -51,7 +95,13 @@ public class ConvocatoriaService {
                 request.getImagenPortada(),
                 creador
         );
-        aplicarConfiguracionInscripcion(c, request);
+        c.setModalidadInscripcion(request.getModalidadInscripcion() != null
+                ? request.getModalidadInscripcion()
+                : request.getTipo() == TipoConvocatoria.FERIA ? ModalidadInscripcion.GRUPAL : ModalidadInscripcion.INDIVIDUAL);
+        if (c.getModalidadInscripcion() == ModalidadInscripcion.INDIVIDUAL) c.setTamanoEquipo(null);
+        configurarMaxIntegrantesFeria(c, request);
+        c.setArchivoInformacionUrl(request.getArchivoInformacionUrl());
+        c.setArchivoInformacionNombre(request.getArchivoInformacionNombre());
 
         if (request.getRequisitos() != null) {
             for (String reqDesc : request.getRequisitos()) {
@@ -62,6 +112,14 @@ public class ConvocatoriaService {
         }
 
         Convocatoria saved = convocatoriaRepository.save(c);
+        if (saved.getTipo() == TipoConvocatoria.FERIA) {
+            crearPlantillaFeria(saved, creador);
+        } else if (saved.getTipo() == TipoConvocatoria.HACKATHON
+                || saved.getTipo() == TipoConvocatoria.CONCURSO
+                || saved.getTipo() == TipoConvocatoria.INVESTIGACION) {
+            PlantillaModuloFactory.crear(saved, creador, PlantillaModulo.ACTIVIDADES,
+                    1, moduloRepository, tareaRepository);
+        }
 
         // Si el creador tiene rol DOCENTE, registrarlo como docente a cargo del área
         if (creador.getRol() == Rol.DOCENTE) {
@@ -87,22 +145,16 @@ public class ConvocatoriaService {
             }
         }
 
-        // Asignar jurados evaluadores iniciales
-        if (request.getJuradoIds() != null && !request.getJuradoIds().isEmpty()) {
-            for (Long jurId : request.getJuradoIds()) {
-                if (jurId != null) {
-                    userRepository.findById(jurId).ifPresent(jurado -> {
-                        ConvocatoriaParticipante part = new ConvocatoriaParticipante(
-                                saved, jurado, Rol.JURADO, EstadoInscripcion.ACEPTADO, null, creador
-                        );
-                        participanteRepository.save(part);
-                        saved.addParticipante(part);
-                    });
-                }
-            }
-        }
-
         return new ConvocatoriaDTO(saved);
+    }
+
+    private void crearPlantillaFeria(Convocatoria convocatoria, User creador) {
+        PlantillaModuloFactory.crear(convocatoria, creador, PlantillaModulo.PRIMER_AVANCE,
+                1, moduloRepository, tareaRepository);
+        PlantillaModuloFactory.crear(convocatoria, creador, PlantillaModulo.SEGUNDO_AVANCE,
+                2, moduloRepository, tareaRepository);
+        PlantillaModuloFactory.crear(convocatoria, creador, PlantillaModulo.PRESENTACION_FINAL,
+                3, moduloRepository, tareaRepository);
     }
 
     @Transactional
@@ -113,9 +165,16 @@ public class ConvocatoriaService {
         c.setTitulo(request.getTitulo());
         c.setDescripcion(request.getDescripcion());
         c.setTipo(request.getTipo());
+        if (request.getModalidadInscripcion() != null) {
+            c.setModalidadInscripcion(request.getModalidadInscripcion());
+        }
         c.setFechaCierre(request.getFechaCierre());
-        c.setTamanoEquipo(request.getTamanoEquipo());
-        aplicarConfiguracionInscripcion(c, request);
+        c.setTamanoEquipo(c.getModalidadInscripcion() == ModalidadInscripcion.GRUPAL ? request.getTamanoEquipo() : null);
+        configurarMaxIntegrantesFeria(c, request);
+        if (request.getArchivoInformacionUrl() != null) {
+            c.setArchivoInformacionUrl(request.getArchivoInformacionUrl());
+            c.setArchivoInformacionNombre(request.getArchivoInformacionNombre());
+        }
         if (request.getImagenPortada() != null) {
             c.setImagenPortada(request.getImagenPortada());
         }
@@ -162,58 +221,8 @@ public class ConvocatoriaService {
             }
         }
 
-        // Sincronizar jurados asignados
-        if (request.getJuradoIds() != null) {
-            List<ConvocatoriaParticipante> juradosActuales = new ArrayList<>(c.getParticipantes().stream()
-                    .filter(p -> p.getRol() == Rol.JURADO)
-                    .collect(Collectors.toList()));
-
-            for (ConvocatoriaParticipante p : juradosActuales) {
-                if (p.getUsuario() != null && !request.getJuradoIds().contains(p.getUsuario().getId())) {
-                    c.removeParticipante(p);
-                    participanteRepository.delete(p);
-                }
-            }
-
-            Set<Long> idsExistentes = c.getParticipantes().stream()
-                    .filter(p -> p.getRol() == Rol.JURADO && p.getUsuario() != null)
-                    .map(p -> p.getUsuario().getId())
-                    .collect(Collectors.toSet());
-
-            for (Long jurId : request.getJuradoIds()) {
-                if (jurId != null && !idsExistentes.contains(jurId)) {
-                    userRepository.findById(jurId).ifPresent(jurado -> {
-                        ConvocatoriaParticipante part = new ConvocatoriaParticipante(
-                                c, jurado, Rol.JURADO, EstadoInscripcion.ACEPTADO, null, adminUser
-                        );
-                        participanteRepository.save(part);
-                        c.addParticipante(part);
-                    });
-                }
-            }
-        }
-
         Convocatoria saved = convocatoriaRepository.save(c);
         return new ConvocatoriaDTO(saved);
-    }
-
-    private void aplicarConfiguracionInscripcion(Convocatoria convocatoria, ConvocatoriaRequest request) {
-        boolean inscripcionGrupal = Boolean.TRUE.equals(request.getInscripcionGrupal());
-        int min = request.getMinIntegrantesGrupo() != null ? request.getMinIntegrantesGrupo() : 1;
-        int max = request.getMaxIntegrantesGrupo() != null ? request.getMaxIntegrantesGrupo() : 5;
-
-        min = Math.max(1, Math.min(5, min));
-        max = Math.max(1, Math.min(5, max));
-        if (min > max) {
-            throw new IllegalArgumentException("El minimo de integrantes no puede ser mayor que el maximo.");
-        }
-
-        convocatoria.setInscripcionGrupal(inscripcionGrupal);
-        convocatoria.setMinIntegrantesGrupo(min);
-        convocatoria.setMaxIntegrantesGrupo(max);
-        if (request.getTamanoEquipo() == null || request.getTamanoEquipo().isBlank()) {
-            convocatoria.setTamanoEquipo(min == max ? "Hasta " + max + " integrantes" : "De " + min + " a " + max + " integrantes");
-        }
     }
 
     @Transactional(readOnly = true)
@@ -256,6 +265,113 @@ public class ConvocatoriaService {
         c.setEstado(nuevoEstado);
         Convocatoria updated = convocatoriaRepository.save(c);
         return new ConvocatoriaDTO(updated);
+    }
+
+    @Transactional
+    public ConvocatoriaDTO archivarConvocatoria(Long id, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        if (user.getRol() != Rol.ADMIN) {
+            throw new AccessDeniedException("Solo un Administrador puede archivar un área o convocatoria.");
+        }
+        Convocatoria c = convocatoriaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + id));
+
+        c.setEstado(EstadoConvocatoria.FINALIZADA);
+        Convocatoria updated = convocatoriaRepository.save(c);
+        return new ConvocatoriaDTO(updated);
+    }
+
+    @Transactional
+    public void eliminarConvocatoria(Long id, boolean forzar, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        if (user.getRol() != Rol.ADMIN) {
+            throw new AccessDeniedException("Solo un Administrador puede eliminar definitivamente un área o convocatoria.");
+        }
+        Convocatoria c = convocatoriaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + id));
+
+        int totalParticipantes = c.getParticipantes() != null ? c.getParticipantes().size() : 0;
+        int totalTareas = c.getTareas() != null ? c.getTareas().size() : 0;
+
+        if ((totalParticipantes > 0 || totalTareas > 0) && !forzar) {
+            throw new ConvocatoriaConDatosException(
+                    "El área contiene " + totalParticipantes + " participante(s) y " + totalTareas + " tarea(s) registrada(s). Requiere confirmación para eliminarla definitivamente.",
+                    totalParticipantes,
+                    totalTareas
+            );
+        }
+
+        // 1. Desvincular documentos asociados
+        if (documentosColaborativosHabilitados) {
+            List<Documento> docs = documentoRepository.findByConvocatoriaIdOrderByUpdatedAtDesc(id);
+            if (docs != null) {
+                for (Documento d : docs) {
+                    d.setConvocatoria(null);
+                    documentoRepository.save(d);
+                }
+            }
+        }
+
+        // 2. Tareas y entregas
+        if (c.getTareas() != null && !c.getTareas().isEmpty()) {
+            for (Tarea t : c.getTareas()) {
+                if (t.getEntregas() != null && !t.getEntregas().isEmpty()) {
+                    for (EntregaTarea et : t.getEntregas()) {
+                        puntajeCriterioRepository.deleteByEntrega(et);
+                        entregaVersionRepository.deleteByEntrega(et);
+                    }
+                    entregaRepository.deleteAll(t.getEntregas());
+                    t.getEntregas().clear();
+                }
+                if (t.getRubrica() != null && !t.getRubrica().isEmpty()) {
+                    rubricaCriterioRepository.deleteByTarea(t);
+                    t.getRubrica().clear();
+                }
+            }
+            tareaRepository.deleteAll(c.getTareas());
+            c.getTareas().clear();
+        }
+
+        // 3. Alcances de jurados: liberar referencias a proyectos y grupos.
+        juradoAsignacionRepository.deleteByConvocatoriaId(id);
+        juradoAsignacionRepository.flush();
+
+        // 4. Actividades de grupo y grupos
+        List<ActividadGrupo> actividades = actividadGrupoRepository.findByConvocatoriaIdOrderByFechaCreacionDesc(id);
+        if (actividades != null && !actividades.isEmpty()) {
+            for (ActividadGrupo ag : actividades) {
+                if (ag.getGrupos() != null && !ag.getGrupos().isEmpty()) {
+                    for (Grupo g : ag.getGrupos()) {
+                        g.getMiembros().clear();
+                    }
+                    grupoRepository.deleteAll(ag.getGrupos());
+                    ag.getGrupos().clear();
+                }
+            }
+            actividadGrupoRepository.deleteAll(actividades);
+        }
+
+        List<Grupo> gruposRestantes = grupoRepository.findByConvocatoriaIdOrderByNombreAsc(id);
+        if (gruposRestantes != null && !gruposRestantes.isEmpty()) {
+            for (Grupo g : gruposRestantes) {
+                g.getMiembros().clear();
+            }
+            grupoRepository.deleteAll(gruposRestantes);
+        }
+
+        // 4. Módulos
+        List<Modulo> modulos = moduloRepository.findByConvocatoriaOrderByOrdenAscCreatedAtAsc(c);
+        if (modulos != null && !modulos.isEmpty()) {
+            moduloRepository.deleteAll(modulos);
+        }
+
+        // 5. Las postulaciones de Feria referencian a los participantes.
+        feriaPostulacionRepository.deleteAll(feriaPostulacionRepository.findByConvocatoriaIdOrderByIdAsc(id));
+
+        // 6. Eliminar Convocatoria (participantes y requisitos eliminados vía cascade orphanRemoval)
+        convocatoriaRepository.delete(c);
     }
 
     @Transactional(readOnly = true)
@@ -550,6 +666,9 @@ public class ConvocatoriaService {
         ConvocatoriaParticipante cp;
         if (existente.isPresent()) {
             cp = existente.get();
+            if (cp.getRol() == Rol.JURADO && rolAsignar != Rol.JURADO) {
+                juradoAsignacionRepository.deleteByJuradoId(cp.getId());
+            }
             cp.setRol(rolAsignar);
             cp.setEstadoInscripcion(EstadoInscripcion.ACEPTADO);
             cp.setFechaRespuesta(LocalDateTime.now());
@@ -587,15 +706,28 @@ public class ConvocatoriaService {
             throw new IllegalStateException("No se pueden recibir postulaciones: la convocatoria se encuentra en estado " + conv.getEstado() + " y aún no ha sido publicada en el portal.");
         }
 
-        if (conv.isInscripcionGrupal()) {
-            return inscribirGrupoEstudiantes(conv, request, estudiante);
+        if (conv.getFechaCierre() != null && LocalDate.now().isAfter(conv.getFechaCierre())) {
+            throw new IllegalStateException("El plazo de inscripción de esta convocatoria ya finalizó.");
         }
 
-        String nombreEquipoFinal = (request != null && request.getNombreEquipo() != null && !request.getNombreEquipo().trim().isEmpty())
+        List<FeriaIntegrante> integrantesFeria = null;
+        if (conv.getModalidadInscripcion() == ModalidadInscripcion.GRUPAL) {
+            integrantesFeria = validarIntegrantesFeria(conv, request, estudiante);
+        } else if (request != null && request.getFeriaProyecto() != null) {
+            throw new IllegalArgumentException("Esta convocatoria recibe inscripciones individuales.");
+        }
+
+        String nombreEquipoFinal = (conv.getModalidadInscripcion() == ModalidadInscripcion.GRUPAL
+                && request != null && request.getNombreEquipo() != null && !request.getNombreEquipo().trim().isEmpty())
                 ? request.getNombreEquipo().trim()
                 : null;
 
         Optional<ConvocatoriaParticipante> existente = participanteRepository.findByConvocatoriaIdAndUsuarioId(convocatoriaId, estudiante.getId());
+        if (integrantesFeria != null && existente.isPresent()) {
+            integrantesFeria = registrarCuentasFeria(integrantesFeria, request.getFeriaProyecto());
+            guardarPostulacionFeria(conv, existente.get(), request.getFeriaProyecto(), integrantesFeria);
+            return new ConvocatoriaParticipanteDTO(existente.get());
+        }
         if (existente.isPresent()) {
             ConvocatoriaParticipante cp = existente.get();
             if (cp.getEstadoInscripcion() == EstadoInscripcion.PENDIENTE) {
@@ -610,9 +742,13 @@ public class ConvocatoriaService {
             cp.setFechaRespuesta(null);
             cp.setMotivoRechazo(null);
             cp.setNombreEquipo(nombreEquipoFinal);
-            return new ConvocatoriaParticipanteDTO(participanteRepository.save(cp));
+            if (integrantesFeria != null) integrantesFeria = registrarCuentasFeria(integrantesFeria, request.getFeriaProyecto());
+            ConvocatoriaParticipante guardado = participanteRepository.save(cp);
+            if (integrantesFeria != null) guardarPostulacionFeria(conv, guardado, request.getFeriaProyecto(), integrantesFeria);
+            return new ConvocatoriaParticipanteDTO(guardado);
         }
 
+        if (integrantesFeria != null) integrantesFeria = registrarCuentasFeria(integrantesFeria, request.getFeriaProyecto());
         ConvocatoriaParticipante cp = new ConvocatoriaParticipante(
                 conv,
                 estudiante,
@@ -624,92 +760,271 @@ public class ConvocatoriaService {
 
         ConvocatoriaParticipante saved = participanteRepository.save(cp);
         conv.addParticipante(saved);
+        if (integrantesFeria != null) guardarPostulacionFeria(conv, saved, request.getFeriaProyecto(), integrantesFeria);
         return new ConvocatoriaParticipanteDTO(saved);
     }
 
-    private ConvocatoriaParticipanteDTO inscribirGrupoEstudiantes(Convocatoria conv, InscribirseAreaRequest request, User solicitante) {
-        if (request == null) {
-            throw new IllegalArgumentException("La inscripcion grupal requiere datos del grupo e integrantes.");
+    private void configurarMaxIntegrantesFeria(Convocatoria convocatoria, ConvocatoriaRequest request) {
+        if (convocatoria.getModalidadInscripcion() != ModalidadInscripcion.GRUPAL) {
+            convocatoria.setMaxIntegrantesFeria(null);
+            return;
         }
-
-        LinkedHashSet<String> emails = new LinkedHashSet<>();
-        emails.add(solicitante.getEmail().trim().toLowerCase());
-        if (request.getIntegrantesEmails() != null) {
-            request.getIntegrantesEmails().stream()
-                    .filter(Objects::nonNull)
-                    .map(email -> email.trim().toLowerCase())
-                    .filter(email -> !email.isBlank())
-                    .forEach(emails::add);
+        Integer maximo = request.getMaxIntegrantesFeria();
+        if (maximo == null) {
+            maximo = extraerMaximoLegado(request.getTamanoEquipo());
         }
-
-        int total = emails.size();
-        int min = conv.getMinIntegrantesGrupo() != null ? conv.getMinIntegrantesGrupo() : 1;
-        int max = conv.getMaxIntegrantesGrupo() != null ? conv.getMaxIntegrantesGrupo() : 5;
-        if (total < min || total > max) {
-            throw new IllegalArgumentException("La inscripcion grupal requiere entre " + min + " y " + max + " integrante(s). Actualmente hay " + total + ".");
+        if (maximo == null) maximo = 5;
+        if (maximo < 2 || maximo > 50) {
+            throw new IllegalArgumentException("El máximo de integrantes por equipo debe estar entre 2 y 50.");
         }
-
-        List<User> integrantes = new ArrayList<>();
-        for (String email : emails) {
-            User integrante = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new IllegalArgumentException("No existe un usuario registrado con correo: " + email));
-            if (integrante.getRol() != Rol.ESTUDIANTE) {
-                throw new IllegalArgumentException("Solo estudiantes pueden formar parte del grupo de inscripcion: " + email);
-            }
-            integrantes.add(integrante);
-        }
-
-        String nombreGrupo = nombreGrupoInscripcion(request, conv);
-        Grupo grupo = grupoRepository.save(new Grupo(conv, nombreGrupo, "Grupo creado desde la inscripcion al evento.", max, solicitante));
-
-        ConvocatoriaParticipante participanteSolicitante = null;
-        for (User integrante : integrantes) {
-            ConvocatoriaParticipante participante = participanteRepository.findByConvocatoriaIdAndUsuarioId(conv.getId(), integrante.getId())
-                    .orElseGet(() -> new ConvocatoriaParticipante(
-                            conv,
-                            integrante,
-                            Rol.ESTUDIANTE,
-                            EstadoInscripcion.PENDIENTE,
-                            nombreGrupo,
-                            solicitante
-                    ));
-
-            if (participante.getEstadoInscripcion() == EstadoInscripcion.RECHAZADO || participante.getEstadoInscripcion() == EstadoInscripcion.CANCELADO) {
-                participante.setEstadoInscripcion(EstadoInscripcion.PENDIENTE);
-                participante.setFechaRespuesta(null);
-                participante.setMotivoRechazo(null);
-            }
-            if (participante.getEstadoInscripcion() == null) {
-                participante.setEstadoInscripcion(EstadoInscripcion.PENDIENTE);
-            }
-            participante.setRol(Rol.ESTUDIANTE);
-            participante.setFechaSolicitud(LocalDateTime.now());
-            participante.setNombreEquipo(nombreGrupo);
-            participante.setAsignadoPor(solicitante);
-            participante.agregarGrupo(grupo);
-
-            ConvocatoriaParticipante saved = participanteRepository.save(participante);
-            if (saved.getId() != null && conv.getParticipantes().stream().noneMatch(p -> saved.getId().equals(p.getId()))) {
-                conv.addParticipante(saved);
-            }
-            if (integrante.getId().equals(solicitante.getId())) {
-                participanteSolicitante = saved;
+        if (request.getTamanoEquipo() != null) {
+            java.util.regex.Matcher rango = java.util.regex.Pattern.compile("^\\s*(?:De\\s+)?(\\d+)\\s+a\\s+\\d+", java.util.regex.Pattern.CASE_INSENSITIVE)
+                    .matcher(request.getTamanoEquipo());
+            if (rango.find()) {
+                int minimo = Integer.parseInt(rango.group(1));
+                if (minimo < 2 || minimo > maximo) {
+                    throw new IllegalArgumentException("El mínimo de integrantes debe estar entre 2 y el máximo configurado.");
+                }
             }
         }
-
-        return new ConvocatoriaParticipanteDTO(participanteSolicitante != null
-                ? participanteSolicitante
-                : participanteRepository.findByConvocatoriaIdAndUsuarioId(conv.getId(), solicitante.getId()).orElseThrow());
+        convocatoria.setMaxIntegrantesFeria(maximo);
     }
 
-    private String nombreGrupoInscripcion(InscribirseAreaRequest request, Convocatoria conv) {
-        if (request.getNombreEquipo() != null && !request.getNombreEquipo().trim().isBlank()) {
-            return request.getNombreEquipo().trim();
+    private Integer extraerMaximoLegado(String tamanoEquipo) {
+        if (tamanoEquipo == null) return null;
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d+").matcher(tamanoEquipo);
+        Integer ultimo = null;
+        while (matcher.find()) ultimo = Integer.valueOf(matcher.group());
+        return ultimo;
+    }
+
+    private String requerido(String valor, String campo) {
+        if (valor == null || valor.isBlank()) throw new IllegalArgumentException("Falta " + campo + " en la inscripción de Feria.");
+        return valor.trim();
+    }
+
+    private List<FeriaIntegrante> validarIntegrantesFeria(Convocatoria conv, InscribirseAreaRequest request, User responsable) {
+        FeriaProyectoRequest proyecto = request == null ? null : request.getFeriaProyecto();
+        if (proyecto == null) throw new IllegalArgumentException("Debes completar el equipo y sus integrantes.");
+        requerido(proyecto.tema(), conv.getTipo() == TipoConvocatoria.FERIA ? "el tema" : "el nombre del equipo");
+        if (conv.getTipo() == TipoConvocatoria.FERIA) {
+            requerido(proyecto.area(), "el área");
+            requerido(proyecto.categoria(), "la categoría");
+            requerido(proyecto.materia(), "la materia");
+            requerido(proyecto.sigla(), "la sigla");
+            requerido(proyecto.grupoMateria(), "el grupo de la materia");
+            requerido(proyecto.docente(), "el docente");
         }
-        if (request.getNumeroGrupo() != null && request.getNumeroGrupo() > 0) {
-            return "Grupo " + request.getNumeroGrupo();
+        List<FeriaProyectoRequest.FeriaIntegranteRequest> enviados = proyecto.integrantes();
+        int maximo = conv.getMaxIntegrantesFeria() != null ? conv.getMaxIntegrantesFeria() :
+                Optional.ofNullable(extraerMaximoLegado(conv.getTamanoEquipo())).orElse(5);
+        int minimo = 2;
+        if (conv.getTamanoEquipo() != null) {
+            java.util.regex.Matcher rango = java.util.regex.Pattern.compile("^\\s*(?:De\\s+)?(\\d+)\\s+a\\s+\\d+", java.util.regex.Pattern.CASE_INSENSITIVE)
+                    .matcher(conv.getTamanoEquipo());
+            if (rango.find()) minimo = Math.max(2, Integer.parseInt(rango.group(1)));
         }
-        return "Grupo " + (grupoRepository.countByConvocatoriaId(conv.getId()) + 1);
+        if (enviados == null || enviados.size() < minimo || enviados.size() > maximo) {
+            throw new IllegalArgumentException("Se requieren entre " + minimo + " y " + maximo + " integrantes por equipo.");
+        }
+        Set<String> correos = new HashSet<>();
+        Set<String> registros = new HashSet<>();
+        List<FeriaIntegrante> integrantes = new ArrayList<>();
+        for (var persona : enviados) {
+            if (persona == null) throw new IllegalArgumentException("Completa los datos de cada integrante.");
+            String registro = persona.registro() == null ? "" : persona.registro().trim();
+            String nombre = requerido(persona.nombre(), "el nombre del integrante");
+            String carrera = conv.getTipo() == TipoConvocatoria.FERIA
+                    ? requerido(persona.carrera(), "la carrera del integrante")
+                    : persona.carrera() == null ? "" : persona.carrera().trim();
+            String celular = requerido(persona.celular(), "el celular del integrante");
+            String correo = requerido(persona.correo(), "el correo del integrante").toLowerCase(Locale.ROOT);
+            if (!CorreoPermitido.esValido(correo) ||
+                    persona.semestre() == null || persona.semestre() < 0 ||
+                    persona.ferias() == null || persona.ferias() < 0) {
+                throw new IllegalArgumentException("Revisa el correo y los datos de cada integrante.");
+            }
+            if (!correos.add(correo) || (!registro.isBlank() && !registros.add(registro))) {
+                throw new IllegalArgumentException("No se pueden repetir correos o registros entre integrantes.");
+            }
+            integrantes.add(new FeriaIntegrante(registro, nombre, carrera, celular,
+                    persona.semestre(), persona.ferias(), correo));
+        }
+        if (!correos.contains(responsable.getEmail().toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("El responsable debe figurar entre los integrantes con el correo de su cuenta.");
+        }
+        return integrantes;
+    }
+
+    private List<FeriaIntegrante> registrarCuentasFeria(List<FeriaIntegrante> integrantes, FeriaProyectoRequest proyecto) {
+        List<FeriaIntegrante> normalizados = new ArrayList<>();
+        for (int index = 0; index < integrantes.size(); index++) {
+            FeriaIntegrante integrante = integrantes.get(index);
+            boolean crearCuenta = Boolean.TRUE.equals(proyecto.integrantes().get(index).crearCuenta());
+            User cuenta = userRepository.findByEmail(integrante.getCorreo()).orElseGet(() -> {
+                if (!crearCuenta) {
+                    throw new IllegalArgumentException("El correo " + integrante.getCorreo() +
+                            " no tiene cuenta. Confirma su creación en el formulario.");
+                }
+                String nombreCompleto = integrante.getNombre().trim();
+                int espacio = nombreCompleto.indexOf(' ');
+                String nombre = espacio < 0 ? nombreCompleto : nombreCompleto.substring(0, espacio);
+                String apellido = espacio < 0 ? "" : nombreCompleto.substring(espacio + 1).trim();
+                String registro = integrante.getRegistro() == null || integrante.getRegistro().isBlank()
+                        ? "000000" : integrante.getRegistro();
+                String temporal = nombre.substring(0, 1).toLowerCase(Locale.ROOT) + "." + registro;
+                User nuevo = new User(nombre, apellido, integrante.getCorreo(),
+                        passwordEncoder.encode(temporal), Rol.ESTUDIANTE, EstadoUsuario.ACTIVO);
+                nuevo.setRegistroUniversitario(integrante.getRegistro());
+                nuevo.setCelular(integrante.getCelular());
+                return userRepository.save(nuevo);
+            });
+            normalizados.add(new FeriaIntegrante(integrante.getRegistro(), cuenta.getNombreCompleto().trim(),
+                    integrante.getCarrera(), integrante.getCelular(), integrante.getSemestre(),
+                    integrante.getFerias(), integrante.getCorreo()));
+        }
+        return normalizados;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> buscarIntegranteFeria(Long convocatoriaId, String correo) {
+        Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
+                .orElseThrow(() -> new IllegalArgumentException("Convocatoria no encontrada."));
+        if (conv.getModalidadInscripcion() != ModalidadInscripcion.GRUPAL || conv.getEstado() != EstadoConvocatoria.PUBLICADA) {
+            throw new IllegalStateException("La inscripción grupal no está abierta.");
+        }
+        String normalizado = requerido(correo, "el correo").toLowerCase(Locale.ROOT);
+        User cuenta = userRepository.findByEmail(normalizado).orElse(null);
+        if (cuenta == null) return Map.of("existe", false);
+        return Map.of("existe", true, "nombre", cuenta.getNombreCompleto(),
+                "registro", cuenta.getRegistroUniversitario() == null ? "" : cuenta.getRegistroUniversitario(),
+                "celular", cuenta.getCelular() == null ? "" : cuenta.getCelular());
+    }
+
+    private void guardarPostulacionFeria(Convocatoria convocatoria, ConvocatoriaParticipante participante,
+                                        FeriaProyectoRequest proyecto, List<FeriaIntegrante> integrantes) {
+        FeriaPostulacion postulacion = new FeriaPostulacion(convocatoria, participante);
+        postulacion.setEstadoInscripcion(EstadoInscripcion.PENDIENTE);
+        postulacion.setTema(proyecto.tema().trim());
+        postulacion.setArea(proyecto.area() == null ? "" : proyecto.area().trim());
+        postulacion.setCategoria(proyecto.categoria() == null ? "" : proyecto.categoria().trim());
+        postulacion.setMateria(proyecto.materia() == null ? "" : proyecto.materia().trim());
+        postulacion.setSigla(proyecto.sigla() == null ? "" : proyecto.sigla().trim());
+        postulacion.setGrupoMateria(proyecto.grupoMateria() == null ? "" : proyecto.grupoMateria().trim());
+        postulacion.setDocente(proyecto.docente() == null ? "" : proyecto.docente().trim());
+        postulacion.setIntegrantes(integrantes);
+        feriaPostulacionRepository.save(postulacion);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FeriaPostulacionDTO> listarPostulacionesFeria(Long convocatoriaId, String solicitanteEmail) {
+        Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
+                .orElseThrow(() -> new IllegalArgumentException("Convocatoria no encontrada."));
+        if (conv.getModalidadInscripcion() != ModalidadInscripcion.GRUPAL) return List.of();
+        User solicitante = userRepository.findByEmail(solicitanteEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        boolean gestor = puedeGestionarConvocatoria(conv, solicitante);
+        return feriaPostulacionRepository.findByConvocatoriaIdOrderByIdAsc(convocatoriaId).stream()
+                .filter(p -> gestor || p.getIntegrantes().stream()
+                        .anyMatch(i -> i.getCorreo().equalsIgnoreCase(solicitante.getEmail())))
+                .map(FeriaPostulacionDTO::new).toList();
+    }
+
+    @Transactional
+    public FeriaPostulacionDTO cambiarCodigoEquipoFeria(Long convocatoriaId, Long postulacionId,
+                                                         String codigo, String docenteEmail) {
+        FeriaPostulacion postulacion = feriaPostulacionRepository.findById(postulacionId)
+                .orElseThrow(() -> new IllegalArgumentException("Postulación de Feria no encontrada."));
+        if (!postulacion.getConvocatoria().getId().equals(convocatoriaId)) {
+            throw new IllegalArgumentException("La postulación no pertenece a esta convocatoria.");
+        }
+        User docente = userRepository.findByEmail(docenteEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        if (!puedeGestionarConvocatoria(postulacion.getConvocatoria(), docente)) {
+            throw new AccessDeniedException("Solo el docente a cargo o administrador puede cambiar el código del equipo.");
+        }
+        String nuevo = requerido(codigo, "el código del equipo").toUpperCase(Locale.ROOT);
+        if (!nuevo.matches("[A-Z0-9_-]{1,30}")) {
+            throw new IllegalArgumentException("El código debe tener hasta 30 letras, números, guiones o guiones bajos.");
+        }
+        if (feriaPostulacionRepository.existsByConvocatoriaIdAndCodigoEquipoIgnoreCaseAndIdNot(
+                convocatoriaId, nuevo, postulacionId)) {
+            throw new IllegalArgumentException("Ya existe otro equipo con ese código en la Feria.");
+        }
+        String anterior = postulacion.getCodigoEquipo();
+        postulacion.setCodigoEquipo(nuevo);
+        feriaPostulacionRepository.saveAndFlush(postulacion);
+        if (postulacion.getConvocatoria().getTipo() != TipoConvocatoria.FERIA && anterior != null) {
+            grupoRepository.findByConvocatoriaIdOrderByNombreAsc(convocatoriaId).stream()
+                    .filter(g -> g.getNombre().equalsIgnoreCase(anterior))
+                    .findFirst().ifPresent(g -> {
+                        g.setNombre(nuevo);
+                        grupoRepository.save(g);
+                    });
+        }
+        postulacion.getIntegrantes().forEach(i -> feriaMembresiaService.asociarCorreo(i.getCorreo()));
+        return new FeriaPostulacionDTO(postulacion);
+    }
+
+    @Transactional
+    public FeriaPostulacionDTO responderPostulacionFeria(Long convocatoriaId, Long postulacionId,
+                                                          boolean admitir, String solicitanteEmail) {
+        FeriaPostulacion postulacion = feriaPostulacionRepository.findById(postulacionId)
+                .orElseThrow(() -> new IllegalArgumentException("Equipo de Feria no encontrado."));
+        if (!postulacion.getConvocatoria().getId().equals(convocatoriaId)) {
+            throw new IllegalArgumentException("El equipo no pertenece a esta Feria.");
+        }
+        User gestor = userRepository.findByEmail(solicitanteEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+        if (!puedeGestionarConvocatoria(postulacion.getConvocatoria(), gestor)) {
+            throw new AccessDeniedException("Solo el docente a cargo o administrador puede responder equipos.");
+        }
+        if (postulacion.getEstadoInscripcion() != EstadoInscripcion.PENDIENTE) {
+            throw new IllegalStateException("Este equipo ya fue revisado.");
+        }
+        postulacion.setEstadoInscripcion(admitir ? EstadoInscripcion.ACEPTADO : EstadoInscripcion.RECHAZADO);
+        if (admitir && (postulacion.getCodigoEquipo() == null || postulacion.getCodigoEquipo().isBlank())) {
+            int siguiente = feriaPostulacionRepository.findByConvocatoriaIdOrderByIdAsc(convocatoriaId).stream()
+                    .map(FeriaPostulacion::getCodigoEquipo)
+                    .filter(c -> c != null && c.matches("G\\d+"))
+                    .mapToInt(c -> Integer.parseInt(c.substring(1))).max().orElse(0) + 1;
+            postulacion.setCodigoEquipo(String.format("G%03d", siguiente));
+        }
+        feriaPostulacionRepository.save(postulacion);
+        ConvocatoriaParticipante responsable = postulacion.getParticipante();
+        if (admitir) {
+            responsable.setEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+            responsable.setFechaRespuesta(LocalDateTime.now());
+            participanteRepository.save(responsable);
+            postulacion.getIntegrantes().forEach(i -> feriaMembresiaService.asociarCorreo(i.getCorreo()));
+            if (postulacion.getConvocatoria().getTipo() != TipoConvocatoria.FERIA) {
+                Grupo grupo = grupoRepository.save(new Grupo(postulacion.getConvocatoria(),
+                        postulacion.getCodigoEquipo(), postulacion.getTema(),
+                        postulacion.getIntegrantes().size(), responsable.getUsuario()));
+                for (FeriaIntegrante integrante : postulacion.getIntegrantes()) {
+                    userRepository.findByEmail(integrante.getCorreo()).flatMap(cuenta ->
+                            participanteRepository.findByConvocatoriaIdAndUsuarioId(convocatoriaId, cuenta.getId()))
+                            .ifPresent(miembro -> {
+                                miembro.agregarGrupo(grupo);
+                                participanteRepository.save(miembro);
+                            });
+                }
+            }
+        } else if (responsable.getEstadoInscripcion() == EstadoInscripcion.PENDIENTE &&
+                feriaPostulacionRepository.findByParticipanteId(responsable.getId()).stream()
+                        .noneMatch(p -> p.getEstadoInscripcion() == EstadoInscripcion.PENDIENTE)) {
+            responsable.setEstadoInscripcion(EstadoInscripcion.RECHAZADO);
+            participanteRepository.save(responsable);
+        }
+        try {
+            notificacionService.crearNotificacion(responsable.getUsuario().getId(),
+                    admitir ? Notificacion.INSCRIPCION_ADMITIDA : Notificacion.INSCRIPCION_RECHAZADA,
+                    admitir ? "Equipo admitido" : "Equipo rechazado",
+                    "El equipo " + postulacion.getCodigoEquipo() + " de '" + postulacion.getConvocatoria().getTitulo() +
+                            "' fue " + (admitir ? "admitido" : "rechazado") + ".",
+                    convocatoriaId, null, null);
+        } catch (Exception ignored) { }
+        return new FeriaPostulacionDTO(postulacion);
     }
 
     @Transactional
@@ -724,6 +1039,9 @@ public class ConvocatoriaService {
             throw new IllegalStateException("Solo puedes declinar solicitudes que se encuentren en estado Pendiente.");
         }
 
+        feriaPostulacionRepository.findByParticipanteId(cp.getId()).forEach(
+                p -> juradoAsignacionRepository.deleteByFeriaPostulacionId(p.getId()));
+        feriaPostulacionRepository.deleteAll(feriaPostulacionRepository.findByParticipanteId(cp.getId()));
         participanteRepository.delete(cp);
     }
 
@@ -733,6 +1051,9 @@ public class ConvocatoriaService {
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
         Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
                 .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + convocatoriaId));
+        if (conv.getModalidadInscripcion() == ModalidadInscripcion.GRUPAL) {
+            throw new IllegalArgumentException("La inscripción grupal debe aprobarse desde Inscripciones, por equipo.");
+        }
 
         if (!puedeGestionarConvocatoria(conv, solicitante)) {
             throw new AccessDeniedException("Solo los Administradores o los Docentes a cargo de esta área pueden admitir postulantes.");
@@ -746,16 +1067,19 @@ public class ConvocatoriaService {
             throw new IllegalArgumentException("El participante no pertenece a esta convocatoria.");
         }
 
-        List<ConvocatoriaParticipante> participantesAAdmitir = participantesMismoGrupoInscripcion(cp);
-        ConvocatoriaParticipante saved = cp;
-        for (ConvocatoriaParticipante participante : participantesAAdmitir) {
-            participante.setEstadoInscripcion(EstadoInscripcion.ACEPTADO);
-            participante.setFechaRespuesta(LocalDateTime.now());
-            participante.setMotivoRechazo(null);
-            participante.setAsignadoPor(solicitante);
-            ConvocatoriaParticipante actualizado = participanteRepository.save(participante);
-            if (actualizado.getId().equals(cp.getId())) {
-                saved = actualizado;
+        cp.setEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+        cp.setFechaRespuesta(LocalDateTime.now());
+        cp.setMotivoRechazo(null);
+        cp.setAsignadoPor(solicitante);
+
+        ConvocatoriaParticipante saved = participanteRepository.save(cp);
+        if (conv.getModalidadInscripcion() == ModalidadInscripcion.GRUPAL) {
+            for (FeriaPostulacion postulacion : feriaPostulacionRepository.findByParticipanteId(saved.getId())) {
+                if (postulacion.getEstadoInscripcion() == EstadoInscripcion.PENDIENTE) {
+                    postulacion.setEstadoInscripcion(EstadoInscripcion.ACEPTADO);
+                    feriaPostulacionRepository.save(postulacion);
+                    postulacion.getIntegrantes().forEach(i -> feriaMembresiaService.asociarCorreo(i.getCorreo()));
+                }
             }
         }
         try {
@@ -774,22 +1098,15 @@ public class ConvocatoriaService {
         return new ConvocatoriaParticipanteDTO(saved);
     }
 
-    private List<ConvocatoriaParticipante> participantesMismoGrupoInscripcion(ConvocatoriaParticipante participante) {
-        if (participante.getConvocatoria() == null
-                || !participante.getConvocatoria().isInscripcionGrupal()
-                || participante.getGrupo() == null) {
-            return List.of(participante);
-        }
-        List<ConvocatoriaParticipante> miembros = participanteRepository.findMiembrosPorGrupoId(participante.getGrupo().getId());
-        return miembros == null || miembros.isEmpty() ? List.of(participante) : miembros;
-    }
-
     @Transactional
     public ConvocatoriaParticipanteDTO rechazarEstudiante(Long convocatoriaId, Long participanteId, String motivo, String solicitanteEmail) {
         User solicitante = userRepository.findByEmail(solicitanteEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
         Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
                 .orElseThrow(() -> new IllegalArgumentException("Área o Convocatoria no encontrada con ID: " + convocatoriaId));
+        if (conv.getModalidadInscripcion() == ModalidadInscripcion.GRUPAL) {
+            throw new IllegalArgumentException("La inscripción grupal debe revisarse desde Inscripciones, por equipo.");
+        }
 
         if (!puedeGestionarConvocatoria(conv, solicitante)) {
             throw new AccessDeniedException("Solo los Administradores o los Docentes a cargo de esta área pueden rechazar postulantes.");
@@ -803,6 +1120,17 @@ public class ConvocatoriaService {
             throw new IllegalArgumentException("El participante no pertenece a esta convocatoria.");
         }
 
+        if (conv.getModalidadInscripcion() == ModalidadInscripcion.GRUPAL) {
+            for (FeriaPostulacion postulacion : feriaPostulacionRepository.findByParticipanteId(cp.getId())) {
+                if (postulacion.getEstadoInscripcion() == EstadoInscripcion.PENDIENTE) {
+                    postulacion.setEstadoInscripcion(EstadoInscripcion.RECHAZADO);
+                    feriaPostulacionRepository.save(postulacion);
+                }
+            }
+            boolean tieneEquipoAceptado = feriaPostulacionRepository.findByParticipanteId(cp.getId()).stream()
+                    .anyMatch(p -> p.getEstadoInscripcion() == EstadoInscripcion.ACEPTADO);
+            if (tieneEquipoAceptado) return new ConvocatoriaParticipanteDTO(cp);
+        }
         cp.setEstadoInscripcion(EstadoInscripcion.RECHAZADO);
         cp.setFechaRespuesta(LocalDateTime.now());
         cp.setMotivoRechazo(motivo != null && !motivo.isBlank() ? motivo.trim() : "No cumple con los requisitos del área.");
@@ -854,6 +1182,10 @@ public class ConvocatoriaService {
             }
         }
 
+        if (cp.getRol() == Rol.JURADO) juradoAsignacionRepository.deleteByJuradoId(cp.getId());
+        feriaPostulacionRepository.findByParticipanteId(cp.getId()).forEach(
+                p -> juradoAsignacionRepository.deleteByFeriaPostulacionId(p.getId()));
+        feriaPostulacionRepository.deleteAll(feriaPostulacionRepository.findByParticipanteId(cp.getId()));
         participanteRepository.delete(cp);
     }
 }

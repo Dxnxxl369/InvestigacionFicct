@@ -86,7 +86,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 14),
             child: GestureDetector(
-              onTap: () => widget.onNavigateTab(4), // Ir a perfil
+              onTap: () => widget.onNavigateTab(3), // Ir a perfil
               child: CircleAvatar(
                 radius: 16,
                 backgroundColor: AppTheme.accent,
@@ -567,7 +567,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                 ),
               ),
-            const SizedBox(height: 60), // Margen para la barra flotante
+            const SizedBox(height: 95), // Margen para la barra flotante
           ],
         ),
       ),

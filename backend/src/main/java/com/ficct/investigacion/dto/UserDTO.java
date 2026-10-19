@@ -12,6 +12,8 @@ public class UserDTO {
     private String nombre;
     private String apellido;
     private String email;
+    private String registroUniversitario;
+    private String celular;
     private Rol rol;
     private EstadoUsuario estado;
     private String fotoPerfil;
@@ -27,6 +29,8 @@ public class UserDTO {
         this.nombre = user.getNombre();
         this.apellido = user.getApellido();
         this.email = user.getEmail();
+        this.registroUniversitario = user.getRegistroUniversitario();
+        this.celular = user.getCelular();
         this.rol = user.getRol();
         this.estado = user.getEstado();
         this.fotoPerfil = user.getFotoPerfil();
@@ -66,6 +70,14 @@ public class UserDTO {
     public void setEmail(String email) {
         this.email = email;
     }
+
+    public String getRegistroUniversitario() { return registroUniversitario; }
+
+    public void setRegistroUniversitario(String registroUniversitario) { this.registroUniversitario = registroUniversitario; }
+
+    public String getCelular() { return celular; }
+
+    public void setCelular(String celular) { this.celular = celular; }
 
     public Rol getRol() {
         return rol;

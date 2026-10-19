@@ -1,7 +1,10 @@
 class TareaModel {
   final int id;
   final String titulo;
+  final int? feriaPostulacionId;
+  final String? codigoEquipo;
   final String descripcion;
+  final List<Map<String, dynamic>> adjuntos;
   final int? moduloId;
   final String? moduloTitulo;
   final String? fechaApertura;
@@ -30,10 +33,15 @@ class TareaModel {
   final String? convocatoriaTitulo;
   final List<Map<String, dynamic>> rubrica;
 
+  final int totalEntregas;
+
   TareaModel({
     required this.id,
     required this.titulo,
+    this.feriaPostulacionId,
+    this.codigoEquipo,
     required this.descripcion,
+    this.adjuntos = const [],
     this.moduloId,
     this.moduloTitulo,
     this.fechaApertura,
@@ -58,6 +66,7 @@ class TareaModel {
     this.convocatoriaId,
     this.convocatoriaTitulo,
     this.rubrica = const [],
+    this.totalEntregas = 0,
   });
 
   factory TareaModel.fromJson(Map<String, dynamic> json) {
@@ -99,7 +108,13 @@ class TareaModel {
     return TareaModel(
       id: json['id'] as int? ?? 0,
       titulo: json['titulo'] as String? ?? 'Sin título',
+      feriaPostulacionId: (json['feriaPostulacionId'] as num?)?.toInt(),
+      codigoEquipo: json['codigoEquipo'] as String?,
       descripcion: json['descripcion'] as String? ?? '',
+      adjuntos: (json['adjuntos'] as List<dynamic>?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          <Map<String, dynamic>>[],
       moduloId: (json['moduloId'] as num?)?.toInt(),
       moduloTitulo: json['moduloTitulo'] as String?,
       fechaApertura: (json['fechaHabilitacion'] ?? json['fechaApertura']) as String?,
@@ -124,6 +139,7 @@ class TareaModel {
       convocatoriaId: (json['convocatoriaId'] as num?)?.toInt(),
       convocatoriaTitulo: json['convocatoriaTitulo'] as String?,
       rubrica: rubricaParsed,
+      totalEntregas: (json['totalEntregas'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -131,7 +147,10 @@ class TareaModel {
     return {
       'id': id,
       'titulo': titulo,
+      'feriaPostulacionId': feriaPostulacionId,
+      'codigoEquipo': codigoEquipo,
       'descripcion': descripcion,
+      'adjuntos': adjuntos,
       'moduloId': moduloId,
       'fechaApertura': fechaApertura,
       'fechaLimite': fechaLimite,

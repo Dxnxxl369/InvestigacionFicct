@@ -1,7 +1,7 @@
 import React from "react";
 import {
-  FileText,
   FileUp,
+  FileText,
   Users,
   Award,
   Pencil,
@@ -14,6 +14,8 @@ import {
   AlertCircle,
   ArrowLeft,
   ChevronRight,
+  Eye,
+  Trash2,
 } from "lucide-react";
 import {
   TareaDTO,
@@ -21,6 +23,7 @@ import {
   ConvocatoriaParticipanteDTO,
   getMediaUrl,
 } from "@/lib/api";
+import VisorArchivoModal from "../modals/VisorArchivoModal";
 import {
   formatMoodleDate,
   formatMoodleDateShort,
@@ -33,13 +36,13 @@ interface TareaDetalleViewProps {
   tarea: TareaDTO;
   convocatoria: ConvocatoriaDTO;
   estudiantesAdmitidos: ConvocatoriaParticipanteDTO[];
+  esEstudiante: boolean;
   puedeGestionarTareas: boolean;
   esJuradoEnEstaArea: boolean;
   onVolver: () => void;
   onAbrirEntregaModal: (t: TareaDTO) => void;
   onAbrirEditarTarea: (t: TareaDTO) => void;
-  onAbrirDocumentoColaborativo: (t: TareaDTO) => void;
-  abriendoDocumentoColaborativo: number | null;
+  onEliminarTarea?: (t: TareaDTO) => void;
   onToggleHabilitar: (tId: number) => void;
   onVerEntregas: (t: TareaDTO) => void;
   onVerHistorialVersiones: (entregaId: number) => void;
@@ -49,18 +52,19 @@ export default function TareaDetalleView({
   tarea,
   convocatoria,
   estudiantesAdmitidos,
+  esEstudiante,
   puedeGestionarTareas,
   esJuradoEnEstaArea,
   onVolver,
   onAbrirEntregaModal,
   onAbrirEditarTarea,
-  onAbrirDocumentoColaborativo,
-  abriendoDocumentoColaborativo,
+  onEliminarTarea,
   onToggleHabilitar,
   onVerEntregas,
   onVerHistorialVersiones,
 }: TareaDetalleViewProps) {
   const [ahoraMs, setAhoraMs] = React.useState(Date.now());
+  const [archivoAVisualizar, setArchivoAVisualizar] = React.useState<{ url: string; nombre?: string } | null>(null);
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -203,12 +207,37 @@ export default function TareaDetalleView({
           </div>
         )}
 
+        {tarea.adjuntos && tarea.adjuntos.length > 0 && (
+          <div className="space-y-2 border-t border-line-soft pt-3">
+            <h3 className="flex items-center gap-2 text-xs font-bold text-ink">
+              <FileText className="h-4 w-4 text-accent" /> Archivos de apoyo
+            </h3>
+            <ul className="space-y-2">
+              {tarea.adjuntos.map((adjunto, index) => (
+                <li key={`${adjunto.ruta}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paper-sunken/50 px-3 py-2">
+                  <span className="min-w-0 break-all text-xs font-medium text-ink">{adjunto.nombre}</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setArchivoAVisualizar({ url: adjunto.ruta, nombre: adjunto.nombre })}
+                      className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-xs text-accent hover:bg-paper" aria-label={`Ver ${adjunto.nombre}`}>
+                      <Eye className="h-3.5 w-3.5" /> Ver
+                    </button>
+                    <a href={`${getMediaUrl(adjunto.ruta)}?download=true&nombre=${encodeURIComponent(adjunto.nombre)}`}
+                      className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-xs text-accent hover:bg-paper" aria-label={`Descargar ${adjunto.nombre}`}>
+                      <Download className="h-3.5 w-3.5" /> Descargar
+                    </a>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Parámetros de entrega */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 text-xs text-ink-soft border-t border-line-soft">
           <span><strong>Formatos permitidos:</strong> {tarea.tiposArchivosPermitidos || "*"}</span>
           <span>•</span>
           <span><strong>Tamaño máximo:</strong> {tarea.tamanoMaximoMb || 10} MB</span>
-          {tarea.fechaCorte && (
+          {tarea.fechaCorte && (puedeGestionarTareas || esJuradoEnEstaArea) && (
             <>
               <span>•</span>
               <span className="text-rose-700 dark:text-rose-300">
@@ -217,38 +246,6 @@ export default function TareaDetalleView({
             </>
           )}
         </div>
-
-        {tarea.documentoColaborativoHabilitado && (
-          <div className="pt-3 border-t border-line-soft">
-            <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-2.5">
-                <FileText className="w-4 h-4 text-sky-600 mt-0.5 shrink-0" />
-                <div>
-                  <h4 className="text-xs font-bold text-ink">Documento colaborativo del grupo</h4>
-                  <p className="text-[11px] text-ink-soft mt-0.5">
-                    {puedeGestionarTareas
-                      ? "Acceso docente en modo vista, sin edicion."
-                      : "Solo los integrantes del grupo vinculado pueden editar este documento."}
-                  </p>
-                  {tarea.actividadGrupoTitulo && (
-                    <p className="text-[10px] text-sky-700 dark:text-sky-300 font-semibold mt-1">
-                      Actividad de grupos: {tarea.actividadGrupoTitulo}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <button
-                type="button"
-                disabled={abriendoDocumentoColaborativo === tarea.id}
-                onClick={() => onAbrirDocumentoColaborativo(tarea)}
-                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs"
-              >
-                <FileText className="w-4 h-4" />
-                {abriendoDocumentoColaborativo === tarea.id ? "Abriendo..." : "Abrir documento"}
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Rúbrica de evaluación pedagógica si aplica */}
         {tarea.rubrica && tarea.rubrica.length > 0 && (
@@ -318,6 +315,17 @@ export default function TareaDetalleView({
                   {tarea.habilitada ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
                   {tarea.habilitada ? "Cerrar Recepción" : "Habilitar Recepción"}
                 </button>
+                {onEliminarTarea && (
+                  <button
+                    type="button"
+                    onClick={() => onEliminarTarea(tarea)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-line hover:border-rose-300 bg-paper-sunken hover:bg-rose-500/10 text-ink-soft hover:text-rose-600 flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Eliminar tarea definitivamente"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Eliminar Tarea
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -369,6 +377,7 @@ export default function TareaDetalleView({
       )}
 
       {/* Tabla de "Estado de la entrega" */}
+      {esEstudiante && (<>
       <div className="bg-paper border border-line rounded-2xl p-6 shadow-xs space-y-4">
         <h2 className="text-base sm:text-lg font-serif font-bold text-ink">
           Estado de la entrega
@@ -514,15 +523,14 @@ export default function TareaDetalleView({
                         <div key={idx} className="flex items-center gap-2">
                           {renderArchivoIcon(nombre, "w-4 h-4 text-ink-faint shrink-0")}
                           {url ? (
-                            <a
-                              href={getMediaUrl(url)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-accent hover:underline font-medium inline-flex items-center gap-1.5"
+                            <button
+                              type="button"
+                              onClick={() => setArchivoAVisualizar({ url, nombre })}
+                              className="text-accent hover:underline font-medium inline-flex items-center gap-1.5 cursor-pointer text-left"
                             >
                               {nombre}
-                              <Download className="w-3.5 h-3.5 shrink-0" />
-                            </a>
+                              <Eye className="w-3.5 h-3.5 shrink-0" />
+                            </button>
                           ) : (
                             <span className="font-medium text-ink">{nombre}</span>
                           )}
@@ -533,15 +541,14 @@ export default function TareaDetalleView({
                     <div className="flex items-center gap-2">
                       {renderArchivoIcon(miEntrega.nombreArchivo, "w-4 h-4 text-ink-faint shrink-0")}
                       {miEntrega.archivoUrl ? (
-                        <a
-                          href={getMediaUrl(miEntrega.archivoUrl)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent hover:underline font-medium inline-flex items-center gap-1.5"
+                        <button
+                          type="button"
+                          onClick={() => setArchivoAVisualizar({ url: miEntrega.archivoUrl!, nombre: miEntrega.nombreArchivo })}
+                          className="text-accent hover:underline font-medium inline-flex items-center gap-1.5 cursor-pointer text-left"
                         >
                           {miEntrega.nombreArchivo}
-                          <Download className="w-3.5 h-3.5 shrink-0" />
-                        </a>
+                          <Eye className="w-3.5 h-3.5 shrink-0" />
+                        </button>
                       ) : (
                         <span className="font-medium text-ink">{miEntrega.nombreArchivo}</span>
                       )}
@@ -597,8 +604,7 @@ export default function TareaDetalleView({
                 <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>
-                    Esta tarea ya no acepta entregas debido a que ha expirado la fecha límite de corte (
-                    {formatMoodleDate(tarea.fechaCorte)}).
+                    Esta tarea ya no acepta entregas.
                   </span>
                 </div>
               );
@@ -665,6 +671,14 @@ export default function TareaDetalleView({
           </div>
         </div>
       )}
+      </>)}
+
+      <VisorArchivoModal
+        isOpen={Boolean(archivoAVisualizar)}
+        onClose={() => setArchivoAVisualizar(null)}
+        archivoUrl={archivoAVisualizar?.url}
+        nombreArchivo={archivoAVisualizar?.nombre}
+      />
     </div>
   );
 }

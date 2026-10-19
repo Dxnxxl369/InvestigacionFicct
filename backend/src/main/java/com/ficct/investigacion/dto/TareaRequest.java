@@ -3,6 +3,7 @@ package com.ficct.investigacion.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class TareaRequest {
 
@@ -13,6 +14,7 @@ public class TareaRequest {
     private String titulo;
 
     private String descripcion;
+    private List<AdjuntoTareaDTO> adjuntos;
 
     // Triple control de fechas Moodle
     private LocalDateTime fechaHabilitacion;
@@ -24,6 +26,7 @@ public class TareaRequest {
     private LocalDateTime fechaLimite; // Compatibilidad
 
     private boolean habilitada = true;
+    private Boolean visibleJurados;
 
     private String tiposArchivosPermitidos = ".pdf, .docx, .zip";
 
@@ -80,6 +83,9 @@ public class TareaRequest {
         this.descripcion = descripcion;
     }
 
+    public List<AdjuntoTareaDTO> getAdjuntos() { return adjuntos; }
+    public void setAdjuntos(List<AdjuntoTareaDTO> adjuntos) { this.adjuntos = adjuntos; }
+
     public LocalDateTime getFechaHabilitacion() {
         return fechaHabilitacion;
     }
@@ -122,6 +128,9 @@ public class TareaRequest {
     public void setHabilitada(boolean habilitada) {
         this.habilitada = habilitada;
     }
+
+    public Boolean getVisibleJurados() { return visibleJurados; }
+    public void setVisibleJurados(Boolean visibleJurados) { this.visibleJurados = visibleJurados; }
 
     public String getTiposArchivosPermitidos() {
         return tiposArchivosPermitidos;

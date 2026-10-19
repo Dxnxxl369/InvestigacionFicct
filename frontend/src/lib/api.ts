@@ -5,6 +5,8 @@ export interface User {
   nombre: string;
   apellido: string;
   email: string;
+  registroUniversitario?: string;
+  celular?: string;
   rol: "ADMIN" | "DOCENTE" | "JURADO" | "ESTUDIANTE";
   estado: "ACTIVO" | "SUSPENDIDO";
   fotoPerfil?: string;
@@ -22,6 +24,8 @@ export interface AuthResponse {
   nombre: string;
   apellido: string;
   email: string;
+  registroUniversitario?: string;
+  celular?: string;
   rol: "ADMIN" | "DOCENTE" | "JURADO" | "ESTUDIANTE";
   estado: "ACTIVO" | "SUSPENDIDO";
   fotoPerfil?: string;
@@ -43,13 +47,14 @@ export interface Convocatoria {
   titulo: string;
   descripcion: string;
   tipo: "FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION";
+  modalidadInscripcion?: "INDIVIDUAL" | "GRUPAL";
   estado: "BORRADOR" | "PUBLICADA" | "FINALIZADA";
   fechaCierre?: string;
   tamanoEquipo?: string;
-  inscripcionGrupal?: boolean;
-  minIntegrantesGrupo?: number;
-  maxIntegrantesGrupo?: number;
+  maxIntegrantesFeria?: number;
   imagenPortada?: string;
+  archivoInformacionUrl?: string;
+  archivoInformacionNombre?: string;
   creadorId?: number;
   creadorNombre?: string;
   creadorEmail?: string;
@@ -72,12 +77,13 @@ export interface ConvocatoriaRequest {
   titulo: string;
   descripcion: string;
   tipo: "FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION";
+  modalidadInscripcion?: "INDIVIDUAL" | "GRUPAL";
   fechaCierre?: string;
   tamanoEquipo?: string;
-  inscripcionGrupal?: boolean;
-  minIntegrantesGrupo?: number;
-  maxIntegrantesGrupo?: number;
+  maxIntegrantesFeria?: number;
   imagenPortada?: string;
+  archivoInformacionUrl?: string;
+  archivoInformacionNombre?: string;
   requisitos?: string[];
   docenteIds?: number[];
   juradoIds?: number[];
@@ -115,8 +121,58 @@ export interface DesignarParticipanteRequest {
 
 export interface InscribirseAreaRequest {
   nombreEquipo?: string;
-  numeroGrupo?: number;
-  integrantesEmails?: string[];
+  feriaProyecto?: FeriaProyectoRequest;
+}
+
+export interface FeriaIntegranteRequest {
+  registro: string;
+  nombre: string;
+  carrera: string;
+  celular: string;
+  semestre: number;
+  ferias: number;
+  correo: string;
+  crearCuenta?: boolean;
+}
+
+export interface FeriaProyectoRequest {
+  tema: string;
+  area: string;
+  categoria: string;
+  materia: string;
+  sigla: string;
+  grupoMateria: string;
+  docente: string;
+  integrantes: FeriaIntegranteRequest[];
+}
+
+export interface FeriaPostulacionDTO extends FeriaProyectoRequest {
+  id: number;
+  participanteId: number;
+  estado: EstadoInscripcion;
+  responsable: string;
+  codigoEquipo: string | null;
+  jefeCorreo: string;
+}
+
+export interface JuradoProyectoDTO {
+  id: number;
+  codigo: string | null;
+  nombre: string | null;
+}
+
+export interface JuradoAsignacionDTO {
+  participanteId: number;
+  usuarioId: number;
+  nombre: string;
+  correo: string;
+  todos: boolean;
+  proyectoIds: number[];
+}
+
+export interface JuradosConvocatoriaDTO {
+  proyectos: JuradoProyectoDTO[];
+  jurados: JuradoAsignacionDTO[];
 }
 
 export interface RolPermisoDTO {
@@ -142,7 +198,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
     } catch {
       // Ignorar parse error
     }
-    throw new Error(errorMsg);
+    const error = new Error(errorMsg) as Error & { status: number };
+    error.status = res.status;
+    throw error;
   }
   return res.json();
 }
@@ -162,6 +220,8 @@ export const authAPI = {
     nombre: string;
     apellido: string;
     email: string;
+    registroUniversitario?: string;
+    celular: string;
     password: string;
     rol?: string;
   }): Promise<AuthResponse> {
@@ -186,6 +246,8 @@ export const authAPI = {
     fotoPerfil?: string;
     descripcion?: string;
     ocultarCursos?: boolean;
+    registroUniversitario?: string;
+    celular?: string;
   }): Promise<User> {
     const res = await fetch(`${API_BASE_URL}/auth/me`, {
       method: "PUT",
@@ -301,6 +363,30 @@ export const convocatoriasAPI = {
     return handleResponse<Convocatoria>(res);
   },
 
+  async archivar(id: number): Promise<Convocatoria> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/archivar`, {
+      method: "PUT",
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
+    return handleResponse<Convocatoria>(res);
+  },
+
+  async delete(id: number, forzar = false): Promise<{ message?: string; tieneDatos?: boolean; totalParticipantes?: number; totalTareas?: number; error?: string }> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}?forzar=${forzar}`, {
+      method: "DELETE",
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
+    if (res.status === 409) {
+      const data = await res.json().catch(() => ({}));
+      return { tieneDatos: true, totalParticipantes: data.totalParticipantes || 0, totalTareas: data.totalTareas || 0, error: data.error };
+    }
+    return handleResponse<{ message: string }>(res);
+  },
+
   async getEncargadosDisponibles(): Promise<{ docentes: UserDTO[]; jurados: UserDTO[] }> {
     try {
       const res = await fetch(`${API_BASE_URL}/convocatorias/encargados-disponibles`, {
@@ -341,6 +427,32 @@ export const convocatoriasAPI = {
       body: JSON.stringify(data),
     });
     return handleResponse<ConvocatoriaParticipanteDTO>(res);
+  },
+
+  async getJurados(id: number): Promise<JuradosConvocatoriaDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/jurados`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<JuradosConvocatoriaDTO>(res);
+  },
+
+  async crearYAnadirJurado(id: number, data: { nombre: string; apellido: string; correo: string; contrasena: string }): Promise<JuradoAsignacionDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/jurados`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<JuradoAsignacionDTO>(res);
+  },
+
+  async guardarAsignacionJurado(id: number, participanteId: number,
+      data: { todos: boolean; proyectoIds: number[] }): Promise<JuradosConvocatoriaDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/jurados/${participanteId}/asignacion`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<JuradosConvocatoriaDTO>(res);
   },
 
   async getMisAreas(): Promise<Convocatoria[]> {
@@ -404,6 +516,40 @@ export const convocatoriasAPI = {
       body: JSON.stringify(data || {}),
     });
     return handleResponse<ConvocatoriaParticipanteDTO>(res);
+  },
+
+  async getPostulacionesFeria(id: number): Promise<FeriaPostulacionDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/postulaciones-feria`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<FeriaPostulacionDTO[]>(res);
+  },
+
+  async buscarIntegranteFeria(id: number, correo: string): Promise<{ existe: boolean; nombre?: string; registro?: string; celular?: string }> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${id}/buscar-integrante-feria`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ correo }),
+    });
+    return handleResponse<{ existe: boolean; nombre?: string }>(res);
+  },
+
+  async cambiarCodigoEquipoFeria(convocatoriaId: number, postulacionId: number, codigoEquipo: string): Promise<FeriaPostulacionDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/postulaciones-feria/${postulacionId}/codigo-equipo`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ codigoEquipo }),
+    });
+    return handleResponse<FeriaPostulacionDTO>(res);
+  },
+
+  async responderPostulacionFeria(convocatoriaId: number, postulacionId: number, admitir: boolean): Promise<FeriaPostulacionDTO> {
+    const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/postulaciones-feria/${postulacionId}/responder`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ admitir }),
+    });
+    return handleResponse<FeriaPostulacionDTO>(res);
   },
 
   async declinarSolicitud(id: number): Promise<{ message: string }> {
@@ -545,12 +691,18 @@ export interface DocumentoDTO {
   autorEmail: string;
   convocatoriaId?: number;
   convocatoriaTitulo?: string;
-  tareaId?: number;
-  tareaTitulo?: string;
   miPermiso: "OWNER" | "ADMINISTRACION" | "EDICION" | "LECTURA";
   colaboradores: DocumentoColaboradorDTO[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface DocumentoRequest {
+  titulo: string;
+  descripcion?: string;
+  categoria?: string;
+  contenido?: string;
+  convocatoriaId?: number;
 }
 
 export interface DocumentoVersionDTO {
@@ -561,14 +713,6 @@ export interface DocumentoVersionDTO {
   usuarioId: number;
   usuarioNombre: string;
   createdAt?: string;
-}
-
-export interface DocumentoRequest {
-  titulo: string;
-  descripcion?: string;
-  categoria?: string;
-  contenido?: string;
-  convocatoriaId?: number;
 }
 
 export interface ColaboradorRequest {
@@ -806,6 +950,15 @@ export interface SeguimientoTareaDTO {
   items: ItemSeguimientoDTO[];
 }
 
+export interface PendienteTareaDTO {
+  tipo: "GRUPO" | "PERSONA";
+  referenciaId: number;
+  codigoGrupo?: string;
+  proyecto?: string;
+  destinatario: string;
+  celular?: string;
+}
+
 // --- Historial de versiones ---
 export interface VersionDTO {
   id: number;
@@ -852,6 +1005,12 @@ export interface EntregaTareaDTO {
 }
 
 // --- TareaDTO con rubrica y miEstado ---
+export interface AdjuntoTareaDTO {
+  nombre: string;
+  ruta: string;
+  tamanoBytes: number;
+}
+
 export interface TareaDTO {
   id: number;
   convocatoriaId?: number;
@@ -860,12 +1019,16 @@ export interface TareaDTO {
   cursoNombre?: string;
   cursoCodigo?: string;
   titulo: string;
+  feriaPostulacionId?: number;
+  codigoEquipo?: string;
   descripcion?: string;
+  adjuntos?: AdjuntoTareaDTO[];
   fechaHabilitacion?: string;
   fechaEntrega?: string;
   fechaCorte?: string;
   fechaLimite?: string;
   habilitada: boolean;
+  visibleJurados: boolean;
   tiposArchivosPermitidos: string;
   tamanoMaximoMb: number;
   puntajeMaximo: number;
@@ -879,9 +1042,6 @@ export interface TareaDTO {
   miEntrega?: EntregaTareaDTO;
   moduloId?: number;
   moduloTitulo?: string;
-  documentoColaborativoHabilitado?: boolean;
-  documentoColaborativoId?: number;
-  documentoColaborativoTitulo?: string;
   actividadGrupoId?: number;
   actividadGrupoTitulo?: string;
   // Mejoras
@@ -894,6 +1054,7 @@ export interface TareaRequest {
   moduloId?: number;
   titulo: string;
   descripcion?: string;
+  adjuntos?: AdjuntoTareaDTO[];
   fechaHabilitacion?: string;
   fechaEntrega?: string;
   fechaCorte?: string;
@@ -902,8 +1063,8 @@ export interface TareaRequest {
   tiposArchivosPermitidos?: string;
   tamanoMaximoMb?: number;
   puntajeMaximo?: number;
-  documentoColaborativoHabilitado?: boolean;
   esGrupal?: boolean;
+  visibleJurados?: boolean;
   actividadGrupoId?: number;
   // Mejoras: null = no tocar; [] = borrar; lista = reemplazar
   rubrica?: CriterioRequest[] | null;
@@ -915,6 +1076,7 @@ export interface EntregaRequest {
   archivoUrl?: string;
   comentarioEstudiante?: string;
   grupoId?: number;
+  feriaPostulacionId?: number;
 }
 
 export interface CalificarEntregaRequest {
@@ -931,8 +1093,9 @@ export interface ResponderLoteRequest {
 }
 
 export const tareasAPI = {
-  async getById(id: number): Promise<TareaDTO> {
-    const res = await fetch(`${API_BASE_URL}/tareas/${id}`, {
+  async getById(id: number, feriaPostulacionId?: number): Promise<TareaDTO> {
+    const query = feriaPostulacionId ? `?feriaPostulacionId=${feriaPostulacionId}` : "";
+    const res = await fetch(`${API_BASE_URL}/tareas/${id}${query}`, {
       headers: { ...getAuthHeader() },
     });
     return handleResponse<TareaDTO>(res);
@@ -971,13 +1134,6 @@ export const tareasAPI = {
     return handleResponse<EntregaTareaDTO[]>(res);
   },
 
-  async getDocumentoColaborativo(id: number): Promise<DocumentoDTO> {
-    const res = await fetch(`${API_BASE_URL}/tareas/${id}/documento-colaborativo`, {
-      headers: { ...getAuthHeader() },
-    });
-    return handleResponse<DocumentoDTO>(res);
-  },
-
   async calificar(entregaId: number, data: CalificarEntregaRequest): Promise<EntregaTareaDTO> {
     const res = await fetch(`${API_BASE_URL}/entregas/${entregaId}/calificar`, {
       method: "POST",
@@ -992,6 +1148,13 @@ export const tareasAPI = {
       headers: { ...getAuthHeader() },
     });
     return handleResponse<SeguimientoTareaDTO>(res);
+  },
+
+  async getPendientes(tareaId: number): Promise<PendienteTareaDTO[]> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${tareaId}/pendientes`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<PendienteTareaDTO[]>(res);
   },
 
   async getMisTareas(): Promise<TareaDTO[]> {
@@ -1022,6 +1185,18 @@ export const tareasAPI = {
     });
     if (!res.ok) throw new Error(`Error ${res.status} exportando notas`);
     return res.blob();
+  },
+
+  async delete(id: number, forzar = false): Promise<{ message?: string; tieneEntregas?: boolean; totalEntregas?: number; error?: string }> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${id}?forzar=${forzar}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeader() },
+    });
+    if (res.status === 409) {
+      const data = await res.json().catch(() => ({}));
+      return { tieneEntregas: true, totalEntregas: data.totalEntregas || 0, error: data.error };
+    }
+    return handleResponse<{ message: string }>(res);
   },
 };
 
@@ -1075,6 +1250,7 @@ export interface ModuloDTO {
 
 export interface ModuloRequest {
   titulo: string;
+  plantilla?: "PRIMER_AVANCE" | "SEGUNDO_AVANCE" | "PRESENTACION_FINAL" | "ACTIVIDADES";
   descripcion?: string;
   imagenUrl?: string;
   orden?: number;
@@ -1380,10 +1556,19 @@ export const api = {
   createConvocatoria: convocatoriasAPI.create,
   updateConvocatoria: convocatoriasAPI.update,
   publicarConvocatoria: convocatoriasAPI.publish,
+  archivarConvocatoria: convocatoriasAPI.archivar,
+  deleteConvocatoria: convocatoriasAPI.delete,
   getEncargadosDisponibles: convocatoriasAPI.getEncargadosDisponibles,
   getParticipantesConvocatoria: convocatoriasAPI.getParticipantes,
   designarParticipante: convocatoriasAPI.designarParticipante,
+  getJurados: convocatoriasAPI.getJurados,
+  crearYAnadirJurado: convocatoriasAPI.crearYAnadirJurado,
+  guardarAsignacionJurado: convocatoriasAPI.guardarAsignacionJurado,
   inscribirseConvocatoria: convocatoriasAPI.inscribirse,
+  getPostulacionesFeria: convocatoriasAPI.getPostulacionesFeria,
+  buscarIntegranteFeria: convocatoriasAPI.buscarIntegranteFeria,
+  cambiarCodigoEquipoFeria: convocatoriasAPI.cambiarCodigoEquipoFeria,
+  responderPostulacionFeria: convocatoriasAPI.responderPostulacionFeria,
   declinarSolicitudConvocatoria: convocatoriasAPI.declinarSolicitud,
   admitirParticipante: convocatoriasAPI.admitirParticipante,
   rechazarParticipante: convocatoriasAPI.rechazarParticipante,
@@ -1438,11 +1623,12 @@ export const api = {
   toggleHabilitarTarea: tareasAPI.toggleHabilitar,
   entregarTarea: tareasAPI.submitEntrega,
   getEntregasTarea: tareasAPI.getEntregas,
-  getDocumentoColaborativoTarea: tareasAPI.getDocumentoColaborativo,
   calificarEntrega: tareasAPI.calificar,
+  deleteTarea: tareasAPI.delete,
   // Mejoras
   getSeguimiento: tareasAPI.getSeguimiento,
   getSeguimientoTarea: tareasAPI.getSeguimiento,
+  getPendientes: tareasAPI.getPendientes,
   getMisTareas: tareasAPI.getMisTareas,
   getHistorial: tareasAPI.getHistorial,
   getHistorialEntrega: tareasAPI.getHistorial,

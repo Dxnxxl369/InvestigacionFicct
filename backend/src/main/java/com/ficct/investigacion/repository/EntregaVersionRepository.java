@@ -13,4 +13,8 @@ public interface EntregaVersionRepository extends JpaRepository<EntregaVersion, 
     List<EntregaVersion> findByEntregaOrderByIntentoDesc(EntregaTarea entrega);
 
     long countByEntrega(EntregaTarea entrega);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM EntregaVersion v WHERE v.entrega = :entrega")
+    void deleteByEntrega(@org.springframework.data.repository.query.Param("entrega") EntregaTarea entrega);
 }

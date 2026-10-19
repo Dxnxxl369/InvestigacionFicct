@@ -179,6 +179,7 @@ class TabCalificacionesMoodle extends StatelessWidget {
               final List<Widget> tareaBadges = [];
 
               for (final t in allTareas) {
+                final shortTitulo = t.titulo.length > 20 ? '${t.titulo.substring(0, 18)}...' : t.titulo;
                 final entregasDeTarea = entregasGradebook[t.id] ?? [];
                 final entregaEstudiante = entregasDeTarea.firstWhere(
                   (ent) => ent['estudianteId'] == uId || ent['usuarioId'] == uId || ent['estudianteEmail'] == email,
@@ -203,7 +204,7 @@ class TabCalificacionesMoodle extends StatelessWidget {
                             border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
                           ),
                           child: Text(
-                            '${t.titulo}: ${calif.toStringAsFixed(0)}/${t.puntajeMaximo?.toStringAsFixed(0) ?? "100"}',
+                            '$shortTitulo: ${calif.toStringAsFixed(0)}/${t.puntajeMaximo?.toStringAsFixed(0) ?? "100"}',
                             style: const TextStyle(
                                 fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
                           ),
@@ -224,7 +225,7 @@ class TabCalificacionesMoodle extends StatelessWidget {
                             border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                           ),
                           child: Text(
-                            '${t.titulo}: Pendiente',
+                            '$shortTitulo: Pendiente',
                             style: TextStyle(
                                 fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.amber.shade800),
                           ),
@@ -243,7 +244,7 @@ class TabCalificacionesMoodle extends StatelessWidget {
                         border: Border.all(color: isDark ? AppTheme.darkLine : AppTheme.line),
                       ),
                       child: Text(
-                        '${t.titulo}: Sin entrega',
+                        '$shortTitulo: Sin entrega',
                         style: const TextStyle(fontSize: 10.5, color: AppTheme.inkFaint),
                       ),
                     ),
@@ -367,9 +368,12 @@ class TabCalificacionesMoodle extends StatelessWidget {
                           Expanded(
                             child: Text(
                               tarea.titulo,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(

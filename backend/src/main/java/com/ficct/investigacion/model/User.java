@@ -20,6 +20,12 @@ public class User {
     @Column(nullable = false, unique = true, length = 120)
     private String email;
 
+    @Column(name = "registro_universitario", length = 30)
+    private String registroUniversitario;
+
+    @Column(name = "celular", length = 30)
+    private String celular;
+
     @Column(nullable = false)
     private String password;
 
@@ -39,6 +45,9 @@ public class User {
 
     @Column(name = "ocultar_cursos")
     private Boolean ocultarCursos = false;
+
+    @Column(name = "fcm_token", length = 500)
+    private String fcmToken;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -111,6 +120,14 @@ public class User {
         this.email = email;
     }
 
+    public String getRegistroUniversitario() { return registroUniversitario; }
+
+    public void setRegistroUniversitario(String registroUniversitario) { this.registroUniversitario = registroUniversitario; }
+
+    public String getCelular() { return celular; }
+
+    public void setCelular(String celular) { this.celular = celular; }
+
     public String getPassword() {
         return password;
     }
@@ -157,6 +174,14 @@ public class User {
 
     public void setOcultarCursos(Boolean ocultarCursos) {
         this.ocultarCursos = ocultarCursos;
+    }
+
+    public String getFcmToken() {
+        return fcmToken;
+    }
+
+    public void setFcmToken(String fcmToken) {
+        this.fcmToken = fcmToken;
     }
 
     public LocalDateTime getCreatedAt() {

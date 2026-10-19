@@ -42,8 +42,8 @@ export default function TabInfo({ convocatoria }: TabInfoProps) {
             <span className="font-semibold text-ink">{convocatoria.tipo}</span>
           </div>
           <div className="pt-2">
-            <span className="text-ink-faint block uppercase text-[10px] font-semibold">Tamaño de Equipo</span>
-            <span className="font-semibold text-ink">{convocatoria.tamanoEquipo || "Flexible"}</span>
+            <span className="text-ink-faint block uppercase text-[10px] font-semibold">Modalidad de inscripción</span>
+            <span className="font-semibold text-ink">{convocatoria.modalidadInscripcion === "GRUPAL" ? (convocatoria.tamanoEquipo || "Grupal") : "Individual"}</span>
           </div>
           <div className="pt-2">
             <span className="text-ink-faint block uppercase text-[10px] font-semibold">Fecha de Cierre</span>

@@ -24,6 +24,8 @@ class PerfilScreen extends StatefulWidget {
 
 class _PerfilScreenState extends State<PerfilScreen> {
   late TextEditingController _bioCtrl;
+  late TextEditingController _registroCtrl;
+  late TextEditingController _celularCtrl;
   bool _ocultarCursos = false;
   bool _isLoading = false;
   List<ConvocatoriaModel> _misCursos = [];
@@ -34,6 +36,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
     super.initState();
     final user = widget.authService.currentUser;
     _bioCtrl = TextEditingController(text: user?.descripcion ?? '');
+    _registroCtrl = TextEditingController(text: user?.registroUniversitario ?? '');
+    _celularCtrl = TextEditingController(text: user?.celular ?? '');
     _ocultarCursos = user?.ocultarCursos ?? false;
     _loadCursos();
   }
@@ -51,6 +55,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
   Future<void> _guardarCambios() async {
     setState(() => _isLoading = true);
     await widget.authService.updateProfile(
+      registroUniversitario: _registroCtrl.text.trim(),
+      celular: _celularCtrl.text.trim(),
       descripcion: _bioCtrl.text.trim(),
       ocultarCursos: _ocultarCursos,
     );
@@ -343,6 +349,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
             ),
             const SizedBox(height: 14),
 
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Datos de inscripción', style: TextStyle(fontWeight: FontWeight.bold)),
+                    TextField(controller: _registroCtrl,
+                      decoration: const InputDecoration(labelText: 'Registro universitario')),
+                    TextField(controller: _celularCtrl, keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(labelText: 'Celular')),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+
             // Biografía / Presentación Personal Editable
             Card(
               child: Padding(
@@ -397,7 +420,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'Los datos legales (nombre, correo institucional y rol) se encuentran validados institucionalmente y no pueden ser alterados.',
+                      'Los datos de la cuenta (nombre, correo y rol) no pueden ser alterados directamente.',
                       style: TextStyle(fontSize: 11, color: AppTheme.inkFaint),
                     ),
                     const SizedBox(height: 12),
@@ -414,7 +437,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                       enabled: false,
                       controller: TextEditingController(text: user?.email),
                       decoration: const InputDecoration(
-                        labelText: 'Correo Institucional',
+                        labelText: 'Correo electrónico',
                         suffixIcon: Icon(Icons.lock_outline_rounded, size: 16),
                       ),
                     ),
@@ -461,7 +484,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               ),
               onPressed: widget.onLogout,
             ),
-            const SizedBox(height: 80),
+            const SizedBox(height: 100),
           ],
         ),
       ),

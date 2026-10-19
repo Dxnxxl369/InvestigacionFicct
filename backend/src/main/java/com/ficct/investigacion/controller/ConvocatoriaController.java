@@ -1,6 +1,7 @@
 package com.ficct.investigacion.controller;
 
 import com.ficct.investigacion.dto.*;
+import com.ficct.investigacion.exception.ConvocatoriaConDatosException;
 import com.ficct.investigacion.model.EstadoConvocatoria;
 import com.ficct.investigacion.service.ConvocatoriaService;
 import jakarta.validation.Valid;
@@ -142,6 +143,54 @@ public class ConvocatoriaController {
         }
     }
 
+    /**
+     * Archivar o finalizar convocatoria/área (Solo ADMIN)
+     */
+    @PutMapping("/{id}/archivar")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> archivarConvocatoria(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            ConvocatoriaDTO archivada = convocatoriaService.archivarConvocatoria(id, userDetails.getUsername());
+            return ResponseEntity.ok(archivada);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
+     * Eliminar definitivamente una convocatoria/área (Solo ADMIN)
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> eliminarConvocatoria(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean forzar,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            convocatoriaService.eliminarConvocatoria(id, forzar, userDetails.getUsername());
+            Map<String, String> resp = new HashMap<>();
+            resp.put("message", "Área eliminada exitosamente.");
+            return ResponseEntity.ok(resp);
+        } catch (ConvocatoriaConDatosException e) {
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("error", e.getMessage());
+            resp.put("tieneDatos", true);
+            resp.put("totalParticipantes", e.getTotalParticipantes());
+            resp.put("totalTareas", e.getTotalTareas());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(resp);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
     // ==========================================
     // PARTICIPANTES DEL ÁREA (DOCENTES, JURADOS, ESTUDIANTES)
     // ==========================================
@@ -187,6 +236,40 @@ public class ConvocatoriaController {
             error.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(error);
         }
+    }
+
+    @GetMapping("/{id}/postulaciones-feria")
+    public ResponseEntity<List<FeriaPostulacionDTO>> listarPostulacionesFeria(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(convocatoriaService.listarPostulacionesFeria(id, userDetails.getUsername()));
+    }
+
+    @PostMapping("/{id}/buscar-integrante-feria")
+    public ResponseEntity<Map<String, Object>> buscarIntegranteFeria(
+            @PathVariable Long id, @RequestBody Map<String, String> request
+    ) {
+        return ResponseEntity.ok(convocatoriaService.buscarIntegranteFeria(id, request.get("correo")));
+    }
+
+    @PutMapping("/{id}/postulaciones-feria/{postulacionId}/codigo-equipo")
+    public ResponseEntity<FeriaPostulacionDTO> cambiarCodigoEquipoFeria(
+            @PathVariable Long id, @PathVariable Long postulacionId,
+            @RequestBody Map<String, String> request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(convocatoriaService.cambiarCodigoEquipoFeria(
+                id, postulacionId, request.get("codigoEquipo"), userDetails.getUsername()));
+    }
+
+    @PutMapping("/{id}/postulaciones-feria/{postulacionId}/responder")
+    public ResponseEntity<FeriaPostulacionDTO> responderPostulacionFeria(
+            @PathVariable Long id, @PathVariable Long postulacionId,
+            @RequestBody Map<String, Boolean> request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(convocatoriaService.responderPostulacionFeria(
+                id, postulacionId, Boolean.TRUE.equals(request.get("admitir")), userDetails.getUsername()));
     }
 
     /**

@@ -11,9 +11,13 @@ public class EntregaRequest {
     private String comentarioEstudiante;
 
     private Long grupoId; // Opcional: si la entrega es grupal y se especifica el grupo explícitamente
+    private Long feriaPostulacionId;
 
     public EntregaRequest() {
     }
+
+    public Long getFeriaPostulacionId() { return feriaPostulacionId; }
+    public void setFeriaPostulacionId(Long feriaPostulacionId) { this.feriaPostulacionId = feriaPostulacionId; }
 
     public Long getGrupoId() {
         return grupoId;

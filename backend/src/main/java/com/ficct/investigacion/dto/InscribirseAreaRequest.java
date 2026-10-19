@@ -1,13 +1,9 @@
 package com.ficct.investigacion.dto;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class InscribirseAreaRequest {
 
     private String nombreEquipo;
-    private Integer numeroGrupo;
-    private List<String> integrantesEmails = new ArrayList<>();
+    private FeriaProyectoRequest feriaProyecto;
 
     public InscribirseAreaRequest() {
     }
@@ -24,19 +20,11 @@ public class InscribirseAreaRequest {
         this.nombreEquipo = nombreEquipo;
     }
 
-    public Integer getNumeroGrupo() {
-        return numeroGrupo;
+    public FeriaProyectoRequest getFeriaProyecto() {
+        return feriaProyecto;
     }
 
-    public void setNumeroGrupo(Integer numeroGrupo) {
-        this.numeroGrupo = numeroGrupo;
-    }
-
-    public List<String> getIntegrantesEmails() {
-        return integrantesEmails;
-    }
-
-    public void setIntegrantesEmails(List<String> integrantesEmails) {
-        this.integrantesEmails = integrantesEmails != null ? integrantesEmails : new ArrayList<>();
+    public void setFeriaProyecto(FeriaProyectoRequest feriaProyecto) {
+        this.feriaProyecto = feriaProyecto;
     }
 }

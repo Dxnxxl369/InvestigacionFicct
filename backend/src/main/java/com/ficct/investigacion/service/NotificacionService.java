@@ -19,22 +19,27 @@ import java.util.stream.Collectors;
 @Transactional
 public class NotificacionService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NotificacionService.class);
+
     private final NotificacionRepository notificacionRepository;
     private final UserRepository userRepository;
     private final TareaRepository tareaRepository;
     private final EntregaTareaRepository entregaRepository;
     private final ConvocatoriaParticipanteRepository participanteRepository;
+    private final FCMService fcmService;
 
     public NotificacionService(NotificacionRepository notificacionRepository,
                                UserRepository userRepository,
                                TareaRepository tareaRepository,
                                EntregaTareaRepository entregaRepository,
-                               ConvocatoriaParticipanteRepository participanteRepository) {
+                               ConvocatoriaParticipanteRepository participanteRepository,
+                               FCMService fcmService) {
         this.notificacionRepository = notificacionRepository;
         this.userRepository = userRepository;
         this.tareaRepository = tareaRepository;
         this.entregaRepository = entregaRepository;
         this.participanteRepository = participanteRepository;
+        this.fcmService = fcmService;
     }
 
     public List<MejorasDTOs.NotificacionDTO> listar(String userEmail, int limite) {
@@ -78,6 +83,25 @@ public class NotificacionService {
         try {
             Notificacion n = new Notificacion(usuarioId, tipo, titulo, mensaje, convocatoriaId, tareaId, entregaId);
             notificacionRepository.save(n);
+
+            // Disparo asíncrono de Firebase Cloud Messaging (Push)
+            try {
+                userRepository.findById(usuarioId).ifPresent(dest -> {
+                    if (dest.getFcmToken() != null && !dest.getFcmToken().isBlank()) {
+                        Map<String, String> data = new java.util.HashMap<>();
+                        data.put("tipo", tipo != null ? tipo : "");
+                        if (convocatoriaId != null) data.put("convocatoriaId", String.valueOf(convocatoriaId));
+                        if (tareaId != null) data.put("tareaId", String.valueOf(tareaId));
+                        if (entregaId != null) data.put("entregaId", String.valueOf(entregaId));
+                        log.info(">>> [NotificacionService] Enviando push a usuario id={} ({})", usuarioId, dest.getEmail());
+                        fcmService.enviarPush(dest.getFcmToken(), titulo, mensaje, data);
+                    } else {
+                        log.warn(">>> [NotificacionService] Usuario id={} ({}) no tiene fcmToken registrado en BD. No se puede enviar push.", usuarioId, dest.getEmail());
+                    }
+                });
+            } catch (Exception pushErr) {
+                log.error(">>> [NotificacionService] Error al intentar enviar push para usuario id={}: {}", usuarioId, pushErr.getMessage());
+            }
         } catch (Exception e) {
             // Defensivo para no interrumpir flujos de negocio
         }

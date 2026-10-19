@@ -7,6 +7,7 @@ interface DesignarMiembroModalProps {
   onClose: () => void;
   convocatoriaId: number;
   esAdmin: boolean;
+  soloDocentes?: boolean;
   allUsers: User[];
   onSuccess: () => void;
   toast: (text: string, type?: "success" | "error" | "info") => void;
@@ -17,6 +18,7 @@ export default function DesignarMiembroModal({
   onClose,
   convocatoriaId,
   esAdmin,
+  soloDocentes = false,
   allUsers,
   onSuccess,
   toast,
@@ -51,8 +53,8 @@ export default function DesignarMiembroModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-paper border border-line rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in-0 duration-200">
+      <div className="bg-paper-raised dark:bg-slate-900 border border-line rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <h3 className="font-serif text-lg font-bold text-ink flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-accent" /> Designar Responsable / Evaluador
@@ -79,7 +81,7 @@ export default function DesignarMiembroModal({
                   <ShieldCheck className="w-4 h-4" /> DOCENTE
                 </button>
               )}
-              <button
+              {!soloDocentes && <button
                 type="button"
                 onClick={() => setRolDesignar("JURADO")}
                 className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
@@ -89,7 +91,7 @@ export default function DesignarMiembroModal({
                 } ${!esAdmin ? "col-span-2" : ""}`}
               >
                 <Award className="w-4 h-4" /> JURADO
-              </button>
+              </button>}
             </div>
             <p className="text-[10px] text-ink-faint mt-1">
               Los jurados pueden ser designados y modificados libremente incluso hasta el último día del evento.

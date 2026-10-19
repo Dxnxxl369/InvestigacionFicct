@@ -1,6 +1,7 @@
 package com.ficct.investigacion.dto;
 
 import com.ficct.investigacion.model.TipoConvocatoria;
+import com.ficct.investigacion.model.ModalidadInscripcion;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
@@ -17,22 +18,22 @@ public class ConvocatoriaRequest {
 
     @NotNull(message = "El tipo de actividad es obligatorio")
     private TipoConvocatoria tipo = TipoConvocatoria.FERIA;
+    private ModalidadInscripcion modalidadInscripcion;
 
     private LocalDate fechaCierre;
 
     private String tamanoEquipo;
 
-    private Boolean inscripcionGrupal = false;
-
-    private Integer minIntegrantesGrupo = 1;
-
-    private Integer maxIntegrantesGrupo = 5;
+    private Integer maxIntegrantesFeria;
 
     private String imagenPortada;
+    private String archivoInformacionUrl;
+    private String archivoInformacionNombre;
 
     private List<String> requisitos = new ArrayList<>();
 
-    // Encargados y Jurados asignados al crear o editar
+    // Los docentes se asignan desde este formulario; juradoIds se conserva
+    // para compatibilidad de clientes antiguos, pero se gestiona en Jurados.
     private List<Long> docenteIds = new ArrayList<>();
     private List<Long> juradoIds = new ArrayList<>();
 
@@ -74,6 +75,10 @@ public class ConvocatoriaRequest {
         this.tipo = tipo;
     }
 
+    public ModalidadInscripcion getModalidadInscripcion() { return modalidadInscripcion; }
+
+    public void setModalidadInscripcion(ModalidadInscripcion modalidadInscripcion) { this.modalidadInscripcion = modalidadInscripcion; }
+
     public LocalDate getFechaCierre() {
         return fechaCierre;
     }
@@ -90,28 +95,12 @@ public class ConvocatoriaRequest {
         this.tamanoEquipo = tamanoEquipo;
     }
 
-    public Boolean getInscripcionGrupal() {
-        return inscripcionGrupal;
+    public Integer getMaxIntegrantesFeria() {
+        return maxIntegrantesFeria;
     }
 
-    public void setInscripcionGrupal(Boolean inscripcionGrupal) {
-        this.inscripcionGrupal = inscripcionGrupal;
-    }
-
-    public Integer getMinIntegrantesGrupo() {
-        return minIntegrantesGrupo;
-    }
-
-    public void setMinIntegrantesGrupo(Integer minIntegrantesGrupo) {
-        this.minIntegrantesGrupo = minIntegrantesGrupo;
-    }
-
-    public Integer getMaxIntegrantesGrupo() {
-        return maxIntegrantesGrupo;
-    }
-
-    public void setMaxIntegrantesGrupo(Integer maxIntegrantesGrupo) {
-        this.maxIntegrantesGrupo = maxIntegrantesGrupo;
+    public void setMaxIntegrantesFeria(Integer maxIntegrantesFeria) {
+        this.maxIntegrantesFeria = maxIntegrantesFeria;
     }
 
     public String getImagenPortada() {
@@ -121,6 +110,14 @@ public class ConvocatoriaRequest {
     public void setImagenPortada(String imagenPortada) {
         this.imagenPortada = imagenPortada;
     }
+
+    public String getArchivoInformacionUrl() { return archivoInformacionUrl; }
+
+    public void setArchivoInformacionUrl(String archivoInformacionUrl) { this.archivoInformacionUrl = archivoInformacionUrl; }
+
+    public String getArchivoInformacionNombre() { return archivoInformacionNombre; }
+
+    public void setArchivoInformacionNombre(String archivoInformacionNombre) { this.archivoInformacionNombre = archivoInformacionNombre; }
 
     public List<String> getRequisitos() {
         return requisitos;

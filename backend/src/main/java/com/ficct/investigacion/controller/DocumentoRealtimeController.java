@@ -6,6 +6,7 @@ import com.ficct.investigacion.dto.DocumentoLiveMessage;
 import com.ficct.investigacion.dto.DocumentoPresenceMessage;
 import com.ficct.investigacion.service.DocumentoLiveVersionService;
 import com.ficct.investigacion.service.DocumentoService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -19,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 @Controller
+@ConditionalOnProperty(name = "feature.documentos-colaborativos.enabled", havingValue = "true")
 public class DocumentoRealtimeController {
 
     private static final int MAX_LIVE_HTML_CHARS = 1_500_000;

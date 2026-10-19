@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -162,7 +164,9 @@ public class UploadController {
      * Servir la imagen o archivo subido públicamente
      */
     @GetMapping("/{filename:.+}")
-    public ResponseEntity<Resource> obtenerArchivo(@PathVariable String filename) {
+    public ResponseEntity<Resource> obtenerArchivo(@PathVariable String filename,
+                                                    @RequestParam(defaultValue = "false") boolean download,
+                                                    @RequestParam(required = false) String nombre) {
         try {
             Path filePath = this.uploadLocation.resolve(filename).normalize();
             if (!filePath.startsWith(this.uploadLocation)) {
@@ -179,9 +183,19 @@ public class UploadController {
                 contentType = "application/octet-stream";
             }
 
+            String nombreDescarga = nombre == null || nombre.isBlank() ? resource.getFilename() :
+                    StringUtils.cleanPath(nombre.replace('\\', '/')).replaceAll("^.*[/]", "");
+            nombreDescarga = nombreDescarga.replaceAll("[\\r\\n]", "_");
+            if (nombreDescarga.length() > 255) nombreDescarga = nombreDescarga.substring(nombreDescarga.length() - 255);
+            if (nombreDescarga.isBlank() || nombreDescarga.equals(".") || nombreDescarga.equals("..")) {
+                nombreDescarga = resource.getFilename();
+            }
+            ContentDisposition disposicion = (download ? ContentDisposition.attachment() : ContentDisposition.inline())
+                    .filename(download ? nombreDescarga : resource.getFilename(), StandardCharsets.UTF_8)
+                    .build();
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, disposicion.toString())
                     .body(resource);
         } catch (MalformedURLException e) {
             return ResponseEntity.badRequest().build();

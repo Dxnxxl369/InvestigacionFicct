@@ -4,6 +4,7 @@ import com.ficct.investigacion.dto.RolPermisoDTO;
 import com.ficct.investigacion.model.Rol;
 import com.ficct.investigacion.model.RolPermiso;
 import com.ficct.investigacion.repository.RolPermisoRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +13,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class RolPermisoService {
+
+    @Value("${feature.documentos-colaborativos.enabled:false}")
+    private boolean documentosColaborativosHabilitados;
 
     private final RolPermisoRepository rolPermisoRepository;
 
@@ -32,6 +36,7 @@ public class RolPermisoService {
     }
 
     public boolean puedeVer(Rol rol, String modulo) {
+        if (!documentosColaborativosHabilitados && "DOCUMENTOS".equals(modulo)) return false;
         if (rol == Rol.ADMIN) return true;
         return rolPermisoRepository.findByRolAndModulo(rol, modulo)
                 .map(RolPermiso::isPuedeVer)
@@ -39,6 +44,7 @@ public class RolPermisoService {
     }
 
     public boolean puedeEditar(Rol rol, String modulo) {
+        if (!documentosColaborativosHabilitados && "DOCUMENTOS".equals(modulo)) return false;
         if (rol == Rol.ADMIN) return true;
         return rolPermisoRepository.findByRolAndModulo(rol, modulo)
                 .map(RolPermiso::isPuedeEditar)
@@ -47,6 +53,9 @@ public class RolPermisoService {
 
     @Transactional
     public RolPermisoDTO actualizarPermiso(Rol rol, String modulo, boolean puedeVer, boolean puedeEditar) {
+        if (!documentosColaborativosHabilitados && "DOCUMENTOS".equals(modulo)) {
+            throw new IllegalArgumentException("El módulo de documentos colaborativos está deshabilitado.");
+        }
         RolPermiso rp = rolPermisoRepository.findByRolAndModulo(rol, modulo)
                 .orElseGet(() -> new RolPermiso(rol, modulo, puedeVer, puedeEditar));
 

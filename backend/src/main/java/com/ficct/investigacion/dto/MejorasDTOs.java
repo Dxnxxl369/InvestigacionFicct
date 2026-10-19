@@ -39,6 +39,10 @@ public final class MejorasDTOs {
                                    ResumenSeguimiento resumen, List<ItemSeguimiento> items) {
     }
 
+    public record PendienteTarea(String tipo, Long referenciaId, String codigoGrupo,
+                                String proyecto, String destinatario, String celular) {
+    }
+
     // ---------- Historial ----------
     public record VersionDTO(Long id, Integer intento, String nombreArchivo, String archivoUrl,
                              String comentario, LocalDateTime fechaEntrega, boolean conRetraso) {

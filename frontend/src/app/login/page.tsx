@@ -18,10 +18,16 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [despuesDeCerrarSesion, setDespuesDeCerrarSesion] = useState(false);
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
+      if (params.get("logout") === "1") {
+        setDespuesDeCerrarSesion(true);
+        setEmail("");
+        setPassword("");
+      }
       if (params.get("error") === "suspended") {
         setError("Tu cuenta ha sido suspendida por el administrador. Se ha revocado el acceso de forma inmediata.");
       } else if (params.get("error") === "session_expired") {
@@ -49,12 +55,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillCredentials = (userEmail: string, userPass: string) => {
-    setEmail(userEmail);
-    setPassword(userPass);
-    setError(null);
   };
 
   return (
@@ -99,17 +99,18 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} autoComplete={despuesDeCerrarSesion ? "off" : "on"} className="space-y-4">
             {/* Campo Correo con Checkmark Inline de Validación */}
             <div>
               <label className="block text-xs font-medium text-ink-soft mb-1.5">
-                Correo institucional
+                Correo electrónico
               </label>
               <div className="relative">
                 <input
                   type="email"
+                  autoComplete={despuesDeCerrarSesion ? "off" : "username"}
                   required
-                  placeholder="usuario@uagrm.edu.bo"
+                  placeholder="usuario@uagrm.edu.bo o usuario@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className={`w-full px-3.5 py-2.5 rounded-xl border text-sm bg-paper-sunken text-ink transition-all focus:outline-none focus:bg-paper-raised ${
@@ -136,6 +137,7 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
+                  autoComplete={despuesDeCerrarSesion ? "new-password" : "current-password"}
                   required
                   placeholder="••••••••"
                   value={password}
@@ -181,36 +183,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Accesos rápidos de desarrollo */}
-          <div className="mt-7 pt-5 border-t border-line-soft">
-            <p className="text-[11px] font-bold text-ink-faint uppercase tracking-wider mb-2.5 text-center">
-              Credenciales de prueba
-            </p>
-            <div className="grid grid-cols-3 gap-1.5 text-center">
-              <button
-                type="button"
-                onClick={() => fillCredentials("admin@uagrm.edu.bo", "admin369")}
-                className="px-2 py-1.5 rounded-lg border border-line bg-paper-sunken hover:border-accent hover:text-accent text-[11px] font-medium text-ink-soft transition-all"
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => fillCredentials("docente@uagrm.edu.bo", "docente369")}
-                className="px-2 py-1.5 rounded-lg border border-line bg-paper-sunken hover:border-accent hover:text-accent text-[11px] font-medium text-ink-soft transition-all"
-              >
-                Docente
-              </button>
-              <button
-                type="button"
-                onClick={() => fillCredentials("daniel.quispe@uagrm.edu.bo", "estudiante369")}
-                className="px-2 py-1.5 rounded-lg border border-line bg-paper-sunken hover:border-accent hover:text-accent text-[11px] font-medium text-ink-soft transition-all"
-              >
-                Estudiante
-              </button>
-            </div>
-          </div>
 
           <div className="mt-5 text-center text-xs text-ink-faint">
             ¿Aún no tienes cuenta?{" "}

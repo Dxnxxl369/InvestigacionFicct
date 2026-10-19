@@ -17,8 +17,10 @@ class TabModulosYTareas extends StatelessWidget {
   final Function(TareaModel) onShowAdminSupervision;
   final VoidCallback onCrearModulo;
   final Function(ModuloModel) onEditarModulo;
+  final Function(ModuloModel)? onEliminarModulo;
   final Function({int? moduloId}) onCrearTarea;
   final Function(TareaModel) onEditarTarea;
+  final Function(TareaModel)? onEliminarTarea;
   final Function(int) onToggleHabilitarTarea;
   final VoidCallback onSwitchToGruposTab;
 
@@ -35,8 +37,10 @@ class TabModulosYTareas extends StatelessWidget {
     required this.onShowAdminSupervision,
     required this.onCrearModulo,
     required this.onEditarModulo,
+    this.onEliminarModulo,
     required this.onCrearTarea,
     required this.onEditarTarea,
+    this.onEliminarTarea,
     required this.onToggleHabilitarTarea,
     required this.onSwitchToGruposTab,
   });
@@ -124,6 +128,8 @@ class TabModulosYTareas extends StatelessWidget {
                               Text(
                                 act.titulo,
                                 style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -137,13 +143,15 @@ class TabModulosYTareas extends StatelessWidget {
                           : (isJurado
                               ? 'Visualización de equipos: ${act.grupos.length} grupos configurados.'
                               : (tieneGrupo
-                                  ? '✓ Quedaste formalmente registrado en: ${act.grupoSeleccionadoNombre}'
+                                  ? 'Registrado formalmente en: ${act.grupoSeleccionadoNombre}'
                                   : 'Cupos limitados por grupo. Elige tu grupo antes de la fecha de cierre.')),
                       style: TextStyle(
                         fontSize: 11.5,
                         color: tieneGrupo ? const Color(0xFF10B981) : (isDark ? AppTheme.darkInkSoft : AppTheme.inkSoft),
                         fontWeight: tieneGrupo ? FontWeight.bold : FontWeight.normal,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 10),
                     Align(
@@ -297,6 +305,8 @@ class TabModulosYTareas extends StatelessWidget {
                             ? modulo.descripcion
                             : '${modulo.tareas.length} actividades disponibles',
                         style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       children: [
                         if (modulo.tareas.isEmpty)
@@ -395,7 +405,7 @@ class TabModulosYTareas extends StatelessWidget {
                                                     fontSize: 11,
                                                     color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint,
                                                   ),
-                                                  maxLines: 1,
+                                                  maxLines: 2,
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
                                               ],
@@ -430,6 +440,17 @@ class TabModulosYTareas extends StatelessWidget {
                                                   child: Icon(Icons.edit_outlined, size: 16, color: AppTheme.accent),
                                                 ),
                                               ),
+                                              if (onEliminarTarea != null) ...[
+                                                const SizedBox(width: 4),
+                                                InkWell(
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  onTap: () => onEliminarTarea!(tarea),
+                                                  child: const Padding(
+                                                    padding: EdgeInsets.all(4),
+                                                    child: Icon(Icons.delete_outline_rounded, size: 16, color: AppTheme.danger),
+                                                  ),
+                                                ),
+                                              ],
                                             ],
                                           ),
                                         ],
@@ -447,7 +468,7 @@ class TabModulosYTareas extends StatelessWidget {
                                             borderRadius: BorderRadius.circular(5),
                                           ),
                                           child: Text(
-                                            tarea.esGrupal ? '👥 Grupal' : '👤 Individual',
+                                            tarea.esGrupal ? 'Grupal' : 'Individual',
                                             style: TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.w600,
@@ -565,6 +586,14 @@ class TabModulosYTareas extends StatelessWidget {
                                   icon: const Icon(Icons.edit_outlined, size: 14),
                                   label: const Text('Editar Módulo', style: TextStyle(fontSize: 11)),
                                 ),
+                                if (onEliminarModulo != null) ...[
+                                  const SizedBox(width: 4),
+                                  TextButton.icon(
+                                    onPressed: () => onEliminarModulo!(modulo),
+                                    icon: const Icon(Icons.delete_outline_rounded, size: 14, color: AppTheme.danger),
+                                    label: const Text('Eliminar', style: TextStyle(fontSize: 11, color: AppTheme.danger)),
+                                  ),
+                                ],
                                 const SizedBox(width: 8),
                                 ElevatedButton.icon(
                                   onPressed: () => onCrearTarea(moduloId: modulo.id),

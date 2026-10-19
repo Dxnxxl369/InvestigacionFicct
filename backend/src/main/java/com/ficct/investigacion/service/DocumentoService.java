@@ -14,6 +14,7 @@ import com.ficct.investigacion.repository.ConvocatoriaParticipanteRepository;
 import com.ficct.investigacion.repository.TareaRepository;
 import com.ficct.investigacion.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@ConditionalOnProperty(name = "feature.documentos-colaborativos.enabled", havingValue = "true")
 @Transactional
 public class DocumentoService {
 

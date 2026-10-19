@@ -1,9 +1,11 @@
 package com.ficct.investigacion.controller;
 
 import com.ficct.investigacion.dto.*;
+import com.ficct.investigacion.exception.TareaConEntregasException;
 import com.ficct.investigacion.service.TareaService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -57,15 +59,19 @@ public class TareaController {
         try {
             List<TareaDTO> misTareas = tareaService.getMisTareas(userDetails.getUsername());
             return ResponseEntity.ok(misTareas);
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
     @GetMapping("/tareas/{id}")
-    public ResponseEntity<?> obtenerTarea(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<?> obtenerTarea(@PathVariable Long id,
+                                          @RequestParam(required = false) Long feriaPostulacionId,
+                                          @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            TareaDTO tarea = tareaService.obtenerPorId(id, userDetails.getUsername());
+            TareaDTO tarea = tareaService.obtenerPorId(id, userDetails.getUsername(), feriaPostulacionId);
             return ResponseEntity.ok(tarea);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -79,6 +85,26 @@ public class TareaController {
         try {
             TareaDTO actualizada = tareaService.actualizarTarea(id, request, userDetails.getUsername());
             return ResponseEntity.ok(actualizada);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/tareas/{id}")
+    public ResponseEntity<?> eliminarTarea(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean forzar,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            tareaService.eliminarTarea(id, forzar, userDetails.getUsername());
+            return ResponseEntity.ok(Map.of("message", "Tarea eliminada exitosamente."));
+        } catch (TareaConEntregasException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "error", e.getMessage(),
+                    "tieneEntregas", true,
+                    "totalEntregas", e.getTotalEntregas()
+            ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -101,6 +127,8 @@ public class TareaController {
         try {
             EntregaTareaDTO entrega = tareaService.entregarTarea(id, request, userDetails.getUsername());
             return ResponseEntity.ok(entrega);
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -111,16 +139,6 @@ public class TareaController {
         try {
             List<EntregaTareaDTO> entregas = tareaService.listarEntregasPorTarea(id, userDetails.getUsername());
             return ResponseEntity.ok(entregas);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @GetMapping("/tareas/{id}/documento-colaborativo")
-    public ResponseEntity<?> obtenerDocumentoColaborativo(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
-        try {
-            DocumentoDTO documento = tareaService.obtenerDocumentoColaborativo(id, userDetails.getUsername());
-            return ResponseEntity.ok(documento);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -147,6 +165,17 @@ public class TareaController {
         try {
             MejorasDTOs.SeguimientoTarea seguimiento = tareaService.getSeguimiento(id, userDetails.getUsername());
             return ResponseEntity.ok(seguimiento);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/tareas/{id}/pendientes")
+    public ResponseEntity<?> getPendientes(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            return ResponseEntity.ok(tareaService.getPendientes(id, userDetails.getUsername()));
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

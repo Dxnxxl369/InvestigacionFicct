@@ -1,6 +1,7 @@
 package com.ficct.investigacion.dto;
 
 import com.ficct.investigacion.model.Rol;
+import com.ficct.investigacion.util.CorreoPermitido;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -18,7 +19,16 @@ public class RegisterRequest {
 
     @NotBlank(message = "El correo electrónico es obligatorio")
     @Email(message = "Formato de correo electrónico inválido")
+    @Pattern(regexp = CorreoPermitido.PATRON,
+            message = "Usa un correo @uagrm.edu.bo o @gmail.com")
     private String email;
+
+    @Size(max = 30, message = "El registro universitario admite hasta 30 caracteres")
+    private String registroUniversitario;
+
+    @NotBlank(message = "El celular es obligatorio")
+    @Size(max = 30, message = "El celular admite hasta 30 caracteres")
+    private String celular;
 
     @NotBlank(message = "La contraseña es obligatoria")
     @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
@@ -64,6 +74,14 @@ public class RegisterRequest {
     public void setEmail(String email) {
         this.email = email;
     }
+
+    public String getRegistroUniversitario() { return registroUniversitario; }
+
+    public void setRegistroUniversitario(String registroUniversitario) { this.registroUniversitario = registroUniversitario; }
+
+    public String getCelular() { return celular; }
+
+    public void setCelular(String celular) { this.celular = celular; }
 
     public String getPassword() {
         return password;

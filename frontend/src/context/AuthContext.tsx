@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { User, authAPI, AuthResponse, permisosAPI, RolPermisoDTO } from "@/lib/api";
 
 interface AuthContextType {
@@ -33,6 +33,10 @@ const AuthContext = createContext<AuthContextType>({
   refreshPermissions: async () => {},
 });
 
+const sesionRechazada = (error: unknown): boolean =>
+  typeof error === "object" && error !== null && "status" in error &&
+  (error.status === 401 || error.status === 403);
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -40,25 +44,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<
     Record<string, { puedeVer: boolean; puedeEditar: boolean }>
   >({});
-  const sessionVersionRef = useRef(0);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   const loadPermissionsForRole = async (rol: string) => {
     try {
       const perms = await permisosAPI.getPorRol(rol);
+      if (!localStorage.getItem("auth_token")) return;
       const permMap: Record<string, { puedeVer: boolean; puedeEditar: boolean }> = {};
       perms.forEach((p) => {
         permMap[p.modulo] = { puedeVer: p.puedeVer, puedeEditar: p.puedeEditar };
       });
       setPermissions(permMap);
+      setPermissionsLoaded(true);
     } catch (err) {
+      if (!localStorage.getItem("auth_token")) return;
+      setPermissionsLoaded(false);
       console.error("Error al cargar permisos:", err);
     }
   };
 
   useEffect(() => {
+    if (!user?.rol || permissionsLoaded) return;
+    const interval = window.setInterval(() => loadPermissionsForRole(user.rol), 5000);
+    return () => window.clearInterval(interval);
+  }, [user?.rol, permissionsLoaded]);
+
+  useEffect(() => {
     const savedToken = localStorage.getItem("auth_token");
     const savedUser = localStorage.getItem("auth_user");
-    const sessionVersion = sessionVersionRef.current;
 
     if (savedToken && savedUser) {
       try {
@@ -80,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authAPI
           .getProfile()
           .then((freshUser) => {
-            if (sessionVersionRef.current !== sessionVersion || localStorage.getItem("auth_token") !== savedToken) return;
+            if (!localStorage.getItem("auth_token")) return;
             if (!freshUser || freshUser.estado === "SUSPENDIDO") {
               logout();
               window.location.href = "/login?error=suspended";
@@ -90,10 +103,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem("auth_user", JSON.stringify(freshUser));
             loadPermissionsForRole(freshUser.rol);
           })
-          .catch(() => {
-            if (sessionVersionRef.current !== sessionVersion || localStorage.getItem("auth_token") !== savedToken) return;
-            logout();
-            window.location.href = "/login?error=suspended";
+          .catch((error) => {
+            if (sesionRechazada(error)) {
+              logout();
+              window.location.href = "/login";
+            }
           })
           .finally(() => {
             setLoading(false);
@@ -106,17 +120,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  // Heartbeat reactivo cada 4 segundos: detecta baneos y cambios de rol en vivo sin esperar F5 ni cierre de sesión
+  // Comprobar la sesión periódicamente mientras la pestaña está visible.
   useEffect(() => {
     if (!token || !user) return;
-    const sessionVersion = sessionVersionRef.current;
-    const activeToken = token;
 
     const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       authAPI
         .getProfile()
         .then((freshUser) => {
-          if (sessionVersionRef.current !== sessionVersion || localStorage.getItem("auth_token") !== activeToken) return;
+          if (!localStorage.getItem("auth_token")) return;
           if (!freshUser || freshUser.estado === "SUSPENDIDO") {
             logout();
             window.location.href = "/login?error=suspended";
@@ -128,24 +141,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             loadPermissionsForRole(freshUser.rol);
           }
         })
-        .catch(() => {
-          if (sessionVersionRef.current !== sessionVersion || localStorage.getItem("auth_token") !== activeToken) return;
-          logout();
-          window.location.href = "/login?error=suspended";
+        .catch((error) => {
+          if (sesionRechazada(error)) {
+            logout();
+            window.location.href = "/login";
+          }
         });
-    }, 4000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [token, user?.rol, user?.estado]);
 
   const login = async (email: string, password: string): Promise<AuthResponse> => {
     const res = await authAPI.login(email, password);
-    sessionVersionRef.current += 1;
     const u: User = {
       id: res.id,
       nombre: res.nombre,
       apellido: res.apellido,
       email: res.email,
+      registroUniversitario: res.registroUniversitario,
+      celular: res.celular,
       rol: res.rol,
       estado: res.estado,
       fotoPerfil: res.fotoPerfil,
@@ -162,7 +177,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setAuthSession = (newToken: string, newUser: User) => {
-    sessionVersionRef.current += 1;
     setToken(newToken);
     setUser(newUser);
     localStorage.setItem("auth_token", newToken);
@@ -170,15 +184,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadPermissionsForRole(newUser.rol);
   };
 
-  const logout = useCallback(() => {
-    sessionVersionRef.current += 1;
+  const logout = () => {
     setToken(null);
     setUser(null);
     setPermissions({});
+    setPermissionsLoaded(false);
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_user");
-    localStorage.removeItem("token");
-  }, []);
+  };
 
   const refreshProfile = async () => {
     try {
@@ -186,8 +199,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(freshUser);
       localStorage.setItem("auth_user", JSON.stringify(freshUser));
       await loadPermissionsForRole(freshUser.rol);
-    } catch {
-      logout();
+    } catch (error) {
+      if (sesionRechazada(error)) logout();
+      else throw error;
     }
   };
 

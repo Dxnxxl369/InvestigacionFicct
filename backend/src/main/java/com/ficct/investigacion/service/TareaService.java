@@ -1,9 +1,11 @@
 package com.ficct.investigacion.service;
 
 import com.ficct.investigacion.dto.*;
+import com.ficct.investigacion.exception.TareaConEntregasException;
 import com.ficct.investigacion.model.*;
 import com.ficct.investigacion.repository.*;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,9 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class TareaService {
+
+    @Value("${feature.documentos-colaborativos.enabled:false}")
+    private boolean documentosColaborativosHabilitados;
 
     public static final ZoneId ZONA_FICCT = ZoneId.of("America/La_Paz");
 
@@ -32,6 +37,9 @@ public class TareaService {
     private final EntregaPuntajeCriterioRepository puntajeCriterioRepository;
     private final NotificacionService notificacionService;
     private final ConvocatoriaService convocatoriaService;
+    private final FeriaPostulacionRepository feriaPostulacionRepository;
+    private final GrupoRepository grupoRepository;
+    private final JuradoAsignacionService juradoAsignacionService;
 
     public TareaService(TareaRepository tareaRepository,
                         EntregaTareaRepository entregaRepository,
@@ -45,7 +53,10 @@ public class TareaService {
                         EntregaVersionRepository entregaVersionRepository,
                         EntregaPuntajeCriterioRepository puntajeCriterioRepository,
                         @Lazy NotificacionService notificacionService,
-                        @Lazy ConvocatoriaService convocatoriaService) {
+                        @Lazy ConvocatoriaService convocatoriaService,
+                        FeriaPostulacionRepository feriaPostulacionRepository,
+                        GrupoRepository grupoRepository,
+                        JuradoAsignacionService juradoAsignacionService) {
         this.tareaRepository = tareaRepository;
         this.entregaRepository = entregaRepository;
         this.convocatoriaRepository = convocatoriaRepository;
@@ -59,6 +70,9 @@ public class TareaService {
         this.puntajeCriterioRepository = puntajeCriterioRepository;
         this.notificacionService = notificacionService;
         this.convocatoriaService = convocatoriaService;
+        this.feriaPostulacionRepository = feriaPostulacionRepository;
+        this.grupoRepository = grupoRepository;
+        this.juradoAsignacionService = juradoAsignacionService;
     }
 
     private boolean puedeDocenteGestionarTarea(Convocatoria convocatoria, User user) {
@@ -75,6 +89,25 @@ public class TareaService {
         return false;
     }
 
+    private void actualizarAdjuntos(Tarea tarea, List<AdjuntoTareaDTO> adjuntos) {
+        if (adjuntos.size() > 10) {
+            throw new IllegalArgumentException("La tarea admite como máximo 10 archivos adjuntos.");
+        }
+        List<AdjuntoTarea> validados = new ArrayList<>();
+        for (AdjuntoTareaDTO adjunto : adjuntos) {
+            if (adjunto == null || adjunto.nombre() == null || adjunto.nombre().isBlank() ||
+                    adjunto.nombre().length() > 255 || adjunto.ruta() == null ||
+                    !adjunto.ruta().matches("/api/uploads/[0-9a-fA-F]{8}_[A-Za-z0-9._-]+") ||
+                    adjunto.tamanoBytes() == null || adjunto.tamanoBytes() < 0 ||
+                    adjunto.tamanoBytes() > 50L * 1024 * 1024) {
+                throw new IllegalArgumentException("Los datos de uno de los archivos adjuntos no son válidos.");
+            }
+            validados.add(new AdjuntoTarea(adjunto.nombre().trim(), adjunto.ruta(), adjunto.tamanoBytes()));
+        }
+        tarea.getAdjuntos().clear();
+        tarea.getAdjuntos().addAll(validados);
+    }
+
     public TareaDTO crearTarea(Long convocatoriaId, TareaRequest request, String userEmail) {
         User user = getUserByEmail(userEmail);
         Convocatoria convocatoria = convocatoriaRepository.findById(convocatoriaId)
@@ -86,7 +119,7 @@ public class TareaService {
 
         LocalDateTime fechaHab = request.getFechaHabilitacion() != null ? request.getFechaHabilitacion() : LocalDateTime.now(ZONA_FICCT);
         LocalDateTime fechaEnt = request.getFechaEntrega() != null ? request.getFechaEntrega() : request.getFechaLimite();
-        LocalDateTime fechaCor = request.getFechaCorte() != null ? request.getFechaCorte() : fechaEnt;
+        LocalDateTime fechaCor = request.getFechaCorte();
 
         Tarea tarea = new Tarea(
                 convocatoria,
@@ -106,16 +139,10 @@ public class TareaService {
             moduloRepository.findById(request.getModuloId()).ifPresent(tarea::setModulo);
         }
         tarea.setEsGrupal(request.isEsGrupal());
-        if (request.getActividadGrupoId() != null && request.getActividadGrupoId() > 0) {
-            actividadGrupoRepository.findById(request.getActividadGrupoId()).ifPresent(tarea::setActividadGrupo);
-        } else {
-            tarea.setActividadGrupo(null);
-        }
-
-        if (Boolean.TRUE.equals(request.getDocumentoColaborativoHabilitado())) {
-            validarDocumentoColaborativoGrupal(tarea);
-            tarea.setDocumentoColaborativoHabilitado(true);
-            tarea.setDocumentoColaborativo(crearDocumentoColaborativoParaTarea(tarea, user));
+        tarea.setVisibleJurados(Boolean.TRUE.equals(request.getVisibleJurados()));
+        tarea.setActividadGrupo(null);
+        if (request.getAdjuntos() != null) {
+            actualizarAdjuntos(tarea, request.getAdjuntos());
         }
 
         Tarea saved = tareaRepository.save(tarea);
@@ -172,6 +199,9 @@ public class TareaService {
             throw new AccessDeniedException("Solo el docente a cargo del área o un Administrador puede modificar esta tarea.");
         }
 
+        boolean fechasPendientes = (tarea.isPlantillaFeria() || tarea.isPlantillaModulo()) &&
+                (tarea.getFechaHabilitacion() == null || tarea.getFechaEntrega() == null);
+
         if (request.getTitulo() != null && !request.getTitulo().isBlank()) {
             tarea.setTitulo(request.getTitulo());
         }
@@ -188,6 +218,18 @@ public class TareaService {
         }
         tarea.setFechaCorte(request.getFechaCorte());
         tarea.setHabilitada(request.isHabilitada());
+        if (tarea.isPlantillaFeria() || tarea.isPlantillaModulo()) {
+            if (tarea.getFechaHabilitacion() != null && tarea.getFechaEntrega() != null &&
+                    !tarea.getFechaEntrega().isAfter(tarea.getFechaHabilitacion())) {
+                throw new IllegalArgumentException("La fecha de entrega debe ser posterior a la fecha de inicio.");
+            }
+            if (fechasPendientes && tarea.getFechaHabilitacion() != null && tarea.getFechaEntrega() != null) {
+                tarea.setHabilitada(true);
+            }
+            if (tarea.getFechaHabilitacion() == null || tarea.getFechaEntrega() == null) {
+                tarea.setHabilitada(false);
+            }
+        }
         if (request.getTiposArchivosPermitidos() != null) {
             tarea.setTiposArchivosPermitidos(request.getTiposArchivosPermitidos());
         }
@@ -203,10 +245,12 @@ public class TareaService {
             tarea.setModulo(null);
         }
         tarea.setEsGrupal(request.isEsGrupal());
-        if (request.getActividadGrupoId() != null && request.getActividadGrupoId() > 0) {
-            actividadGrupoRepository.findById(request.getActividadGrupoId()).ifPresent(tarea::setActividadGrupo);
-        } else {
-            tarea.setActividadGrupo(null);
+        if (request.getVisibleJurados() != null) {
+            tarea.setVisibleJurados(request.getVisibleJurados());
+        }
+        tarea.setActividadGrupo(null);
+        if (request.getAdjuntos() != null) {
+            actualizarAdjuntos(tarea, request.getAdjuntos());
         }
         tarea.setUpdatedAt(LocalDateTime.now(ZONA_FICCT));
 
@@ -262,17 +306,24 @@ public class TareaService {
                 }
             }
         }
-        if (request.getDocumentoColaborativoHabilitado() != null) {
-            if (request.getDocumentoColaborativoHabilitado()) {
-                validarDocumentoColaborativoGrupal(tarea);
-            }
-            tarea.setDocumentoColaborativoHabilitado(request.getDocumentoColaborativoHabilitado());
-            if (request.getDocumentoColaborativoHabilitado() && tarea.getDocumentoColaborativo() == null) {
-                tarea.setDocumentoColaborativo(crearDocumentoColaborativoParaTarea(tarea, user));
-            }
-        }
 
         Tarea saved = tareaRepository.save(tarea);
+        if (fechasPendientes && saved.isPlantillaFeria() && saved.isVisibleParaEstudiantes()) {
+            for (FeriaPostulacion equipo : feriaPostulacionRepository
+                    .findByConvocatoriaIdOrderByIdAsc(saved.getConvocatoria().getId())) {
+                if (equipo.getEstadoInscripcion() != EstadoInscripcion.ACEPTADO) continue;
+                for (FeriaIntegrante integrante : equipo.getIntegrantes()) {
+                    userRepository.findByEmail(integrante.getCorreo()).ifPresent(miembro -> {
+                        try {
+                            notificacionService.crearNotificacion(miembro.getId(), Notificacion.NUEVA_TAREA,
+                                    "Nueva actividad — " + equipo.getCodigoEquipo(),
+                                    "Se habilitó '" + saved.getTitulo() + "' para el equipo " + equipo.getCodigoEquipo() + ".",
+                                    saved.getConvocatoria().getId(), saved.getId(), null);
+                        } catch (Exception ignored) { }
+                    });
+                }
+            }
+        }
         return toDTO(saved, user);
     }
 
@@ -283,6 +334,11 @@ public class TareaService {
 
         if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) {
             throw new AccessDeniedException("Solo un docente a cargo del área puede habilitar o deshabilitar la tarea.");
+        }
+
+        if ((tarea.isPlantillaFeria() || tarea.isPlantillaModulo()) && !tarea.isHabilitada() &&
+                (tarea.getFechaHabilitacion() == null || tarea.getFechaEntrega() == null)) {
+            throw new IllegalStateException("Define la fecha de inicio y la fecha de entrega antes de mostrar esta actividad.");
         }
 
         tarea.setHabilitada(!tarea.isHabilitada());
@@ -296,20 +352,68 @@ public class TareaService {
         Convocatoria convocatoria = convocatoriaRepository.findById(convocatoriaId)
                 .orElseThrow(() -> new IllegalArgumentException("Área no encontrada con ID: " + convocatoriaId));
 
+        if (user.getRol() == Rol.ESTUDIANTE && !participanteRepository
+                .existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
+                        convocatoriaId, user.getId(), Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO)) {
+            return List.of();
+        }
+
         List<Tarea> tareas = tareaRepository.findByConvocatoriaOrderByCreatedAtDesc(convocatoria);
-        return tareas.stream().map(t -> toDTO(t, user)).collect(Collectors.toList());
+        boolean gestor = puedeDocenteGestionarTarea(convocatoria, user);
+        List<FeriaPostulacion> equipos = equiposAceptados(convocatoriaId, user);
+        List<TareaDTO> resultado = new ArrayList<>();
+        for (Tarea tarea : tareas) {
+            if (!gestor && !tarea.isVisibleParaEstudiantes()) continue;
+            if (!gestor && tarea.isPlantillaFeria()) {
+                for (FeriaPostulacion equipo : equipos) resultado.add(toDTO(tarea, user, equipo));
+            } else {
+                resultado.add(toDTO(tarea, user));
+            }
+        }
+        return resultado;
     }
 
     @Transactional(readOnly = true)
-    public TareaDTO obtenerPorId(Long tareaId, String userEmail) {
+    public TareaDTO obtenerPorId(Long tareaId, String userEmail, Long feriaPostulacionId) {
         User user = getUserByEmail(userEmail);
         Tarea tarea = tareaRepository.findById(tareaId)
                 .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
+        if (user.getRol() == Rol.ESTUDIANTE && !participanteRepository
+                .existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
+                        tarea.getConvocatoria().getId(), user.getId(), Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO)) {
+            throw new AccessDeniedException("Debes estar admitido en esta convocatoria para ver sus actividades.");
+        }
+        if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user) && !tarea.isVisibleParaEstudiantes()) {
+            throw new AccessDeniedException("Esta actividad todavía no está disponible.");
+        }
+        if (tarea.isPlantillaFeria() && user.getRol() == Rol.ESTUDIANTE) {
+            FeriaPostulacion equipo = equipoAceptado(tarea, user, feriaPostulacionId);
+            return toDTO(tarea, user, equipo);
+        }
         return toDTO(tarea, user);
+    }
+
+    private List<FeriaPostulacion> equiposAceptados(Long convocatoriaId, User user) {
+        return feriaPostulacionRepository.findByCorreoIntegrante(user.getEmail()).stream()
+                .filter(p -> p.getConvocatoria().getId().equals(convocatoriaId)
+                        && p.getEstadoInscripcion() == EstadoInscripcion.ACEPTADO)
+                .sorted(Comparator.comparing(FeriaPostulacion::getId)).toList();
+    }
+
+    private FeriaPostulacion equipoAceptado(Tarea tarea, User user, Long equipoId) {
+        if (equipoId == null) {
+            throw new IllegalArgumentException("Selecciona el equipo de Feria para esta actividad.");
+        }
+        return equiposAceptados(tarea.getConvocatoria().getId(), user).stream()
+                .filter(p -> p.getId().equals(equipoId)).findFirst()
+                .orElseThrow(() -> new AccessDeniedException("No perteneces a este equipo admitido de Feria."));
     }
 
     public EntregaTareaDTO entregarTarea(Long tareaId, EntregaRequest request, String userEmail) {
         User estudiante = getUserByEmail(userEmail);
+        if (estudiante.getRol() != Rol.ESTUDIANTE) {
+            throw new AccessDeniedException("Solo los estudiantes pueden entregar tareas.");
+        }
         Tarea tarea = tareaRepository.findById(tareaId)
                 .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
 
@@ -325,6 +429,9 @@ public class TareaService {
         // 1. Control manual de habilitación
         if (!tarea.isHabilitada()) {
             throw new IllegalStateException("La recepción de entregas para esta tarea ha sido deshabilitada por el docente.");
+        }
+        if (!tarea.isVisibleParaEstudiantes()) {
+            throw new IllegalStateException("La actividad aún no tiene sus fechas definidas.");
         }
 
         // 2. Control de triple fecha (Moodle)
@@ -343,8 +450,12 @@ public class TareaService {
         }
 
         Documento doc = null;
-        if (request.getDocumentoId() != null) {
+        if (documentosColaborativosHabilitados && request.getDocumentoId() != null) {
             doc = documentoRepository.findById(request.getDocumentoId()).orElse(null);
+        }
+
+        if (tarea.isPlantillaFeria()) {
+            return entregarFeria(tarea, estudiante, request, ahora, tardeEntrega(tarea, ahora));
         }
 
         Grupo grupoEstudiante = null;
@@ -353,49 +464,20 @@ public class TareaService {
 
         if (partOpt.isPresent()) {
             ConvocatoriaParticipante part = partOpt.get();
-            if (request.getGrupoId() != null) {
-                if (part.getGrupos() != null) {
-                    grupoEstudiante = part.getGrupos().stream()
-                            .filter(g -> g.getId() != null && g.getId().equals(request.getGrupoId()))
-                            .findFirst().orElse(null);
-                }
-                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getId() != null && part.getGrupo().getId().equals(request.getGrupoId())) {
-                    grupoEstudiante = part.getGrupo();
-                }
-                if (grupoEstudiante == null) {
-                    throw new AccessDeniedException("No perteneces al grupo seleccionado para esta entrega.");
-                }
-            }
 
-            // 1. Si la tarea está vinculada a un agrupamiento / actividad de grupo específico
-            if (grupoEstudiante == null && tarea.getActividadGrupo() != null) {
-                Long targetActividadId = tarea.getActividadGrupo().getId();
-                if (part.getGrupos() != null) {
-                    grupoEstudiante = part.getGrupos().stream()
-                            .filter(g -> g.getActividadGrupo() != null && targetActividadId.equals(g.getActividadGrupo().getId()))
-                            .findFirst().orElse(null);
-                }
-                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getActividadGrupo() != null && targetActividadId.equals(part.getGrupo().getActividadGrupo().getId())) {
-                    grupoEstudiante = part.getGrupo();
-                }
-                if (grupoEstudiante == null && tarea.isEsGrupal()) {
-                    throw new IllegalStateException("Esta tarea es grupal para la actividad '" + tarea.getActividadGrupo().getTitulo() + "'. Aún no perteneces a ningún grupo en esta categoría.");
-                }
-            }
-
-            // 2. Si no se especificó o no se encontró por actividad, buscar por grupoId explícito enviado
+            // Si el alumno pertenece a varios equipos, usar el que eligió para esta entrega.
             if (grupoEstudiante == null && request.getGrupoId() != null) {
                 if (part.getGrupos() != null) {
                     grupoEstudiante = part.getGrupos().stream()
-                            .filter(g -> g.getId() != null && g.getId().equals(request.getGrupoId()))
+                            .filter(g -> g.getId().equals(request.getGrupoId()))
                             .findFirst().orElse(null);
                 }
-                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getId() != null && part.getGrupo().getId().equals(request.getGrupoId())) {
+                if (grupoEstudiante == null && part.getGrupo() != null && part.getGrupo().getId().equals(request.getGrupoId())) {
                     grupoEstudiante = part.getGrupo();
                 }
             }
 
-            // 3. Fallback a grupos generales del área
+            // Si no indicó equipo, usar su grupo del aula.
             if (grupoEstudiante == null) {
                 if (part.getGrupos() != null && !part.getGrupos().isEmpty()) {
                     grupoEstudiante = part.getGrupos().stream()
@@ -432,6 +514,13 @@ public class TareaService {
                     if (request.getArchivoUrl() != null) entrega.setArchivoUrl(request.getArchivoUrl());
                     entrega.setComentarioEstudiante(request.getComentarioEstudiante());
                     entrega.setFechaEntrega(ahora);
+                    if (entrega.getEstado() == EstadoEntrega.CALIFICADO) {
+                        entrega.setCalificacion(null);
+                        entrega.setRetroalimentacion(null);
+                        entrega.setFechaCalificacion(null);
+                        entrega.setCalificadoPor(null);
+                        puntajeCriterioRepository.deleteByEntrega(entrega);
+                    }
                     entrega.setEstado(EstadoEntrega.ENTREGADO);
                     entrega.setEntregadoPor(estudiante);
                     entrega.setGrupo(grupoEstudiante);
@@ -473,7 +562,7 @@ public class TareaService {
             }
 
             // Notificar a los docentes encargados
-            notificarEntregaADocentes(tarea, estudiante, retorno != null ? retorno.getId() : null);
+            notificarEntregaADocentes(tarea, estudiante, retorno != null ? retorno.getId() : null, null);
 
             return toEntregaDTO(retorno != null ? retorno : entregaRepository.findByTareaAndEstudiante(tarea, estudiante).orElseThrow(), estudiante);
         }
@@ -488,6 +577,13 @@ public class TareaService {
             if (request.getArchivoUrl() != null) entrega.setArchivoUrl(request.getArchivoUrl());
             entrega.setComentarioEstudiante(request.getComentarioEstudiante());
             entrega.setFechaEntrega(ahora);
+            if (entrega.getEstado() == EstadoEntrega.CALIFICADO) {
+                entrega.setCalificacion(null);
+                entrega.setRetroalimentacion(null);
+                entrega.setFechaCalificacion(null);
+                entrega.setCalificadoPor(null);
+                puntajeCriterioRepository.deleteByEntrega(entrega);
+            }
             entrega.setEstado(EstadoEntrega.ENTREGADO);
             entrega.setEntregadoPor(estudiante);
             entrega.setConRetraso(tarde);
@@ -529,12 +625,46 @@ public class TareaService {
         entregaVersionRepository.save(version);
 
         // Notificar a los docentes
-        notificarEntregaADocentes(tarea, estudiante, saved.getId());
+        notificarEntregaADocentes(tarea, estudiante, saved.getId(), null);
 
         return toEntregaDTO(saved, estudiante);
     }
 
-    private void notificarEntregaADocentes(Tarea tarea, User estudiante, Long entregaId) {
+    private boolean tardeEntrega(Tarea tarea, LocalDateTime ahora) {
+        return tarea.getFechaEntrega() != null && ahora.isAfter(tarea.getFechaEntrega());
+    }
+
+    private EntregaTareaDTO entregarFeria(Tarea tarea, User estudiante, EntregaRequest request,
+                                          LocalDateTime ahora, boolean tarde) {
+        FeriaPostulacion equipo = equipoAceptado(tarea, estudiante, request.getFeriaPostulacionId());
+        EntregaTarea entrega = entregaRepository.findByTareaAndFeriaPostulacion(tarea, equipo)
+                .orElseGet(() -> new EntregaTarea(tarea, estudiante, null,
+                        request.getNombreArchivo(), request.getArchivoUrl(), request.getComentarioEstudiante()));
+        if (request.getNombreArchivo() != null) entrega.setNombreArchivo(request.getNombreArchivo());
+        if (request.getArchivoUrl() != null) entrega.setArchivoUrl(request.getArchivoUrl());
+        entrega.setComentarioEstudiante(request.getComentarioEstudiante());
+        entrega.setFechaEntrega(ahora);
+        entrega.setEntregadoPor(estudiante);
+        entrega.setFeriaPostulacion(equipo);
+        entrega.setNombreEquipo(equipo.getCodigoEquipo());
+        entrega.setConRetraso(tarde);
+        if (entrega.getEstado() == EstadoEntrega.CALIFICADO) {
+            entrega.setCalificacion(null);
+            entrega.setRetroalimentacion(null);
+            entrega.setFechaCalificacion(null);
+            entrega.setCalificadoPor(null);
+            puntajeCriterioRepository.deleteByEntrega(entrega);
+        }
+        entrega.setEstado(EstadoEntrega.ENTREGADO);
+        EntregaTarea guardada = entregaRepository.save(entrega);
+        long intentos = entregaVersionRepository.countByEntrega(guardada);
+        entregaVersionRepository.save(new EntregaVersion(guardada, (int) intentos + 1,
+                request.getNombreArchivo(), request.getArchivoUrl(), request.getComentarioEstudiante(), ahora, tarde));
+        notificarEntregaADocentes(tarea, estudiante, guardada.getId(), equipo.getCodigoEquipo());
+        return toEntregaDTO(guardada, estudiante);
+    }
+
+    private void notificarEntregaADocentes(Tarea tarea, User estudiante, Long entregaId, String codigoEquipo) {
         try {
             List<ConvocatoriaParticipante> docentes = participanteRepository
                     .findByConvocatoriaIdAndRolAndEstadoInscripcion(
@@ -544,7 +674,8 @@ public class TareaService {
                         docPart.getUsuario().getId(),
                         Notificacion.NUEVA_ENTREGA,
                         "Nueva entrega recibida",
-                        estudiante.getNombreCompleto() + " realizó una entrega en '" + tarea.getTitulo() + "'.",
+                        estudiante.getNombreCompleto() + " realizó una entrega en '" + tarea.getTitulo() +
+                                (codigoEquipo != null ? " — " + codigoEquipo : "") + "'.",
                         tarea.getConvocatoria().getId(),
                         tarea.getId(),
                         entregaId
@@ -561,11 +692,14 @@ public class TareaService {
         Tarea tarea = tareaRepository.findById(tareaId)
                 .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
 
-        if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user) && user.getRol() != Rol.JURADO) {
+        boolean gestor = puedeDocenteGestionarTarea(tarea.getConvocatoria(), user);
+        if (!gestor && user.getRol() != Rol.JURADO) {
             throw new AccessDeniedException("Solo el docente a cargo o el jurado puede ver las entregas de esta tarea.");
         }
 
         List<EntregaTarea> entregas = entregaRepository.findByTareaOrderByFechaEntregaDesc(tarea);
+        if (!gestor) entregas = entregas.stream()
+                .filter(e -> juradoAsignacionService.puedeRevisar(user, e)).toList();
         return entregas.stream().map(e -> toEntregaDTO(e, user)).collect(Collectors.toList());
     }
 
@@ -582,6 +716,9 @@ public class TareaService {
 
         if (!esAdmin && !esDocente && !esJurado) {
             throw new AccessDeniedException("Solo los docentes o jurados asignados a esta área pueden calificar entregas.");
+        }
+        if (!esAdmin && !esDocente && !juradoAsignacionService.puedeRevisar(evaluador, entrega)) {
+            throw new AccessDeniedException("Esta entrega no pertenece a los proyectos asignados al jurado.");
         }
 
         List<RubricaCriterio> rubrica = rubricaCriterioRepository.findByTareaOrderByOrdenAsc(tarea);
@@ -630,9 +767,11 @@ public class TareaService {
 
         EntregaTarea saved = entregaRepository.save(entrega);
 
-        // Si la tarea es grupal y tiene grupo asociado, propagar la calificación a los compañeros del equipo
+        // Si la tarea es grupal y tiene grupo asociado, propagar la calificación y rúbrica a los compañeros del equipo
         if (entrega.getTarea().isEsGrupal() && entrega.getGrupo() != null) {
             List<EntregaTarea> entregasGrupo = entregaRepository.findByTareaAndGrupo(entrega.getTarea(), entrega.getGrupo());
+            List<EntregaPuntajeCriterio> puntajesSaved = puntajeCriterioRepository.findByEntrega(saved);
+
             for (EntregaTarea eComp : entregasGrupo) {
                 if (!eComp.getId().equals(saved.getId())) {
                     eComp.setCalificacion(saved.getCalificacion());
@@ -640,9 +779,49 @@ public class TareaService {
                     eComp.setFechaCalificacion(LocalDateTime.now(ZONA_FICCT));
                     eComp.setCalificadoPor(evaluador);
                     eComp.setEstado(EstadoEntrega.CALIFICADO);
-                    entregaRepository.save(eComp);
+                    EntregaTarea compGuardada = entregaRepository.save(eComp);
+
+                    // Replicar desglose de criterios pedagógicos
+                    if (puntajesSaved != null && !puntajesSaved.isEmpty()) {
+                        puntajeCriterioRepository.deleteByEntrega(compGuardada);
+                        for (EntregaPuntajeCriterio epc : puntajesSaved) {
+                            puntajeCriterioRepository.save(new EntregaPuntajeCriterio(compGuardada, epc.getCriterio(), epc.getPuntaje()));
+                        }
+                    }
+
+                    // Notificar a cada compañero de equipo
+                    try {
+                        notificacionService.crearNotificacion(
+                                compGuardada.getEstudiante().getId(),
+                                Notificacion.ENTREGA_CALIFICADA,
+                                "Tu entrega grupal fue calificada",
+                                "La entrega del equipo '" + (compGuardada.getNombreEquipo() != null ? compGuardada.getNombreEquipo() : "Grupal") + "' en '" + tarea.getTitulo() + "' recibió " + saved.getCalificacion() + " pts.",
+                                conv.getId(),
+                                tarea.getId(),
+                                compGuardada.getId()
+                        );
+                    } catch (Exception e) {
+                        // Silencioso
+                    }
                 }
             }
+        }
+
+        if (entrega.getFeriaPostulacion() != null) {
+            FeriaPostulacion equipo = entrega.getFeriaPostulacion();
+            for (FeriaIntegrante integrante : equipo.getIntegrantes()) {
+                userRepository.findByEmail(integrante.getCorreo()).ifPresent(miembro -> {
+                    try {
+                        notificacionService.crearNotificacion(miembro.getId(),
+                                Notificacion.ENTREGA_CALIFICADA,
+                                "Entrega calificada — " + equipo.getCodigoEquipo(),
+                                "La entrega '" + tarea.getTitulo() + "' del equipo " + equipo.getCodigoEquipo() +
+                                        " recibió " + saved.getCalificacion() + " pts.",
+                                conv.getId(), tarea.getId(), saved.getId());
+                    } catch (Exception ignored) { }
+                });
+            }
+            return toEntregaDTO(saved, evaluador);
         }
 
         // Notificar al estudiante que su entrega fue calificada
@@ -667,14 +846,80 @@ public class TareaService {
     // SEGUIMIENTO DE SPEEDGRADER
     // ==========================================
     @Transactional(readOnly = true)
+    public List<MejorasDTOs.PendienteTarea> getPendientes(Long tareaId, String userEmail) {
+        User usuario = getUserByEmail(userEmail);
+        Tarea tarea = tareaRepository.findById(tareaId)
+                .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada"));
+        Convocatoria convocatoria = tarea.getConvocatoria();
+        if (!puedeDocenteGestionarTarea(convocatoria, usuario)) {
+            throw new AccessDeniedException("Solo el docente a cargo o el administrador puede consultar pendientes.");
+        }
+
+        List<EntregaTarea> entregas = entregaRepository.findByTareaOrderByFechaEntregaDesc(tarea);
+        List<MejorasDTOs.PendienteTarea> pendientes = new ArrayList<>();
+
+        if (tarea.isEsGrupal() && tarea.isPlantillaFeria()) {
+            Set<Long> equiposEntregados = entregas.stream()
+                    .filter(e -> e.getFeriaPostulacion() != null)
+                    .map(e -> e.getFeriaPostulacion().getId())
+                    .collect(Collectors.toSet());
+            for (FeriaPostulacion equipo : feriaPostulacionRepository.findByConvocatoriaIdOrderByIdAsc(convocatoria.getId())) {
+                if (equipo.getEstadoInscripcion() != EstadoInscripcion.ACEPTADO || equiposEntregados.contains(equipo.getId())) continue;
+                FeriaIntegrante jefe = equipo.getIntegrantes().stream()
+                        .filter(i -> i.getCorreo().equalsIgnoreCase(equipo.getParticipante().getUsuario().getEmail()))
+                        .findFirst().orElse(null);
+                pendientes.add(new MejorasDTOs.PendienteTarea("GRUPO", equipo.getId(), equipo.getCodigoEquipo(),
+                        equipo.getTema(), jefe != null ? jefe.getNombre() : equipo.getParticipante().getUsuario().getNombreCompleto(),
+                        jefe != null ? jefe.getCelular() : equipo.getParticipante().getUsuario().getCelular()));
+            }
+        } else if (tarea.isEsGrupal()) {
+            Set<Long> gruposEntregados = entregas.stream()
+                    .filter(e -> e.getGrupo() != null)
+                    .map(e -> e.getGrupo().getId())
+                    .collect(Collectors.toSet());
+            Set<String> nombresEntregados = entregas.stream()
+                    .map(EntregaTarea::getNombreEquipo)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            for (Grupo grupo : grupoRepository.findByConvocatoriaIdOrderByNombreAsc(convocatoria.getId())) {
+                List<ConvocatoriaParticipante> miembros = participanteRepository.findMiembrosPorGrupoId(grupo.getId());
+                if (miembros.isEmpty()) miembros = participanteRepository.findByGrupoId(grupo.getId());
+                miembros = miembros.stream()
+                        .filter(p -> p.getRol() == Rol.ESTUDIANTE && p.getEstadoInscripcion() == EstadoInscripcion.ACEPTADO)
+                        .sorted(Comparator.comparing(ConvocatoriaParticipante::getId)).toList();
+                if (miembros.isEmpty() || gruposEntregados.contains(grupo.getId()) || nombresEntregados.contains(grupo.getNombre())) continue;
+                User responsable = miembros.stream()
+                        .map(ConvocatoriaParticipante::getUsuario)
+                        .filter(u -> grupo.getCreadoPor() != null && u.getId().equals(grupo.getCreadoPor().getId()))
+                        .findFirst().orElse(miembros.get(0).getUsuario());
+                pendientes.add(new MejorasDTOs.PendienteTarea("GRUPO", grupo.getId(), grupo.getNombre(),
+                        grupo.getDescripcion(), responsable.getNombreCompleto(), responsable.getCelular()));
+            }
+        } else {
+            Set<Long> estudiantesEntregados = entregas.stream()
+                    .map(e -> e.getEstudiante().getId())
+                    .collect(Collectors.toSet());
+            for (ConvocatoriaParticipante participante : participanteRepository.findByConvocatoriaIdAndRolAndEstadoInscripcion(
+                    convocatoria.getId(), Rol.ESTUDIANTE, EstadoInscripcion.ACEPTADO)) {
+                User estudiante = participante.getUsuario();
+                if (estudiantesEntregados.contains(estudiante.getId())) continue;
+                pendientes.add(new MejorasDTOs.PendienteTarea("PERSONA", estudiante.getId(), null, null,
+                        estudiante.getNombreCompleto(), estudiante.getCelular()));
+            }
+            pendientes.sort(Comparator.comparing(MejorasDTOs.PendienteTarea::destinatario, String.CASE_INSENSITIVE_ORDER));
+        }
+        return pendientes;
+    }
+
+    @Transactional(readOnly = true)
     public MejorasDTOs.SeguimientoTarea getSeguimiento(Long tareaId, String userEmail) {
         User user = getUserByEmail(userEmail);
         Tarea tarea = tareaRepository.findById(tareaId)
                 .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
 
         Convocatoria conv = tarea.getConvocatoria();
-        if (!puedeDocenteGestionarTarea(conv, user) && user.getRol() != Rol.JURADO) {
-            throw new AccessDeniedException("Solo docentes o jurados asignados a esta área pueden consultar el seguimiento.");
+        if (!puedeDocenteGestionarTarea(conv, user)) {
+            throw new AccessDeniedException("Solo docentes o administradores de esta área pueden consultar el seguimiento.");
         }
 
         List<ConvocatoriaParticipante> participantes = participanteRepository
@@ -764,6 +1009,9 @@ public class TareaService {
     @Transactional(readOnly = true)
     public List<TareaDTO> getMisTareas(String userEmail) {
         User user = getUserByEmail(userEmail);
+        if (user.getRol() != Rol.ESTUDIANTE) {
+            throw new AccessDeniedException("Solo los estudiantes tienen tareas pendientes.");
+        }
         List<ConvocatoriaParticipante> misAreas = participanteRepository
                 .findByUsuarioIdAndEstadoInscripcion(user.getId(), EstadoInscripcion.ACEPTADO);
 
@@ -771,8 +1019,14 @@ public class TareaService {
         for (ConvocatoriaParticipante part : misAreas) {
             Long convId = part.getConvocatoria().getId();
             List<Tarea> tareas = tareaRepository.findByConvocatoriaIdAndHabilitadaTrueOrderByFechaEntregaAsc(convId);
+            List<FeriaPostulacion> equipos = equiposAceptados(convId, user);
             for (Tarea t : tareas) {
-                resultado.add(toDTO(t, user));
+                if (!t.isVisibleParaEstudiantes()) continue;
+                if (t.isPlantillaFeria()) {
+                    for (FeriaPostulacion equipo : equipos) resultado.add(toDTO(t, user, equipo));
+                } else {
+                    resultado.add(toDTO(t, user));
+                }
             }
         }
 
@@ -796,8 +1050,8 @@ public class TareaService {
 
         boolean esPropia = entrega.getEstudiante().getId().equals(user.getId());
         boolean esAdmin = user.getRol() == Rol.ADMIN;
-        boolean esDocenteOJurado = participanteRepository.existsByConvocatoriaIdAndUsuarioId(
-                entrega.getTarea().getConvocatoria().getId(), user.getId());
+        boolean esDocenteOJurado = puedeDocenteGestionarTarea(entrega.getTarea().getConvocatoria(), user)
+                || (user.getRol() == Rol.JURADO && juradoAsignacionService.puedeRevisar(user, entrega));
 
         if (!esPropia && !esAdmin && !esDocenteOJurado) {
             throw new AccessDeniedException("No tienes permiso para ver el historial de esta entrega.");
@@ -824,7 +1078,7 @@ public class TareaService {
         Tarea tarea = tareaRepository.findById(tareaId)
                 .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
 
-        if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user) && user.getRol() != Rol.JURADO) {
+        if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) {
             throw new AccessDeniedException("No tienes permiso para exportar calificaciones de esta tarea.");
         }
 
@@ -868,7 +1122,7 @@ public class TareaService {
         Convocatoria conv = convocatoriaRepository.findById(convocatoriaId)
                 .orElseThrow(() -> new IllegalArgumentException("Convocatoria no encontrada con ID: " + convocatoriaId));
 
-        if (!puedeDocenteGestionarTarea(conv, user) && user.getRol() != Rol.JURADO) {
+        if (!puedeDocenteGestionarTarea(conv, user)) {
             throw new AccessDeniedException("No tienes permiso para exportar el libro de calificaciones de esta área.");
         }
 
@@ -955,84 +1209,6 @@ public class TareaService {
         return new MejorasDTOs.ResultadoLote(procesados, errores);
     }
 
-    public DocumentoDTO obtenerDocumentoColaborativo(Long tareaId, String userEmail) {
-        User user = getUserByEmail(userEmail);
-        Tarea tarea = tareaRepository.findById(tareaId)
-                .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
-
-        if (!tarea.isDocumentoColaborativoHabilitado()) {
-            throw new IllegalStateException("Esta actividad no tiene documento colaborativo habilitado.");
-        }
-
-        String permiso = resolverPermisoDocumentoColaborativo(tarea, user);
-        if (permiso == null) {
-            throw new AccessDeniedException("No tienes acceso al documento colaborativo de esta actividad.");
-        }
-
-        if (tarea.getDocumentoColaborativo() == null) {
-            if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) {
-                throw new AccessDeniedException("El documento colaborativo aun no fue inicializado por el docente.");
-            }
-            tarea.setDocumentoColaborativo(crearDocumentoColaborativoParaTarea(tarea, user));
-            tareaRepository.save(tarea);
-        }
-
-        return toDocumentoDTO(tarea.getDocumentoColaborativo(), tarea, user);
-    }
-
-    private Documento crearDocumentoColaborativoParaTarea(Tarea tarea, User autor) {
-        String contenidoInicial = "<h1>" + escapeHtml(tarea.getTitulo()) + "</h1>"
-                + "<p>Escribe aqui el desarrollo colaborativo de la actividad.</p>"
-                + "<h2>Objetivos</h2><ol><li>Objetivo principal</li></ol>"
-                + "<h2>Desarrollo</h2><p></p>"
-                + "<h2>Conclusiones</h2><p></p>";
-        Documento doc = new Documento(
-                "Documento colaborativo - " + tarea.getTitulo(),
-                "Documento colaborativo asociado a la actividad: " + tarea.getTitulo(),
-                "ACTIVIDAD",
-                contenidoInicial,
-                autor,
-                tarea.getConvocatoria()
-        );
-        return documentoRepository.save(doc);
-    }
-
-    private void validarDocumentoColaborativoGrupal(Tarea tarea) {
-        if (!tarea.isEsGrupal() || tarea.getActividadGrupo() == null) {
-            throw new IllegalArgumentException("El documento colaborativo debe estar vinculado a una tarea grupal con actividad de grupos.");
-        }
-    }
-
-    private String resolverPermisoDocumentoColaborativo(Tarea tarea, User user) {
-        if (user.getRol() == Rol.ADMIN) return "OWNER";
-        if (puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) return "LECTURA";
-        return estudiantePerteneceAGrupoDeTarea(tarea, user) ? "EDICION" : null;
-    }
-
-    private boolean estudiantePerteneceAGrupoDeTarea(Tarea tarea, User user) {
-        if (user.getRol() != Rol.ESTUDIANTE || !tarea.isEsGrupal() || tarea.getActividadGrupo() == null) {
-            return false;
-        }
-        Optional<ConvocatoriaParticipante> partOpt = participanteRepository
-                .findByConvocatoriaIdAndUsuarioId(tarea.getConvocatoria().getId(), user.getId());
-        if (partOpt.isEmpty()) {
-            return false;
-        }
-        ConvocatoriaParticipante part = partOpt.get();
-        if (part.getRol() != Rol.ESTUDIANTE || part.getEstadoInscripcion() != EstadoInscripcion.ACEPTADO) {
-            return false;
-        }
-        Long targetActividadId = tarea.getActividadGrupo().getId();
-        boolean enGrupoDeActividad = part.getGrupos() != null && part.getGrupos().stream()
-                .anyMatch(g -> g.getActividadGrupo() != null && targetActividadId.equals(g.getActividadGrupo().getId()));
-        if (enGrupoDeActividad) {
-            return true;
-        }
-        return part.getGrupo() != null
-                && part.getGrupo().getActividadGrupo() != null
-                && targetActividadId.equals(part.getGrupo().getActividadGrupo().getId());
-    }
-
     private void validarExtensionArchivo(String nombreArchivo, String permitidos) {
         if (permitidos == null || permitidos.isBlank() || "*".equals(permitidos.trim())) {
             return;
@@ -1062,17 +1238,30 @@ public class TareaService {
     }
 
     private TareaDTO toDTO(Tarea tarea, User currentUser) {
+        return toDTO(tarea, currentUser, null);
+    }
+
+    private TareaDTO toDTO(Tarea tarea, User currentUser, FeriaPostulacion equipoFeria) {
         TareaDTO dto = new TareaDTO();
         dto.setId(tarea.getId());
         dto.setConvocatoriaId(tarea.getConvocatoria().getId());
         dto.setConvocatoriaTitulo(tarea.getConvocatoria().getTitulo());
         dto.setTitulo(tarea.getTitulo());
+        if (equipoFeria != null) {
+            dto.setFeriaPostulacionId(equipoFeria.getId());
+            dto.setCodigoEquipo(equipoFeria.getCodigoEquipo());
+            dto.setTitulo(tarea.getTitulo() + " — " + equipoFeria.getCodigoEquipo());
+        }
         dto.setDescripcion(tarea.getDescripcion());
+        dto.setAdjuntos(tarea.getAdjuntos().stream()
+                .map(a -> new AdjuntoTareaDTO(a.getNombre(), a.getRuta(), a.getTamanoBytes()))
+                .toList());
         dto.setFechaHabilitacion(tarea.getFechaHabilitacion());
         dto.setFechaEntrega(tarea.getFechaEntrega());
         dto.setFechaCorte(tarea.getFechaCorte());
         dto.setFechaLimite(tarea.getFechaLimite());
         dto.setHabilitada(tarea.isHabilitada());
+        dto.setVisibleJurados(tarea.isVisibleJurados());
         dto.setTiposArchivosPermitidos(tarea.getTiposArchivosPermitidos());
         dto.setTamanoMaximoMb(tarea.getTamanoMaximoMb());
         dto.setPuntajeMaximo(tarea.getPuntajeMaximo());
@@ -1083,11 +1272,6 @@ public class TareaService {
         if (tarea.getModulo() != null) {
             dto.setModuloId(tarea.getModulo().getId());
             dto.setModuloTitulo(tarea.getModulo().getTitulo());
-        }
-        dto.setDocumentoColaborativoHabilitado(tarea.isDocumentoColaborativoHabilitado());
-        if (tarea.getDocumentoColaborativo() != null) {
-            dto.setDocumentoColaborativoId(tarea.getDocumentoColaborativo().getId());
-            dto.setDocumentoColaborativoTitulo(tarea.getDocumentoColaborativo().getTitulo());
         }
         dto.setTotalEntregas(tarea.getEntregas().size());
         dto.setCreatedAt(tarea.getCreatedAt());
@@ -1107,7 +1291,7 @@ public class TareaService {
             dto.setEstadoMoodle("ABIERTA");
         }
 
-        dto.setEsGrupal(tarea.isEsGrupal());
+        dto.setEsGrupal(tarea.isEsGrupal() || tarea.isPlantillaFeria());
         if (tarea.getActividadGrupo() != null) {
             dto.setActividadGrupoId(tarea.getActividadGrupo().getId());
             dto.setActividadGrupoTitulo(tarea.getActividadGrupo().getTitulo());
@@ -1124,6 +1308,13 @@ public class TareaService {
         }
 
         if (currentUser.getRol() == Rol.ESTUDIANTE) {
+            if (equipoFeria != null) {
+                entregaRepository.findByTareaAndFeriaPostulacion(tarea, equipoFeria)
+                        .ifPresent(entrega -> dto.setMiEntrega(toEntregaDTO(entrega, currentUser)));
+                dto.setMiEstado(dto.getMiEntrega() == null ? "PENDIENTE" :
+                        dto.getMiEntrega().getEstado() == EstadoEntrega.CALIFICADO ? "CALIFICADO" : "ENTREGADO");
+                return dto;
+            }
             Optional<EntregaTarea> miEntOpt = entregaRepository.findByTareaAndEstudiante(tarea, currentUser);
             if (miEntOpt.isPresent()) {
                 dto.setMiEntrega(toEntregaDTO(miEntOpt.get(), currentUser));
@@ -1134,15 +1325,7 @@ public class TareaService {
                 if (partOpt.isPresent()) {
                     ConvocatoriaParticipante part = partOpt.get();
                     Grupo miGrupo = null;
-                    if (tarea.getActividadGrupo() != null && part.getGrupos() != null) {
-                        Long targetActId = tarea.getActividadGrupo().getId();
-                        miGrupo = part.getGrupos().stream()
-                                .filter(g -> g.getActividadGrupo() != null && targetActId.equals(g.getActividadGrupo().getId()))
-                                .findFirst().orElse(null);
-                    }
-                    if (miGrupo == null) {
-                        miGrupo = (part.getGrupos() != null && !part.getGrupos().isEmpty()) ? part.getGrupos().get(0) : part.getGrupo();
-                    }
+                    miGrupo = (part.getGrupos() != null && !part.getGrupos().isEmpty()) ? part.getGrupos().get(0) : part.getGrupo();
                     if (miGrupo != null) {
                         Optional<EntregaTarea> entregaGrupo = entregaRepository.findFirstByTareaAndGrupo(tarea, miGrupo);
                         entregaGrupo.ifPresent(e -> dto.setMiEntrega(toEntregaDTO(e, currentUser)));
@@ -1201,7 +1384,8 @@ public class TareaService {
             dto.setCalificadoPorNombre(entrega.getCalificadoPor().getNombreCompleto());
         }
 
-        dto.setEsGrupal(entrega.getTarea() != null && entrega.getTarea().isEsGrupal());
+        dto.setEsGrupal(entrega.getFeriaPostulacion() != null ||
+                (entrega.getTarea() != null && entrega.getTarea().isEsGrupal()));
 
         // Identificar quién envió físicamente la tarea
         if (entrega.getEntregadoPor() != null) {
@@ -1221,7 +1405,12 @@ public class TareaService {
         }
 
         // Información de Grupo y compañeros
-        if (entrega.getGrupo() != null) {
+        if (entrega.getFeriaPostulacion() != null) {
+            FeriaPostulacion equipo = entrega.getFeriaPostulacion();
+            dto.setGrupoNombre(equipo.getCodigoEquipo());
+            dto.setCompanerosEquipo(equipo.getIntegrantes().stream()
+                    .map(FeriaIntegrante::getNombre).toList());
+        } else if (entrega.getGrupo() != null) {
             dto.setGrupoId(entrega.getGrupo().getId());
             dto.setGrupoNombre(entrega.getGrupo().getNombre());
             List<ConvocatoriaParticipante> miembros = participanteRepository.findMiembrosPorGrupoId(entrega.getGrupo().getId());
@@ -1255,38 +1444,45 @@ public class TareaService {
         return dto;
     }
 
+    @Transactional
+    public void eliminarTarea(Long tareaId, boolean forzar, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        Tarea tarea = tareaRepository.findById(tareaId)
+                .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
+
+        if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) {
+            throw new AccessDeniedException("Solo un Docente asignado a esta área o un Administrador puede eliminar tareas.");
+        }
+
+        int totalEntregas = tarea.getEntregas() != null ? tarea.getEntregas().size() : 0;
+        if (totalEntregas > 0 && !forzar) {
+            throw new TareaConEntregasException(
+                    "La tarea cuenta con " + totalEntregas + " entrega(s) registrada(s). Requiere confirmación para eliminarla definitivamente.",
+                    totalEntregas
+            );
+        }
+
+        // Limpiar entregas y sus versiones/criterios
+        if (tarea.getEntregas() != null && !tarea.getEntregas().isEmpty()) {
+            for (EntregaTarea entrega : tarea.getEntregas()) {
+                puntajeCriterioRepository.deleteByEntrega(entrega);
+                entregaVersionRepository.deleteByEntrega(entrega);
+            }
+            entregaRepository.deleteAll(tarea.getEntregas());
+            tarea.getEntregas().clear();
+        }
+
+        // Limpiar rúbrica
+        if (tarea.getRubrica() != null && !tarea.getRubrica().isEmpty()) {
+            rubricaCriterioRepository.deleteByTarea(tarea);
+            tarea.getRubrica().clear();
+        }
+
+        tareaRepository.delete(tarea);
+    }
+
     private User getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no autenticado"));
-    }
-
-    private DocumentoDTO toDocumentoDTO(Documento doc, Tarea tarea, User currentUser) {
-        DocumentoDTO dto = new DocumentoDTO();
-        dto.setId(doc.getId());
-        dto.setTitulo(doc.getTitulo());
-        dto.setDescripcion(doc.getDescripcion());
-        dto.setCategoria(doc.getCategoria());
-        dto.setContenido(doc.getContenido());
-        dto.setEstado(doc.getEstado());
-        dto.setAutorId(doc.getAutor().getId());
-        dto.setAutorNombre(doc.getAutor().getNombreCompleto());
-        dto.setAutorEmail(doc.getAutor().getEmail());
-        dto.setConvocatoriaId(tarea.getConvocatoria().getId());
-        dto.setConvocatoriaTitulo(tarea.getConvocatoria().getTitulo());
-        dto.setTareaId(tarea.getId());
-        dto.setTareaTitulo(tarea.getTitulo());
-        dto.setMiPermiso(resolverPermisoDocumentoColaborativo(tarea, currentUser));
-        dto.setCreatedAt(doc.getCreatedAt());
-        dto.setUpdatedAt(doc.getUpdatedAt());
-        return dto;
-    }
-
-    private String escapeHtml(String value) {
-        if (value == null) return "";
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;");
     }
 }

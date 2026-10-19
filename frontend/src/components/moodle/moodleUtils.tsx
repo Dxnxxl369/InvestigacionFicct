@@ -68,7 +68,7 @@ export function formatMoodleDate(dateStr?: string | null): string {
 }
 
 export function formatMoodleDateShort(dateStr?: string | null): string {
-  if (!dateStr) return "-";
+  if (!dateStr) return "Por definir";
   try {
     const d = parseIsoDateWithoutShift(dateStr);
     if (isNaN(d.getTime())) return dateStr;

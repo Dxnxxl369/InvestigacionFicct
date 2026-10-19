@@ -46,15 +46,14 @@ interface TabTareasProps {
   onSelectTarea: (t: TareaDTO) => void;
   onAbrirCrearTarea: (moduloId?: number) => void;
   onAbrirEditarTarea: (t: TareaDTO) => void;
-  onAbrirDocumentoColaborativo: (t: TareaDTO) => void;
-  abriendoDocumentoColaborativo: number | null;
+  onEliminarTarea: (t: TareaDTO) => void;
   onAbrirCrearModulo: () => void;
   onAbrirEditarModulo: (m: ModuloDTO) => void;
   onEliminarModulo: (modId: number) => void;
   onDeclinarSolicitudPropia: () => void;
   onAbrirInscripcionModal: () => void;
   onSeleccionarActividadGrupo: (act: ActividadGrupoDTO) => void;
-  updateUrlParams: (params: { tab?: string; modulo?: number | null; tarea?: number | null }) => void;
+  updateUrlParams: (params: { tab?: string; modulo?: number | null; tarea?: number | null; equipo?: number | null }) => void;
 }
 
 export default function TabTareas({
@@ -73,8 +72,7 @@ export default function TabTareas({
   onSelectTarea,
   onAbrirCrearTarea,
   onAbrirEditarTarea,
-  onAbrirDocumentoColaborativo,
-  abriendoDocumentoColaborativo,
+  onEliminarTarea,
   onAbrirCrearModulo,
   onAbrirEditarModulo,
   onEliminarModulo,
@@ -83,26 +81,6 @@ export default function TabTareas({
   onSeleccionarActividadGrupo,
   updateUrlParams,
 }: TabTareasProps) {
-  const renderDocumentoColaborativoButton = (t: TareaDTO) => {
-    if (!t.documentoColaborativoHabilitado) return null;
-    const abriendo = abriendoDocumentoColaborativo === t.id;
-    return (
-      <button
-        type="button"
-        disabled={abriendo}
-        onClick={(e) => {
-          e.stopPropagation();
-          onAbrirDocumentoColaborativo(t);
-        }}
-        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 hover:bg-sky-500/15 disabled:opacity-60 transition-colors flex items-center gap-1"
-        title={puedeGestionarTareas ? "Abrir documento colaborativo en modo vista" : "Abrir documento colaborativo del grupo"}
-      >
-        <FileText className="w-3.5 h-3.5" />
-        {abriendo ? "Abriendo..." : "Documento"}
-      </button>
-    );
-  };
-
   if (user?.rol === "ESTUDIANTE" && !esEstudianteInscrito && convocatoria.estado !== "FINALIZADA") {
     return (
       <div className="bg-paper border border-line rounded-2xl p-12 text-center space-y-3 shadow-xs">
@@ -419,10 +397,10 @@ export default function TabTareas({
               <div className="space-y-4">
                 {tareasGenerales.map((t) => (
                   <div
-                    key={t.id}
+                    key={`${t.id}-${t.feriaPostulacionId || 0}`}
                     onClick={() => {
                       onSelectTarea(t);
-                      updateUrlParams({ tarea: t.id, modulo: t.moduloId || null });
+                      updateUrlParams({ tarea: t.id, modulo: t.moduloId || null, equipo: t.feriaPostulacionId || null });
                     }}
                     className="bg-paper hover:bg-paper-sunken/60 border border-line rounded-xl p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-2xs"
                   >
@@ -440,11 +418,6 @@ export default function TabTareas({
                               Grupal
                             </span>
                           )}
-                          {t.documentoColaborativoHabilitado && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
-                              Doc colaborativo
-                            </span>
-                          )}
                         </div>
                         <p className="text-[11px] text-ink-soft flex items-center gap-2 flex-wrap">
                           <span>Vence: {formatMoodleDateShort(t.fechaEntrega || t.fechaLimite)}</span>
@@ -455,7 +428,6 @@ export default function TabTareas({
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
-                      {renderDocumentoColaborativoButton(t)}
                       {user?.rol === "ESTUDIANTE" ? (
                         t.miEntrega?.estado === "CALIFICADO" ? (
                           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
@@ -489,17 +461,30 @@ export default function TabTareas({
                             {t.habilitada ? "Abierta" : "Cerrada"}
                           </span>
                           {puedeGestionarTareas && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onAbrirEditarTarea(t);
-                              }}
-                              title="Editar tarea (plazos, restricciones y detalles)"
-                              className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onAbrirEditarTarea(t);
+                                }}
+                                title="Editar tarea (plazos, restricciones y detalles)"
+                                className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onEliminarTarea(t);
+                                }}
+                                title="Eliminar tarea"
+                                className="p-1 text-ink-soft hover:text-rose-600 hover:bg-rose-500/10 rounded-lg border border-line hover:border-rose-300 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           )}
                         </div>
                       )}
@@ -571,6 +556,12 @@ export default function TabTareas({
               className="px-3 py-2 bg-paper hover:bg-paper-sunken border border-line text-ink rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer"
             >
               <Pencil className="w-3.5 h-3.5" /> Editar
+            </button>
+            <button
+              onClick={() => onEliminarModulo(moduloActual.id)}
+              className="px-3 py-2 bg-paper hover:bg-rose-500/10 border border-line hover:border-rose-300 text-ink-soft hover:text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Eliminar
             </button>
           </div>
         )}
@@ -714,10 +705,10 @@ export default function TabTareas({
           <div className="space-y-4">
             {tareasDelModulo.map((t) => (
               <div
-                key={t.id}
+                key={`${t.id}-${t.feriaPostulacionId || 0}`}
                 onClick={() => {
                   onSelectTarea(t);
-                  updateUrlParams({ tarea: t.id, modulo: t.moduloId || selectedModuloId || null });
+                  updateUrlParams({ tarea: t.id, modulo: t.moduloId || selectedModuloId || null, equipo: t.feriaPostulacionId || null });
                 }}
                 className="bg-paper hover:bg-paper-sunken/60 border border-line rounded-xl p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-2xs"
               >
@@ -735,11 +726,6 @@ export default function TabTareas({
                           Grupal
                         </span>
                       )}
-                      {t.documentoColaborativoHabilitado && (
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
-                          Doc colaborativo
-                        </span>
-                      )}
                     </div>
                     <p className="text-[11px] text-ink-soft flex items-center gap-2 flex-wrap">
                       <span>Vence: {formatMoodleDateShort(t.fechaEntrega || t.fechaLimite)}</span>
@@ -750,7 +736,6 @@ export default function TabTareas({
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
-                  {renderDocumentoColaborativoButton(t)}
                   {user?.rol === "ESTUDIANTE" ? (
                     t.miEntrega?.estado === "CALIFICADO" ? (
                       <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
@@ -784,17 +769,30 @@ export default function TabTareas({
                         {t.habilitada ? "Abierta" : "Cerrada"}
                       </span>
                       {puedeGestionarTareas && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAbrirEditarTarea(t);
-                          }}
-                          title="Editar tarea (plazos, restricciones y detalles)"
-                          className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAbrirEditarTarea(t);
+                            }}
+                            title="Editar tarea (plazos, restricciones y detalles)"
+                            className="p-1 text-ink-soft hover:text-accent hover:bg-paper-sunken rounded-lg border border-line transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEliminarTarea(t);
+                            }}
+                            title="Eliminar tarea"
+                            className="p-1 text-ink-soft hover:text-rose-600 hover:bg-rose-500/10 rounded-lg border border-line hover:border-rose-300 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}

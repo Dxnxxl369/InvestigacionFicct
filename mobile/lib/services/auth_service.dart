@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import 'api_service.dart';
 import 'storage_service.dart';
+import 'fcm_service.dart';
 
 class AuthService extends ChangeNotifier {
   UserModel? _currentUser;
@@ -10,6 +11,8 @@ class AuthService extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _currentUser != null;
+  bool get isDocente => _currentUser?.rol == 'DOCENTE';
+  bool get isEstudiante => _currentUser?.rol == 'ESTUDIANTE';
 
   AuthService() {
     _loadSession();
@@ -20,6 +23,9 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     _currentUser = await StorageService.getUser();
+    if (_currentUser != null) {
+      FcmService.syncTokenWithBackend();
+    }
     _isLoading = false;
     notifyListeners();
   }
@@ -29,11 +35,12 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await ApiService.login(email, password);
+      final res = await ApiService.login(email, password, FcmService.currentToken);
       if (res['success'] == true) {
         _currentUser = res['user'] as UserModel;
         _isLoading = false;
         notifyListeners();
+        FcmService.syncTokenWithBackend();
         return true;
       }
     } catch (_) {}
@@ -69,12 +76,16 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> updateProfile({
+    String? registroUniversitario,
+    String? celular,
     String? fotoPerfil,
     String? descripcion,
     bool? ocultarCursos,
   }) async {
     if (_currentUser == null) return;
     final updated = await ApiService.updateProfile(
+      registroUniversitario: registroUniversitario,
+      celular: celular,
       fotoPerfil: fotoPerfil,
       descripcion: descripcion,
       ocultarCursos: ocultarCursos,

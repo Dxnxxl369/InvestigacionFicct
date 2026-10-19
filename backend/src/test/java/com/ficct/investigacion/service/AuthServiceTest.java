@@ -40,6 +40,9 @@ class AuthServiceTest {
     @Mock
     private AuthenticationManager authenticationManager;
 
+    @Mock
+    private FeriaMembresiaService feriaMembresiaService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -67,6 +70,10 @@ class AuthServiceTest {
                 "carlos.mendoza@uagrm.edu.bo",
                 "password123"
         );
+        request.setRegistroUniversitario("226127982");
+        request.setCelular("73106766");
+        studentUser.setRegistroUniversitario("226127982");
+        studentUser.setCelular("73106766");
 
         when(userRepository.existsByEmail("carlos.mendoza@uagrm.edu.bo")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword123");
@@ -80,8 +87,30 @@ class AuthServiceTest {
         assertEquals("carlos.mendoza@uagrm.edu.bo", response.getEmail());
         assertEquals(Rol.ESTUDIANTE, response.getRol());
         assertEquals(EstadoUsuario.ACTIVO, response.getEstado());
+        assertEquals("226127982", response.getRegistroUniversitario());
+        assertEquals("73106766", response.getCelular());
         verify(passwordEncoder).encode("password123");
-        verify(userRepository).save(any(User.class));
+        org.mockito.ArgumentCaptor<User> usuario = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(usuario.capture());
+        assertEquals("226127982", usuario.getValue().getRegistroUniversitario());
+        assertEquals("73106766", usuario.getValue().getCelular());
+    }
+
+    @Test
+    void registroUniversitarioVacioEsOpcional() {
+        RegisterRequest request = new RegisterRequest(
+                "Carlos", "Mendoza", "carlos.mendoza@uagrm.edu.bo", "password123");
+        request.setRegistroUniversitario("   ");
+        request.setCelular("73106766");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse response = authService.register(request);
+
+        assertNull(response.getRegistroUniversitario());
+        org.mockito.ArgumentCaptor<User> usuario = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(usuario.capture());
+        assertNull(usuario.getValue().getRegistroUniversitario());
+        assertEquals("73106766", usuario.getValue().getCelular());
     }
 
     @Test

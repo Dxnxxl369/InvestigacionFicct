@@ -79,6 +79,12 @@ public class ModuloService {
             throw new AccessDeniedException("Solo un docente a cargo del área o un Administrador puede crear módulos.");
         }
 
+        if (request.getPlantilla() != null) {
+            return new ModuloDTO(PlantillaModuloFactory.crear(convocatoria, user,
+                    request.getPlantilla(), request.getOrden() != null ? request.getOrden() : 1,
+                    moduloRepository, tareaRepository));
+        }
+
         Modulo modulo = new Modulo(
                 convocatoria,
                 request.getTitulo().trim(),

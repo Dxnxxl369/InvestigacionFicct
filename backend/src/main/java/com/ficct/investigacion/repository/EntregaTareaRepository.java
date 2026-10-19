@@ -2,6 +2,7 @@ package com.ficct.investigacion.repository;
 
 import com.ficct.investigacion.model.EntregaTarea;
 import com.ficct.investigacion.model.Grupo;
+import com.ficct.investigacion.model.FeriaPostulacion;
 import com.ficct.investigacion.model.Tarea;
 import com.ficct.investigacion.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +17,7 @@ public interface EntregaTareaRepository extends JpaRepository<EntregaTarea, Long
     List<EntregaTarea> findByTareaOrderByFechaEntregaDesc(Tarea tarea);
 
     Optional<EntregaTarea> findByTareaAndEstudiante(Tarea tarea, User estudiante);
+    Optional<EntregaTarea> findByTareaAndFeriaPostulacion(Tarea tarea, FeriaPostulacion feriaPostulacion);
 
     List<EntregaTarea> findByEstudianteOrderByFechaEntregaDesc(User estudiante);
 

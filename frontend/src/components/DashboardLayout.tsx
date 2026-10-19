@@ -13,7 +13,6 @@ import {
   Users,
   LogOut,
   LayoutDashboard,
-  FileEdit,
   GraduationCap,
   Menu,
   X,
@@ -37,6 +36,7 @@ export default function DashboardLayout({
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const cerrandoSesionRef = React.useRef(false);
 
   // Cargar preferencia persistida del sidebar
   useEffect(() => {
@@ -60,10 +60,16 @@ export default function DashboardLayout({
     });
   };
 
+  const handleCerrarSesion = () => {
+    cerrandoSesionRef.current = true;
+    logout();
+    window.location.replace("/login?logout=1");
+  };
+
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        router.push("/login");
+        if (!cerrandoSesionRef.current) router.replace("/login");
       } else if (user.estado === "SUSPENDIDO") {
         logout();
         router.push("/login?error=suspended");
@@ -87,7 +93,13 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-paper text-ink-soft">
+        <p className="text-sm">Redirigiendo al inicio de sesión...</p>
+      </div>
+    );
+  }
 
   const getInitial = (name?: string) => (name ? name.charAt(0).toUpperCase() : "U");
 
@@ -125,14 +137,6 @@ export default function DashboardLayout({
           },
         ]
       : []),
-    {
-      href: "/dashboard/documentos",
-      label: "Documentos & IA",
-      icon: FileEdit,
-      isActive: pathname === "/dashboard/documentos",
-      badge: "Colaborativo",
-      badgeColor: "bg-accent/20 text-accent-dark",
-    },
     {
       href: "/dashboard/mis-areas",
       label: "Mis Áreas",
@@ -207,7 +211,7 @@ export default function DashboardLayout({
             <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border-2 border-paper-raised status-dot-ping" />
           </Link>
           <button
-            onClick={logout}
+            onClick={handleCerrarSesion}
             title="Cerrar sesión"
             className="p-1.5 rounded-lg text-ink-faint hover:text-danger hover:bg-danger-soft/30 transition-colors"
           >
@@ -220,10 +224,10 @@ export default function DashboardLayout({
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50">
           <div
-            className="fixed inset-0 bg-ink/40 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed top-0 left-0 bottom-0 w-72 max-w-[82vw] bg-paper-raised border-r border-line p-5 shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-200">
+          <aside className="fixed top-0 left-0 bottom-0 w-72 max-w-[82vw] bg-paper-raised/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-line/60 p-5 shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between pb-4 mb-3 border-b border-line-soft">
               <Link href="/" onClick={() => setMobileMenuOpen(false)} className="font-serif text-lg tracking-tight">
                 <b className="font-bold text-ink">FICCT</b>
@@ -290,7 +294,7 @@ export default function DashboardLayout({
                 </div>
               </Link>
               <button
-                onClick={logout}
+                onClick={handleCerrarSesion}
                 title="Cerrar sesión"
                 className="p-2 rounded-lg text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all ml-1"
               >
@@ -454,7 +458,7 @@ export default function DashboardLayout({
 
               {/* Botón cerrar sesión colapsado */}
               <button
-                onClick={logout}
+                onClick={handleCerrarSesion}
                 title="Cerrar sesión"
                 className="p-2 rounded-xl text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all"
               >
@@ -494,7 +498,7 @@ export default function DashboardLayout({
               </Link>
 
               <button
-                onClick={logout}
+                onClick={handleCerrarSesion}
                 title="Cerrar sesión"
                 className="p-2 rounded-lg text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all ml-1 flex-shrink-0"
               >
@@ -542,15 +546,6 @@ export default function DashboardLayout({
           <span>Áreas</span>
         </Link>
 
-        <Link
-          href="/dashboard/documentos"
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[10.5px] font-semibold transition-all ${
-            pathname === "/dashboard/documentos" ? "text-accent scale-105" : "text-ink-faint hover:text-ink"
-          }`}
-        >
-          <FileEdit className="w-4 h-4" />
-          <span>Docs</span>
-        </Link>
 
         <Link
           href="/dashboard/perfil"

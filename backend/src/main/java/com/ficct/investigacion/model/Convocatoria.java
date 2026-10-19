@@ -25,6 +25,10 @@ public class Convocatoria {
     private TipoConvocatoria tipo = TipoConvocatoria.FERIA;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "modalidad_inscripcion", length = 20)
+    private ModalidadInscripcion modalidadInscripcion;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private EstadoConvocatoria estado = EstadoConvocatoria.BORRADOR;
 
@@ -34,17 +38,17 @@ public class Convocatoria {
     @Column(name = "tamano_equipo", length = 100)
     private String tamanoEquipo;
 
-    @Column(name = "inscripcion_grupal")
-    private boolean inscripcionGrupal = false;
-
-    @Column(name = "min_integrantes_grupo")
-    private Integer minIntegrantesGrupo = 1;
-
-    @Column(name = "max_integrantes_grupo")
-    private Integer maxIntegrantesGrupo = 5;
+    @Column(name = "max_integrantes_feria")
+    private Integer maxIntegrantesFeria;
 
     @Column(name = "imagen_portada", length = 500)
     private String imagenPortada;
+
+    @Column(name = "archivo_informacion_url", length = 500)
+    private String archivoInformacionUrl;
+
+    @Column(name = "archivo_informacion_nombre", length = 255)
+    private String archivoInformacionNombre;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "creador_id", nullable = false)
@@ -142,6 +146,15 @@ public class Convocatoria {
         this.tipo = tipo;
     }
 
+    public ModalidadInscripcion getModalidadInscripcion() {
+        return modalidadInscripcion != null ? modalidadInscripcion
+                : tipo == TipoConvocatoria.FERIA ? ModalidadInscripcion.GRUPAL : ModalidadInscripcion.INDIVIDUAL;
+    }
+
+    public void setModalidadInscripcion(ModalidadInscripcion modalidadInscripcion) {
+        this.modalidadInscripcion = modalidadInscripcion;
+    }
+
     public EstadoConvocatoria getEstado() {
         return estado;
     }
@@ -166,28 +179,12 @@ public class Convocatoria {
         this.tamanoEquipo = tamanoEquipo;
     }
 
-    public boolean isInscripcionGrupal() {
-        return inscripcionGrupal;
+    public Integer getMaxIntegrantesFeria() {
+        return maxIntegrantesFeria;
     }
 
-    public void setInscripcionGrupal(boolean inscripcionGrupal) {
-        this.inscripcionGrupal = inscripcionGrupal;
-    }
-
-    public Integer getMinIntegrantesGrupo() {
-        return minIntegrantesGrupo;
-    }
-
-    public void setMinIntegrantesGrupo(Integer minIntegrantesGrupo) {
-        this.minIntegrantesGrupo = minIntegrantesGrupo;
-    }
-
-    public Integer getMaxIntegrantesGrupo() {
-        return maxIntegrantesGrupo;
-    }
-
-    public void setMaxIntegrantesGrupo(Integer maxIntegrantesGrupo) {
-        this.maxIntegrantesGrupo = maxIntegrantesGrupo;
+    public void setMaxIntegrantesFeria(Integer maxIntegrantesFeria) {
+        this.maxIntegrantesFeria = maxIntegrantesFeria;
     }
 
     public String getImagenPortada() {
@@ -197,6 +194,14 @@ public class Convocatoria {
     public void setImagenPortada(String imagenPortada) {
         this.imagenPortada = imagenPortada;
     }
+
+    public String getArchivoInformacionUrl() { return archivoInformacionUrl; }
+
+    public void setArchivoInformacionUrl(String archivoInformacionUrl) { this.archivoInformacionUrl = archivoInformacionUrl; }
+
+    public String getArchivoInformacionNombre() { return archivoInformacionNombre; }
+
+    public void setArchivoInformacionNombre(String archivoInformacionNombre) { this.archivoInformacionNombre = archivoInformacionNombre; }
 
     public User getCreador() {
         return creador;
