@@ -404,7 +404,7 @@ export default function TabGrupos({
                       const isRadioSelected = selectedGrupoRadioId === g.id;
                       const maxCap = g.capacidadMaxima || actividadActiva.capacidadPorGrupo || 5;
                       const pct = Math.min(100, Math.round((g.cantidadMiembros / maxCap) * 100));
-                      const isDisabled = (g.completo && !esMiEleccion) || actividadActiva.cerrada || (!esEstudianteInscrito && !puedeGestionarTareas);
+                      const isDisabled = (g.completo && !esMiEleccion) || actividadActiva.cerrada || (!esEstudianteInscrito && !puedeGestionarTareas) || (!!actividadActiva.grupoSeleccionadoId && !actividadActiva.permitirCambio && !esMiEleccion);
 
                       return (
                         <tr
@@ -538,6 +538,7 @@ export default function TabGrupos({
                   procesandoEleccion ||
                   !selectedGrupoRadioId ||
                   actividadActiva.cerrada ||
+                  (!!actividadActiva.grupoSeleccionadoId && !actividadActiva.permitirCambio) ||
                   (!esEstudianteInscrito && !puedeGestionarTareas)
                 }
                 className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -550,7 +551,7 @@ export default function TabGrupos({
                 Guardar mi elección
               </button>
 
-              {actividadActiva.grupoSeleccionadoId && !actividadActiva.cerrada && (
+              {actividadActiva.grupoSeleccionadoId && !actividadActiva.cerrada && actividadActiva.permitirCambio && (
                 <button
                   type="button"
                   onClick={() => onAnularEleccionGrupo(actividadActiva.id)}
@@ -566,7 +567,7 @@ export default function TabGrupos({
             <span className="text-[11px] text-ink-faint">
               {actividadActiva.cerrada
                 ? "El plazo límite ha finalizado."
-                : "Puedes modificar tu selección mientras la actividad permanezca abierta."}
+                : actividadActiva.permitirCambio ? "Puedes modificar tu selección mientras la actividad permanezca abierta." : "La elección de grupo es definitiva."}
             </span>
           </div>
         </div>
@@ -622,7 +623,7 @@ export default function TabGrupos({
 
               <button
                 onClick={onAbrirCrearActividad}
-                className="px-3.5 py-2 bg-ink hover:bg-black text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                className="px-3.5 py-2 bg-ink dark:bg-ficct-green-dark hover:opacity-90 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
                 <ListPlus className="w-3.5 h-3.5" /> + Actividad de Registro
               </button>

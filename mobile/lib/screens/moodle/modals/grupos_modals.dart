@@ -198,9 +198,8 @@ class GruposModals {
         text: actividadExistente?.descripcion ?? 'Selecciona tu grupo de trabajo antes de la fecha límite.');
     final capCtrl = TextEditingController(text: '${actividadExistente?.capacidadPorGrupo ?? 5}');
     final cantGruposCtrl = TextEditingController(text: '8');
-    final prefijoCtrl = TextEditingController(text: 'Equipo ');
-    bool generarGruposAuto = !isEditing;
-    bool permitirCambio = actividadExistente?.permitirCambio ?? true;
+    final prefijoCtrl = TextEditingController(text: 'G');
+    bool? permitirCambio = actividadExistente?.permitirCambio;
     bool mostrarMiembros = actividadExistente?.mostrarMiembros ?? true;
 
     DateTime fechaApertura = actividadExistente?.fechaApertura != null
@@ -346,14 +345,9 @@ class GruposModals {
                   ),
                   const SizedBox(height: 10),
 
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    value: permitirCambio,
-                    activeColor: AppTheme.accent,
-                    title: const Text('Permitir a estudiantes cambiar de grupo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                    onChanged: (val) => setDialogState(() => permitirCambio = val),
-                  ),
+                  const Text('Después de elegir un grupo *', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ChoiceChip(label: const Text('No podrá cambiar de grupo'), selected: permitirCambio == false, onSelected: (_) => setDialogState(() => permitirCambio = false)),
+                  ChoiceChip(label: const Text('Podrá cambiar libremente'), selected: permitirCambio == true, onSelected: (_) => setDialogState(() => permitirCambio = true)),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
@@ -365,15 +359,8 @@ class GruposModals {
 
                   if (!isEditing) ...[
                     const Divider(),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: generarGruposAuto,
-                      activeColor: AppTheme.accent,
-                      title: const Text('Generar Lote de Grupos Inicial', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Crea los grupos vacíos automáticamente.', style: TextStyle(fontSize: 10.5)),
-                      onChanged: (val) => setDialogState(() => generarGruposAuto = val),
-                    ),
-                    if (generarGruposAuto) ...[
+                    const Text('Grupos disponibles para elegir', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ...[
                       Row(
                         children: [
                           Expanded(
@@ -401,7 +388,7 @@ class GruposModals {
                       TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
                       const SizedBox(width: 8),
                       ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx, true),
+                        onPressed: permitirCambio == null ? null : () => Navigator.pop(ctx, true),
                         child: Text(isEditing ? 'Guardar Cambios' : 'Crear Actividad'),
                       ),
                     ],
@@ -413,7 +400,7 @@ class GruposModals {
         ),
       );
 
-    if (confirm == true && tituloCtrl.text.trim().isNotEmpty) {
+    if (confirm == true && tituloCtrl.text.trim().isNotEmpty && permitirCambio != null) {
       final cap = int.tryParse(capCtrl.text.trim()) ?? 5;
       final cant = int.tryParse(cantGruposCtrl.text.trim()) ?? 8;
       final data = {
@@ -424,10 +411,9 @@ class GruposModals {
         'fechaCierre': fechaCierre.toIso8601String(),
         'permitirCambio': permitirCambio,
         'mostrarMiembros': mostrarMiembros,
-        if (!isEditing) 'generarGrupos': generarGruposAuto,
-        if (!isEditing && generarGruposAuto) 'cantidadGrupos': cant,
-        if (!isEditing && generarGruposAuto)
-          'prefijoGrupos': prefijoCtrl.text.trim().isNotEmpty ? prefijoCtrl.text.trim() : 'Equipo ',
+        if (!isEditing) 'generarGrupos': true,
+        if (!isEditing) 'cantidadGrupos': cant,
+        if (!isEditing) 'prefijoGrupos': prefijoCtrl.text.trim().isNotEmpty ? prefijoCtrl.text.trim() : 'G',
       };
 
       if (isEditing) {

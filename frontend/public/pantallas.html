@@ -203,7 +203,7 @@
       Iniciar sesión
     </button>
     <div class="nav-gap"></div>
-    <button class="nav-btn" data-target="screen-doc" onclick="showScreen('screen-doc', this)">
+    <button class="nav-btn" data-target="screen-doc" style="display: none" onclick="showScreen('screen-doc', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v5h5"/></svg>
       Documento colaborativo
     </button>
@@ -282,7 +282,7 @@
     </section>
 
     <!-- ================= DOCUMENTO ================= -->
-    <section class="screen" id="screen-doc">
+    <section class="screen" id="screen-doc" style="display: none">
       <div class="screen-inner">
         <div class="screen-head">
           <p class="screen-eyebrow">Edición en tiempo real, con permisos por documento</p>

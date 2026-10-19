@@ -5,6 +5,7 @@ import com.ficct.investigacion.model.EstadoConvocatoria;
 import com.ficct.investigacion.model.EstadoInscripcion;
 import com.ficct.investigacion.model.Rol;
 import com.ficct.investigacion.model.TipoConvocatoria;
+import com.ficct.investigacion.model.ModalidadInscripcion;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,10 +19,14 @@ public class ConvocatoriaDTO {
     private String titulo;
     private String descripcion;
     private TipoConvocatoria tipo;
+    private ModalidadInscripcion modalidadInscripcion;
     private EstadoConvocatoria estado;
     private LocalDate fechaCierre;
     private String tamanoEquipo;
+    private Integer maxIntegrantesFeria;
     private String imagenPortada;
+    private String archivoInformacionUrl;
+    private String archivoInformacionNombre;
     private Long creadorId;
     private String creadorNombre;
     private String creadorEmail;
@@ -47,10 +52,14 @@ public class ConvocatoriaDTO {
         this.titulo = c.getTitulo();
         this.descripcion = c.getDescripcion();
         this.tipo = c.getTipo();
+        this.modalidadInscripcion = c.getModalidadInscripcion();
         this.estado = c.getEstado();
         this.fechaCierre = c.getFechaCierre();
         this.tamanoEquipo = c.getTamanoEquipo();
+        this.maxIntegrantesFeria = c.getMaxIntegrantesFeria();
         this.imagenPortada = c.getImagenPortada();
+        this.archivoInformacionUrl = c.getArchivoInformacionUrl();
+        this.archivoInformacionNombre = c.getArchivoInformacionNombre();
         if (c.getCreador() != null) {
             this.creadorId = c.getCreador().getId();
             this.creadorNombre = c.getCreador().getNombreCompleto();
@@ -131,6 +140,10 @@ public class ConvocatoriaDTO {
         this.tipo = tipo;
     }
 
+    public ModalidadInscripcion getModalidadInscripcion() { return modalidadInscripcion; }
+
+    public void setModalidadInscripcion(ModalidadInscripcion modalidadInscripcion) { this.modalidadInscripcion = modalidadInscripcion; }
+
     public EstadoConvocatoria getEstado() {
         return estado;
     }
@@ -155,6 +168,14 @@ public class ConvocatoriaDTO {
         this.tamanoEquipo = tamanoEquipo;
     }
 
+    public Integer getMaxIntegrantesFeria() {
+        return maxIntegrantesFeria;
+    }
+
+    public void setMaxIntegrantesFeria(Integer maxIntegrantesFeria) {
+        this.maxIntegrantesFeria = maxIntegrantesFeria;
+    }
+
     public String getImagenPortada() {
         return imagenPortada;
     }
@@ -162,6 +183,14 @@ public class ConvocatoriaDTO {
     public void setImagenPortada(String imagenPortada) {
         this.imagenPortada = imagenPortada;
     }
+
+    public String getArchivoInformacionUrl() { return archivoInformacionUrl; }
+
+    public void setArchivoInformacionUrl(String archivoInformacionUrl) { this.archivoInformacionUrl = archivoInformacionUrl; }
+
+    public String getArchivoInformacionNombre() { return archivoInformacionNombre; }
+
+    public void setArchivoInformacionNombre(String archivoInformacionNombre) { this.archivoInformacionNombre = archivoInformacionNombre; }
 
     public Long getCreadorId() {
         return creadorId;

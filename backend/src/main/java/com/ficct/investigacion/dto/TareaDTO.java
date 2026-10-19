@@ -1,6 +1,8 @@
 package com.ficct.investigacion.dto;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TareaDTO {
 
@@ -9,11 +11,13 @@ public class TareaDTO {
     private String convocatoriaTitulo;
     private String titulo;
     private String descripcion;
+    private List<AdjuntoTareaDTO> adjuntos = new ArrayList<>();
     private LocalDateTime fechaHabilitacion;
     private LocalDateTime fechaEntrega;
     private LocalDateTime fechaCorte;
     private LocalDateTime fechaLimite; // Compatibilidad
     private boolean habilitada;
+    private boolean visibleJurados;
     private String tiposArchivosPermitidos;
     private Integer tamanoMaximoMb;
     private Double puntajeMaximo;
@@ -26,6 +30,8 @@ public class TareaDTO {
     private EntregaTareaDTO miEntrega;
     private Long moduloId;
     private String moduloTitulo;
+    private Long feriaPostulacionId;
+    private String codigoEquipo;
     private boolean esGrupal;
     private Long actividadGrupoId;
     private String actividadGrupoTitulo;
@@ -73,6 +79,9 @@ public class TareaDTO {
         this.descripcion = descripcion;
     }
 
+    public List<AdjuntoTareaDTO> getAdjuntos() { return adjuntos; }
+    public void setAdjuntos(List<AdjuntoTareaDTO> adjuntos) { this.adjuntos = adjuntos; }
+
     public LocalDateTime getFechaHabilitacion() {
         return fechaHabilitacion;
     }
@@ -112,6 +121,9 @@ public class TareaDTO {
     public void setHabilitada(boolean habilitada) {
         this.habilitada = habilitada;
     }
+
+    public boolean isVisibleJurados() { return visibleJurados; }
+    public void setVisibleJurados(boolean visibleJurados) { this.visibleJurados = visibleJurados; }
 
     public String getTiposArchivosPermitidos() {
         return tiposArchivosPermitidos;
@@ -200,6 +212,11 @@ public class TareaDTO {
     public void setModuloTitulo(String moduloTitulo) {
         this.moduloTitulo = moduloTitulo;
     }
+
+    public Long getFeriaPostulacionId() { return feriaPostulacionId; }
+    public void setFeriaPostulacionId(Long feriaPostulacionId) { this.feriaPostulacionId = feriaPostulacionId; }
+    public String getCodigoEquipo() { return codigoEquipo; }
+    public void setCodigoEquipo(String codigoEquipo) { this.codigoEquipo = codigoEquipo; }
 
     public boolean isEsGrupal() {
         return esGrupal;

@@ -40,6 +40,11 @@ class TareaEntregaScreen extends StatefulWidget {
 }
 
 class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
+  bool get _tieneEntregaRegistrada =>
+      _estadoEntrega == 'ENTREGADO' || _estadoEntrega == 'CALIFICADO';
+  int get _draftId => widget.tarea.feriaPostulacionId == null
+      ? widget.tarea.id
+      : widget.tarea.id * 1000000 + widget.tarea.feriaPostulacionId!;
   UserModel? _currentUser;
   final _comentarioCtrl = TextEditingController();
   final List<ArchivoAdjuntoItem> _archivos = [];
@@ -66,7 +71,7 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
 
   Future<void> _initData() async {
     final user = await StorageService.getUser();
-    final draft = await StorageService.getTaskDraft(widget.tarea.id);
+    final draft = await StorageService.getTaskDraft(_draftId);
 
     if (mounted) {
       setState(() {
@@ -135,7 +140,7 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
   }
 
   void _guardarBorradorLocal() {
-    StorageService.saveTaskDraft(widget.tarea.id, {
+    StorageService.saveTaskDraft(_draftId, {
       'archivos': _archivos
           .map((a) => {
                 'nombre': a.nombre,
@@ -368,7 +373,7 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
       _archivos.removeAt(index);
       if (_archivos.isEmpty) {
         _estadoEntrega = 'SIN_ENTREGAR';
-        StorageService.removeTaskDraft(widget.tarea.id);
+        StorageService.removeTaskDraft(_draftId);
       } else {
         _guardarBorradorLocal();
       }
@@ -497,6 +502,7 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
         widget.tarea.id,
         nombreArchivo: joinedNombres.isNotEmpty ? joinedNombres : 'Entrega_${widget.tarea.id}.pdf',
         archivoUrl: joinedUrls.isNotEmpty ? joinedUrls : null,
+        feriaPostulacionId: widget.tarea.feriaPostulacionId,
         comentario: _comentarioCtrl.text.trim().isNotEmpty ? _comentarioCtrl.text.trim() : null,
       );
 
@@ -509,7 +515,7 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
         });
 
         if (ok) {
-          await StorageService.removeTaskDraft(widget.tarea.id);
+          await StorageService.removeTaskDraft(_draftId);
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -663,6 +669,26 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                         height: 1.4,
                       ),
                     ),
+                    if (widget.tarea.adjuntos.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      const Text('Archivos de apoyo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ...widget.tarea.adjuntos.map((adjunto) {
+                        final nombre = (adjunto['nombre'] ?? 'Archivo').toString();
+                        final ruta = (adjunto['ruta'] ?? '').toString();
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          leading: const Icon(Icons.attach_file, color: AppTheme.accent),
+                          title: Text(nombre, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          subtitle: const Text('Ver o guardar archivo'),
+                          onTap: ruta.isEmpty ? null : () => VisorDocumentoScreen.abrir(
+                            context,
+                            titulo: nombre,
+                            url: ruta,
+                          ),
+                        );
+                      }),
+                    ],
                     const SizedBox(height: 14),
 
                     // Fechas y Cronograma Moodle Dinámico
@@ -677,10 +703,12 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                         children: [
                           _DateRow(
                             label: 'Estado de entrega:',
-                            value: _estadoEntrega == 'ENTREGADO'
-                                ? 'Entregado para calificar'
+                            value: _estadoEntrega == 'CALIFICADO'
+                                ? 'Entrega calificada'
+                                : _tieneEntregaRegistrada
+                                    ? 'Entregado para calificar'
                                 : (_archivos.isNotEmpty ? 'Borrador (No enviado)' : 'Sin entregar'),
-                            valueColor: _estadoEntrega == 'ENTREGADO'
+                            valueColor: _tieneEntregaRegistrada
                                 ? const Color(0xFF10B981)
                                 : (_archivos.isNotEmpty ? AppTheme.seal : AppTheme.danger),
                           ),
@@ -1150,10 +1178,10 @@ class _TareaEntregaScreenState extends State<TareaEntregaScreen> {
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(_estadoEntrega == 'ENTREGADO' ? Icons.check_circle_rounded : Icons.send_rounded, size: 18),
+                                  Icon(_tieneEntregaRegistrada ? Icons.check_circle_rounded : Icons.send_rounded, size: 18),
                                   const SizedBox(width: 8),
                                   Text(
-                                    _estadoEntrega == 'ENTREGADO'
+                                    _tieneEntregaRegistrada
                                         ? 'Actualizar Entrega Registrada'
                                         : 'Guardar y Enviar Entrega Definitiva',
                                     style: const TextStyle(fontWeight: FontWeight.bold),

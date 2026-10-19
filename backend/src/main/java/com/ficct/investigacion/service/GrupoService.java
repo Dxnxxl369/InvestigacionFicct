@@ -19,17 +19,20 @@ public class GrupoService {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final UserRepository userRepository;
     private final ActividadGrupoRepository actividadGrupoRepository;
+    private final JuradoAsignacionRepository juradoAsignacionRepository;
 
     public GrupoService(GrupoRepository grupoRepository,
                         ConvocatoriaRepository convocatoriaRepository,
                         ConvocatoriaParticipanteRepository participanteRepository,
                         UserRepository userRepository,
-                        ActividadGrupoRepository actividadGrupoRepository) {
+                        ActividadGrupoRepository actividadGrupoRepository,
+                        JuradoAsignacionRepository juradoAsignacionRepository) {
         this.grupoRepository = grupoRepository;
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.userRepository = userRepository;
         this.actividadGrupoRepository = actividadGrupoRepository;
+        this.juradoAsignacionRepository = juradoAsignacionRepository;
     }
 
     private void verificarPermisoGestion(Convocatoria convocatoria, String username) {
@@ -187,6 +190,7 @@ public class GrupoService {
             participanteRepository.save(m);
         }
 
+        juradoAsignacionRepository.deleteByGrupoId(grupoId);
         grupoRepository.delete(grupo);
     }
 

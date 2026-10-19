@@ -22,6 +22,7 @@ export default function CrearEditarModuloModal({
   toast,
 }: CrearEditarModuloModalProps) {
   const [moduloTitulo, setModuloTitulo] = useState("");
+  const [plantilla, setPlantilla] = useState<ModuloRequest["plantilla"] | "">("");
   const [moduloDescripcion, setModuloDescripcion] = useState("");
   const [moduloImagenUrl, setModuloImagenUrl] = useState("");
   const [moduloImagenFile, setModuloImagenFile] = useState<File | null>(null);
@@ -40,6 +41,7 @@ export default function CrearEditarModuloModal({
       setModuloImagenPreview(moduloEditing.imagenUrl || null);
       setModuloOrden(moduloEditing.orden || ordenSugerido);
     } else {
+      setPlantilla("");
       setModuloTitulo("");
       setModuloDescripcion("");
       setModuloImagenUrl("");
@@ -95,6 +97,7 @@ export default function CrearEditarModuloModal({
 
       const req: ModuloRequest = {
         titulo: moduloTitulo.trim(),
+        plantilla: !moduloEditing && plantilla ? plantilla : undefined,
         descripcion: moduloDescripcion.trim() || undefined,
         imagenUrl: imgFinal,
         orden: Number(moduloOrden) || 1,
@@ -136,12 +139,43 @@ export default function CrearEditarModuloModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {!moduloEditing && (
+            <div>
+              <label className="font-semibold text-ink block mb-1">Plantilla de módulo</label>
+              <select
+                value={plantilla}
+                onChange={(e) => {
+                  const value = e.target.value as ModuloRequest["plantilla"] | "";
+                  setPlantilla(value);
+                  const datos = {
+                    PRIMER_AVANCE: ["Primer avance", "Primera revisión del proyecto."],
+                    SEGUNDO_AVANCE: ["Segundo avance", "Segunda revisión del proyecto."],
+                    PRESENTACION_FINAL: ["Presentación final", "Materiales para la evaluación final de la actividad."],
+                    ACTIVIDADES: ["Actividades", "Entregables de la convocatoria."],
+                  } as const;
+                  if (value) {
+                    setModuloTitulo(datos[value][0]);
+                    setModuloDescripcion(datos[value][1]);
+                  }
+                }}
+                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
+              >
+                <option value="">Módulo en blanco</option>
+                <option value="PRIMER_AVANCE">Primer avance (1 actividad)</option>
+                <option value="SEGUNDO_AVANCE">Segundo avance (1 actividad)</option>
+                <option value="PRESENTACION_FINAL">Presentación final (5 actividades)</option>
+                <option value="ACTIVIDADES">Actividades (2 actividades)</option>
+              </select>
+              {plantilla && <p className="mt-1 text-ink-soft">Se crearán sus actividades con fechas por definir y ocultas hasta programarlas.</p>}
+            </div>
+          )}
           <div>
             <label className="font-semibold text-ink block mb-1">Título del Módulo *</label>
             <input
               type="text"
               required
               value={moduloTitulo}
+              readOnly={Boolean(plantilla && !moduloEditing)}
               onChange={(e) => setModuloTitulo(e.target.value)}
               placeholder="Ej. Módulo 1: Fundamentación Teórica y Estado del Arte"
               className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
@@ -153,6 +187,7 @@ export default function CrearEditarModuloModal({
             <textarea
               rows={3}
               value={moduloDescripcion}
+              readOnly={Boolean(plantilla && !moduloEditing)}
               onChange={(e) => setModuloDescripcion(e.target.value)}
               placeholder="Breve resumen del objetivo pedagógico o temática a cubrir..."
               className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"

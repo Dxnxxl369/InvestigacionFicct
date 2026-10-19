@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../config/app_theme.dart';
-import '../../../models/actividad_grupo_model.dart';
 import '../../../models/modulo_model.dart';
 import '../../../models/tarea_model.dart';
 import '../../../services/api_service.dart';
@@ -11,7 +11,6 @@ class CrearEditarTareaModal {
     required BuildContext context,
     required int cursoId,
     required List<ModuloModel> modulos,
-    required List<ActividadGrupoModel> actividadesGrupo,
     TareaModel? tareaExistente,
     int? moduloIdPredefinido,
     required VoidCallback onTareaGuardada,
@@ -19,6 +18,9 @@ class CrearEditarTareaModal {
     final isEditing = tareaExistente != null;
     final tituloCtrl = TextEditingController(text: tareaExistente?.titulo ?? '');
     final descCtrl = TextEditingController(text: tareaExistente?.descripcion ?? '');
+    final adjuntosGuardados = tareaExistente?.adjuntos.map((a) => Map<String, dynamic>.from(a)).toList() ?? <Map<String, dynamic>>[];
+    final nuevosArchivos = <PlatformFile>[];
+    bool guardando = false;
     int? selectedModuloId = tareaExistente?.moduloId ?? moduloIdPredefinido;
     if (selectedModuloId == 0) selectedModuloId = null;
 
@@ -37,8 +39,6 @@ class CrearEditarTareaModal {
     final puntajeCtrl = TextEditingController(text: '${tareaExistente?.puntajeMaximo?.toInt() ?? 100}');
 
     bool esGrupal = tareaExistente?.esGrupal ?? false;
-    int? selectedActividadId = tareaExistente?.actividadGrupoId ??
-        (actividadesGrupo.isNotEmpty ? actividadesGrupo.first.id : null);
     bool habilitada = tareaExistente?.habilitada ?? true;
 
     showLiquidGlassModalBottomSheet(
@@ -132,6 +132,43 @@ class CrearEditarTareaModal {
                     ),
                   ),
                   const SizedBox(height: 14),
+
+                  const Text('Archivos de apoyo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  const Text('Indicaciones o plantillas para consultar y descargar. Máximo 10 archivos de 50 MB.', style: TextStyle(fontSize: 11)),
+                  TextButton.icon(
+                    icon: const Icon(Icons.attach_file),
+                    label: const Text('Añadir archivos'),
+                    onPressed: guardando ? null : () async {
+                      final result = await FilePicker.pickFiles(allowMultiple: true, type: FileType.any, withData: true);
+                      if (!ctx.mounted || result == null) return;
+                      final elegidos = result.files;
+                      if (adjuntosGuardados.length + nuevosArchivos.length + elegidos.length > 10 ||
+                          elegidos.any((file) => file.size > 50 * 1024 * 1024 || file.bytes == null)) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Máximo 10 archivos de 50 MB cada uno.')));
+                        return;
+                      }
+                      setSheetState(() => nuevosArchivos.addAll(elegidos));
+                    },
+                  ),
+                  ...adjuntosGuardados.asMap().entries.map((entry) => ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.description_outlined, size: 18),
+                    title: Text((entry.value['nombre'] ?? 'Archivo').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: guardando ? null : () => setSheetState(() => adjuntosGuardados.removeAt(entry.key)),
+                    ),
+                  )),
+                  ...nuevosArchivos.asMap().entries.map((entry) => ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.upload_file, size: 18),
+                    title: Text(entry.value.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: guardando ? null : () => setSheetState(() => nuevosArchivos.removeAt(entry.key)),
+                    ),
+                  )),
+                  const SizedBox(height: 8),
 
                   // Selector de Módulo Asociado
                   DropdownButtonFormField<int?>(
@@ -240,24 +277,6 @@ class CrearEditarTareaModal {
                     onChanged: (val) => setSheetState(() => esGrupal = val),
                   ),
 
-                  if (esGrupal) ...[
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<int?>(
-                      value: selectedActividadId,
-                      decoration: const InputDecoration(
-                        labelText: 'Vincular a Actividad de Grupo',
-                        prefixIcon: Icon(Icons.groups_outlined),
-                      ),
-                      items: actividadesGrupo.map((act) {
-                        return DropdownMenuItem<int?>(
-                          value: act.id,
-                          child: Text(act.titulo, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        );
-                      }).toList(),
-                      onChanged: (val) => setSheetState(() => selectedActividadId = val),
-                    ),
-                  ],
-
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: habilitada,
@@ -281,7 +300,7 @@ class CrearEditarTareaModal {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () async {
+                          onPressed: guardando ? null : () async {
                             if (tituloCtrl.text.trim().isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Por favor, ingresa el título de la tarea.')),
@@ -289,11 +308,30 @@ class CrearEditarTareaModal {
                               return;
                             }
 
-                            Navigator.pop(ctx);
+                            setSheetState(() => guardando = true);
+                            final adjuntos = <Map<String, dynamic>>[...adjuntosGuardados];
+                            for (final archivo in nuevosArchivos) {
+                              final subida = await ApiService.subirDocumento(archivo.bytes!, archivo.name);
+                              if (subida == null || subida['relativePath'] == null) {
+                                if (ctx.mounted) setSheetState(() => guardando = false);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('No se pudo subir ${archivo.name}. Inténtalo nuevamente.')),
+                                  );
+                                }
+                                return;
+                              }
+                              adjuntos.add({
+                                'nombre': archivo.name,
+                                'ruta': subida['relativePath'],
+                                'tamanoBytes': subida['size'],
+                              });
+                            }
                             final data = {
                               'convocatoriaId': cursoId,
                               'titulo': tituloCtrl.text.trim(),
                               'descripcion': descCtrl.text.trim(),
+                              'adjuntos': adjuntos,
                               if (selectedModuloId != null && selectedModuloId! > 0) 'moduloId': selectedModuloId,
                               if (fechaHabilitacion != null) 'fechaHabilitacion': fechaHabilitacion!.toIso8601String(),
                               if (fechaEntrega != null) 'fechaEntrega': fechaEntrega!.toIso8601String(),
@@ -303,7 +341,6 @@ class CrearEditarTareaModal {
                               'tamanoMaximoMb': int.tryParse(tamanoCtrl.text.trim()) ?? 10,
                               'puntajeMaximo': double.tryParse(puntajeCtrl.text.trim()) ?? 100.0,
                               'esGrupal': esGrupal,
-                              if (esGrupal && selectedActividadId != null) 'actividadGrupoId': selectedActividadId,
                               'habilitada': habilitada,
                             };
 
@@ -315,6 +352,7 @@ class CrearEditarTareaModal {
                             }
 
                             if (ok) {
+                              if (ctx.mounted) Navigator.pop(ctx);
                               onTareaGuardada();
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -327,6 +365,7 @@ class CrearEditarTareaModal {
                                 );
                               }
                             } else {
+                              if (ctx.mounted) setSheetState(() => guardando = false);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
@@ -337,7 +376,7 @@ class CrearEditarTareaModal {
                               }
                             }
                           },
-                          child: Text(isEditing ? 'Guardar Cambios' : 'Crear Tarea'),
+                          child: Text(guardando ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Tarea'),
                         ),
                       ),
                     ],

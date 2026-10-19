@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Convocatoria, publicConvocatoriasAPI, api, ConvocatoriaDTO } from "@/lib/api";
+import { Convocatoria, publicConvocatoriasAPI, api, ConvocatoriaDTO, getMediaUrl } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/context/ThemeContext";
 import NotificacionesCampana from "@/components/NotificacionesCampana";
+import FeriaInscripcionModal from "@/components/moodle/modals/FeriaInscripcionModal";
 import {
   Search,
   Calendar,
@@ -150,9 +151,7 @@ export default function HomePage() {
     if (!selectedConvForPostulacion) return;
     try {
       setEnviandoPostulacion(true);
-      await api.inscribirseConvocatoria(selectedConvForPostulacion.id, {
-        nombreEquipo: nombreEquipoInput.trim() || undefined,
-      });
+      await api.inscribirseConvocatoria(selectedConvForPostulacion.id, {});
       toast("¡Solicitud enviada con éxito! El tribunal docente revisará tu postulación para admitirte al aula.", "success");
       setSelectedConvForPostulacion(null);
       setNombreEquipoInput("");
@@ -565,7 +564,7 @@ export default function HomePage() {
               <div>
                 <h3 className="font-extrabold text-base text-ink mb-1">Trabajo en equipo</h3>
                 <p className="text-xs text-ink-soft leading-relaxed">
-                  Conformación ágil de grupos multidisciplinarios de investigación, roles de colaboración y coautoría en documentos científicos.
+                  Conformación ágil de grupos multidisciplinarios de investigación y asignación de responsabilidades en las actividades académicas.
                 </p>
               </div>
             </div>
@@ -700,7 +699,7 @@ export default function HomePage() {
                         {c.tipo}
                       </span>
                       <span className="text-[10px] bg-paper-sunken px-2 py-0.5 rounded-md text-ink-faint border border-line-soft font-mono">
-                        {c.tamanoEquipo || "1 a 5 integrantes"}
+                        {c.modalidadInscripcion === "GRUPAL" ? (c.tamanoEquipo || "Inscripción grupal") : "Inscripción individual"}
                       </span>
                     </div>
 
@@ -711,6 +710,10 @@ export default function HomePage() {
                     <p className="text-xs text-ink-soft line-clamp-3 mb-4 leading-relaxed">
                       {c.descripcion}
                     </p>
+                    {c.archivoInformacionUrl && <a href={getMediaUrl(c.archivoInformacionUrl)} target="_blank" rel="noopener noreferrer"
+                      className="inline-block mb-4 text-xs font-semibold text-accent hover:underline">
+                      Ver archivo informativo: {c.archivoInformacionNombre || "Documento del evento"}
+                    </a>}
 
                     {/* Chips de Requisitos */}
                     {c.requisitos && c.requisitos.length > 0 && (
@@ -1040,7 +1043,16 @@ export default function HomePage() {
       )}
 
       {/* ================= MODAL DE POSTULACIÓN A CONVOCATORIA ================= */}
-      {selectedConvForPostulacion && (
+      {selectedConvForPostulacion?.modalidadInscripcion === "GRUPAL" && (
+        <FeriaInscripcionModal
+          isOpen
+          onClose={() => setSelectedConvForPostulacion(null)}
+          convocatoria={selectedConvForPostulacion}
+          onSuccess={fetchMisAreas}
+          toast={toast}
+        />
+      )}
+      {selectedConvForPostulacion && selectedConvForPostulacion.modalidadInscripcion !== "GRUPAL" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
           <div className="bg-paper-raised dark:bg-slate-900 border border-line rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between">
@@ -1070,21 +1082,7 @@ export default function HomePage() {
             </div>
 
             <form onSubmit={handleEnviarPostulacion} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-ink mb-1.5">
-                  Nombre de equipo <span className="text-ink-faint font-normal">(Opcional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={nombreEquipoInput}
-                  onChange={(e) => setNombreEquipoInput(e.target.value)}
-                  placeholder="Dejar en blanco si postulas de forma individual"
-                  className="w-full px-3.5 py-2.5 text-xs bg-paper-raised text-ink border border-line rounded-xl focus:outline-none focus:border-accent"
-                />
-                <p className="text-[11px] text-ink-faint mt-1">
-                  Si no tienes equipo, podrás conformar uno con tus compañeros en el módulo de Selección de Grupos dentro del aula virtual.
-                </p>
-              </div>
+              <p className="text-xs text-ink-soft">Tu inscripción es individual. Al confirmar, se enviará para aprobación sin proyecto ni equipo.</p>
 
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
                 ℹ️ Tu solicitud será remitida a los tribunales docentes a cargo. Una vez admitido, dispondrás de acceso inmediato a los módulos de entrega y rúbricas.

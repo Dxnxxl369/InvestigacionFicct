@@ -7,6 +7,7 @@ interface DesignarMiembroModalProps {
   onClose: () => void;
   convocatoriaId: number;
   esAdmin: boolean;
+  soloDocentes?: boolean;
   allUsers: User[];
   onSuccess: () => void;
   toast: (text: string, type?: "success" | "error" | "info") => void;
@@ -17,6 +18,7 @@ export default function DesignarMiembroModal({
   onClose,
   convocatoriaId,
   esAdmin,
+  soloDocentes = false,
   allUsers,
   onSuccess,
   toast,
@@ -79,7 +81,7 @@ export default function DesignarMiembroModal({
                   <ShieldCheck className="w-4 h-4" /> DOCENTE
                 </button>
               )}
-              <button
+              {!soloDocentes && <button
                 type="button"
                 onClick={() => setRolDesignar("JURADO")}
                 className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
@@ -89,7 +91,7 @@ export default function DesignarMiembroModal({
                 } ${!esAdmin ? "col-span-2" : ""}`}
               >
                 <Award className="w-4 h-4" /> JURADO
-              </button>
+              </button>}
             </div>
             <p className="text-[10px] text-ink-faint mt-1">
               Los jurados pueden ser designados y modificados libremente incluso hasta el último día del evento.

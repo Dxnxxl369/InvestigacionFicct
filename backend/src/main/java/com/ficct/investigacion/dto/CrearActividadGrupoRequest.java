@@ -9,11 +9,11 @@ public class CrearActividadGrupoRequest {
     private LocalDateTime fechaApertura;
     private LocalDateTime fechaCierre;
     private Integer capacidadPorGrupo = 5;
-    private Boolean permitirCambio = true;
+    private Boolean permitirCambio;
     private Boolean mostrarMiembros = true;
     private Boolean generarGrupos = false;
     private Integer cantidadGrupos = 10;
-    private String prefijoGrupos = "Gr1erPar ";
+    private String prefijoGrupos = "G";
 
     public CrearActividadGrupoRequest() {
     }

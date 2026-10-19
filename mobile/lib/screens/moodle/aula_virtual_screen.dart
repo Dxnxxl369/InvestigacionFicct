@@ -21,6 +21,7 @@ import 'widgets/tab_modulos_tareas.dart';
 import 'widgets/tab_grupos_moodle.dart';
 import 'widgets/tab_participantes_moodle.dart';
 import 'widgets/tab_calificaciones_moodle.dart';
+import 'widgets/tab_jurados_moodle.dart';
 
 class AulaVirtualScreen extends StatefulWidget {
   final ConvocatoriaModel curso;
@@ -619,7 +620,6 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
       context: context,
       cursoId: widget.curso.id,
       modulos: _modulos,
-      actividadesGrupo: _actividadesGrupo,
       tareaExistente: tareaExistente,
       moduloIdPredefinido: moduloIdPredefinido,
       onTareaGuardada: _loadModulos,
@@ -1276,6 +1276,7 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                         _buildTabButton(1, Icons.groups_rounded, 'Grupos', isDark),
                         _buildTabButton(2, Icons.people_outline_rounded, 'Personas', isDark),
                         _buildTabButton(3, Icons.grade_rounded, 'Notas', isDark),
+                        if (isDocenteOAdmin) _buildTabButton(4, Icons.workspace_premium_outlined, 'Jurados', isDark),
                       ],
                     ),
                   ),
@@ -1366,7 +1367,7 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                       onAdmitirLote: _handleAdmitirLote,
                       onRechazarLote: _handleRechazarLote,
                     )
-                  else
+                  else if (_currentTab == 3)
                     TabCalificacionesMoodle(
                       isLoadingGradebook: _isLoadingGradebook,
                       isDark: isDark,
@@ -1381,7 +1382,10 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
                       onExportarCSV: _exportarLibroCalificacionesCSV,
                       onReloadGradebook: _loadGradebookData,
                       onOpenSpeedGrader: widget.onOpenSpeedGrader,
-                    ),
+                    )
+                  else if (isDocenteOAdmin)
+                    TabJuradosMoodle(convocatoriaId: widget.curso.id,
+                        onChanged: _loadParticipantes),
 
                   const SizedBox(height: 95),
                 ],

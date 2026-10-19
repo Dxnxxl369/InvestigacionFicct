@@ -36,6 +36,8 @@ export default function PerfilPage() {
   // Estados de campos editables
   const [fotoPerfil, setFotoPerfil] = useState<string>("");
   const [descripcion, setDescripcion] = useState<string>("");
+  const [registroUniversitario, setRegistroUniversitario] = useState<string>("");
+  const [celular, setCelular] = useState<string>("");
   const [ocultarCursos, setOcultarCursos] = useState<boolean>(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -59,6 +61,8 @@ export default function PerfilPage() {
     if (user) {
       setFotoPerfil(user.fotoPerfil || "");
       setDescripcion(user.descripcion || "");
+      setRegistroUniversitario(user.registroUniversitario || "");
+      setCelular(user.celular || "");
       setOcultarCursos(user.ocultarCursos ?? false);
       setPreviewUrl(user.fotoPerfil ? resolveFileUrl(user.fotoPerfil) : null);
     }
@@ -100,7 +104,9 @@ export default function PerfilPage() {
     }
   }, [feedback]);
 
-  if (!user) return null;
+  if (!user) {
+    return <DashboardLayout><div className="p-8 text-sm text-ink-soft">Redirigiendo al inicio de sesión...</div></DashboardLayout>;
+  }
 
   const getInitial = (name?: string) => (name ? name.charAt(0).toUpperCase() : "U");
 
@@ -178,6 +184,8 @@ export default function PerfilPage() {
     if (user) {
       setFotoPerfil(user.fotoPerfil || "");
       setDescripcion(user.descripcion || "");
+      setRegistroUniversitario(user.registroUniversitario || "");
+      setCelular(user.celular || "");
       setOcultarCursos(user.ocultarCursos ?? false);
       setPreviewUrl(user.fotoPerfil ? resolveFileUrl(user.fotoPerfil) : null);
       setShowUrlInput(false);
@@ -195,6 +203,8 @@ export default function PerfilPage() {
       await authAPI.updateProfile({
         fotoPerfil: fotoPerfil.trim(),
         descripcion: descripcion.trim(),
+        registroUniversitario: registroUniversitario.trim(),
+        celular: celular.trim(),
         ocultarCursos: ocultarCursos,
       });
 
@@ -303,6 +313,8 @@ export default function PerfilPage() {
   const hasChanges =
     (user.fotoPerfil || "") !== fotoPerfil ||
     (user.descripcion || "") !== descripcion ||
+    (user.registroUniversitario || "") !== registroUniversitario ||
+    (user.celular || "") !== celular ||
     (user.ocultarCursos ?? false) !== ocultarCursos;
 
   return (
@@ -388,7 +400,7 @@ export default function PerfilPage() {
             </b>
             <p className="leading-relaxed">
               Por normativa académica de la <b>FICCT</b>, los datos de identidad legal (nombre completo,
-              correo electrónico institucional y rol) se encuentran validados y <b>no pueden ser editados directamente</b>.
+              correo electrónico y rol) se encuentran validados y <b>no pueden ser editados directamente</b>.
               Solo se permite personalizar tu foto de perfil, descripción académica y privacidad de cursos.
             </p>
           </div>
@@ -596,6 +608,22 @@ export default function PerfilPage() {
           {/* ----- COLUMNA 2: FORMULARIO DE PERFIL Y DATOS LEGALES ----- */}
           <div className="lg:col-span-8 space-y-6">
             <form onSubmit={handleSaveChanges} className="space-y-6">
+              <div className="bg-paper-raised border border-line rounded-2xl p-6 shadow-xs space-y-4">
+                <h3 className="text-base font-bold text-ink">Datos de inscripción</h3>
+                <p className="text-xs text-ink-soft">Se precargan al solicitar la inscripción a una Feria.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="text-xs font-semibold text-ink-soft">Registro universitario
+                    <input type="text" maxLength={30} value={registroUniversitario}
+                      onChange={(e) => setRegistroUniversitario(e.target.value)}
+                      className="mt-1 w-full px-3.5 py-2.5 rounded-xl bg-paper border border-line text-sm text-ink focus:outline-none focus:border-accent" />
+                  </label>
+                  <label className="text-xs font-semibold text-ink-soft">Celular
+                    <input type="tel" maxLength={30} value={celular}
+                      onChange={(e) => setCelular(e.target.value)}
+                      className="mt-1 w-full px-3.5 py-2.5 rounded-xl bg-paper border border-line text-sm text-ink focus:outline-none focus:border-accent" />
+                  </label>
+                </div>
+              </div>
               {/* Presentación Personal Editable */}
               <div className="bg-paper-raised border border-line rounded-2xl p-6 shadow-xs space-y-4">
                 <div className="flex items-center justify-between border-b border-line-soft pb-3">
@@ -693,7 +721,7 @@ export default function PerfilPage() {
 
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold text-ink-soft">
-                      Correo Electrónico Institucional
+                      Correo electrónico
                     </label>
                     <div className="relative">
                       <input
@@ -706,7 +734,7 @@ export default function PerfilPage() {
                       <Lock className="w-4 h-4 text-ink-faint absolute right-3 top-3" />
                     </div>
                     <span className="text-[10.5px] text-ink-faint">
-                      Credencial institucional verificada
+                      Correo asociado a tu cuenta
                     </span>
                   </div>
 

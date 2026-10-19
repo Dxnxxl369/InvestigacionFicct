@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import {
   FileText,
   Users,
@@ -9,10 +8,8 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   Download,
   History,
-  BookOpen,
   Award,
   Check,
   ArrowLeft,
@@ -747,28 +744,6 @@ export default function SpeedGraderPanel({
                           </div>
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {/* Documento de investigación vinculado */}
-                  {selectedEntregaObj.documentoId && (
-                    <div className="p-3.5 bg-paper rounded-xl border border-line flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <BookOpen className="w-5 h-5 text-blue-600 shrink-0" />
-                        <div>
-                          <span className="font-bold text-ink block">Documento de Investigación Vinculado</span>
-                          <span className="text-[10px] text-ink-faint">
-                            {selectedEntregaObj.documentoTitulo || `ID: #${selectedEntregaObj.documentoId}`}
-                          </span>
-                        </div>
-                      </div>
-                      <Link
-                        href={`/dashboard/documentos/${selectedEntregaObj.documentoId}`}
-                        target="_blank"
-                        className="text-xs text-accent font-semibold hover:underline flex items-center gap-1"
-                      >
-                        Abrir Documento <ExternalLink className="w-3 h-3" />
-                      </Link>
                     </div>
                   )}
 

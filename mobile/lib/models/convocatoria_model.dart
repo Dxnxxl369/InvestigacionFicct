@@ -3,10 +3,14 @@ class ConvocatoriaModel {
   final String titulo;
   final String descripcion;
   final String tipo; // FERIA, HACKATHON, CONCURSO, INVESTIGACION
+  final String modalidadInscripcion;
   final String estado; // BORRADOR, PUBLICADA, FINALIZADA
   final String? fechaCierre;
   final String? tamanoEquipo;
+  final int? maxIntegrantesFeria;
   final String? imagenPortada;
+  final String? archivoInformacionUrl;
+  final String? archivoInformacionNombre;
   final int? creadorId;
   final String? creadorNombre;
   final List<String> requisitos;
@@ -22,10 +26,14 @@ class ConvocatoriaModel {
     required this.titulo,
     required this.descripcion,
     required this.tipo,
+    this.modalidadInscripcion = 'INDIVIDUAL',
     required this.estado,
     this.fechaCierre,
     this.tamanoEquipo,
+    this.maxIntegrantesFeria,
     this.imagenPortada,
+    this.archivoInformacionUrl,
+    this.archivoInformacionNombre,
     this.creadorId,
     this.creadorNombre,
     this.requisitos = const [],
@@ -43,10 +51,15 @@ class ConvocatoriaModel {
       titulo: json['titulo'] as String? ?? 'Sin título',
       descripcion: json['descripcion'] as String? ?? '',
       tipo: json['tipo'] as String? ?? 'FERIA',
+      modalidadInscripcion: json['modalidadInscripcion'] as String?
+        ?? (json['tipo'] == 'FERIA' ? 'GRUPAL' : 'INDIVIDUAL'),
       estado: json['estado'] as String? ?? 'PUBLICADA',
       fechaCierre: json['fechaCierre'] as String?,
       tamanoEquipo: json['tamanoEquipo'] as String?,
+      maxIntegrantesFeria: (json['maxIntegrantesFeria'] as num?)?.toInt(),
       imagenPortada: json['imagenPortada'] as String?,
+      archivoInformacionUrl: json['archivoInformacionUrl'] as String?,
+      archivoInformacionNombre: json['archivoInformacionNombre'] as String?,
       creadorId: json['creadorId'] as int?,
       creadorNombre: json['creadorNombre'] as String?,
       requisitos: (json['requisitos'] as List<dynamic>?)?.map((e) {
@@ -70,10 +83,14 @@ class ConvocatoriaModel {
       'titulo': titulo,
       'descripcion': descripcion,
       'tipo': tipo,
+      'modalidadInscripcion': modalidadInscripcion,
       'estado': estado,
       'fechaCierre': fechaCierre,
       'tamanoEquipo': tamanoEquipo,
+      'maxIntegrantesFeria': maxIntegrantesFeria,
       'imagenPortada': imagenPortada,
+      'archivoInformacionUrl': archivoInformacionUrl,
+      'archivoInformacionNombre': archivoInformacionNombre,
     };
   }
 }

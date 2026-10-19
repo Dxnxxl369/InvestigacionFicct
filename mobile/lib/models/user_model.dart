@@ -3,6 +3,8 @@ class UserModel {
   final String nombre;
   final String apellido;
   final String email;
+  final String? registroUniversitario;
+  final String? celular;
   final String rol; // ADMIN, DOCENTE, JURADO, ESTUDIANTE
   final String estado;
   final String? fotoPerfil;
@@ -14,6 +16,8 @@ class UserModel {
     required this.nombre,
     required this.apellido,
     required this.email,
+    this.registroUniversitario,
+    this.celular,
     required this.rol,
     required this.estado,
     this.fotoPerfil,
@@ -30,6 +34,8 @@ class UserModel {
       nombre: json['nombre'] as String? ?? '',
       apellido: json['apellido'] as String? ?? '',
       email: json['email'] as String? ?? '',
+      registroUniversitario: json['registroUniversitario'] as String?,
+      celular: json['celular'] as String?,
       rol: json['rol'] as String? ?? 'ESTUDIANTE',
       estado: json['estado'] as String? ?? 'ACTIVO',
       fotoPerfil: json['fotoPerfil'] as String?,
@@ -44,6 +50,8 @@ class UserModel {
       'nombre': nombre,
       'apellido': apellido,
       'email': email,
+      'registroUniversitario': registroUniversitario,
+      'celular': celular,
       'rol': rol,
       'estado': estado,
       'fotoPerfil': fotoPerfil,
@@ -53,6 +61,8 @@ class UserModel {
   }
 
   UserModel copyWith({
+    String? registroUniversitario,
+    String? celular,
     String? fotoPerfil,
     String? descripcion,
     bool? ocultarCursos,
@@ -62,6 +72,8 @@ class UserModel {
       nombre: nombre,
       apellido: apellido,
       email: email,
+      registroUniversitario: registroUniversitario ?? this.registroUniversitario,
+      celular: celular ?? this.celular,
       rol: rol,
       estado: estado,
       fotoPerfil: fotoPerfil ?? this.fotoPerfil,

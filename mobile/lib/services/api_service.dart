@@ -126,12 +126,16 @@ class ApiService {
 
   // Actualizar Perfil Real
   static Future<UserModel> updateProfile({
+    String? registroUniversitario,
+    String? celular,
     String? fotoPerfil,
     String? descripcion,
     bool? ocultarCursos,
   }) async {
     final headers = await _headers();
     final body = <String, dynamic>{};
+    if (registroUniversitario != null) body['registroUniversitario'] = registroUniversitario;
+    if (celular != null) body['celular'] = celular;
     if (fotoPerfil != null) body['fotoPerfil'] = fotoPerfil;
     if (descripcion != null) body['descripcion'] = descripcion;
     if (ocultarCursos != null) body['ocultarCursos'] = ocultarCursos;
@@ -316,6 +320,84 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> inscribirFeria(int convocatoriaId, Map<String, dynamic> proyecto) async {
+    try {
+      final headers = await _headers();
+      final res = await http.post(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId/inscribirse'),
+        headers: headers,
+        body: jsonEncode({'feriaProyecto': proyecto}),
+      ).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (res.statusCode == 201) return {'success': true};
+      return {'success': false, 'error': body is Map ? body['error'] ?? 'No se pudo enviar la postulación.' : 'No se pudo enviar la postulación.'};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>?> buscarIntegranteFeria(int convocatoriaId, String correo) async {
+    try {
+      final headers = await _headers();
+      final res = await http.post(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId/buscar-integrante-feria'),
+        headers: headers,
+        body: jsonEncode({'correo': correo.trim().toLowerCase()}),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('[ApiService] Error al buscar integrante de Feria: $e');
+    }
+    return null;
+  }
+
+  static Future<List<Map<String, dynamic>>> getPostulacionesFeria(int convocatoriaId) async {
+    try {
+      final headers = await _headers();
+      final res = await http.get(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId/postulaciones-feria'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+        return list.map((e) => e as Map<String, dynamic>).toList();
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error al cargar equipos de Feria: $e');
+    }
+    return [];
+  }
+
+  static Future<bool> cambiarCodigoEquipoFeria(int convocatoriaId, int postulacionId, String codigo) async {
+    try {
+      final headers = await _headers();
+      final res = await http.put(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId/postulaciones-feria/$postulacionId/codigo-equipo'),
+        headers: headers,
+        body: jsonEncode({'codigoEquipo': codigo}),
+      ).timeout(const Duration(seconds: 8));
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('[ApiService] Error al cambiar código de equipo: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> responderPostulacionFeria(int convocatoriaId, int postulacionId, bool admitir) async {
+    try {
+      final headers = await _headers();
+      final res = await http.put(
+        Uri.parse('$baseUrl/convocatorias/$convocatoriaId/postulaciones-feria/$postulacionId/responder'),
+        headers: headers,
+        body: jsonEncode({'admitir': admitir}),
+      ).timeout(const Duration(seconds: 8));
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('[ApiService] Error al revisar equipo de Feria: $e');
+      return false;
+    }
+  }
+
   // Declinar / Cancelar postulación
   static Future<bool> declinarSolicitud(int convocatoriaId) async {
     try {
@@ -446,6 +528,52 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> getJuradosConvocatoria(int convocatoriaId) async {
+    final headers = await _headers();
+    final res = await http.get(Uri.parse('$baseUrl/convocatorias/$convocatoriaId/jurados'),
+        headers: headers).timeout(const Duration(seconds: 8));
+    if (res.statusCode != 200) throw Exception('No se pudieron cargar los jurados');
+    return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+  }
+
+  static Future<void> crearYAnadirJurado(int convocatoriaId, {
+    required String nombre,
+    required String apellido,
+    required String correo,
+    required String contrasena,
+  }) async {
+    final headers = await _headers();
+    final res = await http.post(
+      Uri.parse('$baseUrl/convocatorias/$convocatoriaId/jurados'),
+      headers: headers,
+      body: jsonEncode({
+        'nombre': nombre.trim(),
+        'apellido': apellido.trim(),
+        'correo': correo.trim().toLowerCase(),
+        'contrasena': contrasena,
+      }),
+    ).timeout(const Duration(seconds: 8));
+    if (res.statusCode != 201) {
+      String mensaje = 'No se pudo crear el jurado';
+      try {
+        final error = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        mensaje = (error['message'] ?? error['error'] ?? mensaje).toString();
+      } catch (_) {}
+      throw Exception(mensaje);
+    }
+  }
+
+  static Future<void> guardarAsignacionJurado(int convocatoriaId, int participanteId,
+      {required bool todos, required List<int> proyectoIds}) async {
+    final headers = await _headers();
+    final res = await http.put(
+      Uri.parse('$baseUrl/convocatorias/$convocatoriaId/jurados/$participanteId/asignacion'),
+      headers: headers,
+      body: jsonEncode({'todos': todos, 'proyectoIds': proyectoIds}),
+    ).timeout(const Duration(seconds: 8));
+    if (res.statusCode != 200) throw Exception('No se pudo guardar la asignación');
+  }
+
   // Admin/Docente: Remover / Dar de baja a un participante (docente, jurado o estudiante)
   static Future<bool> removerParticipante(int convocatoriaId, int participanteId) async {
     try {
@@ -530,6 +658,7 @@ class ApiService {
   static Future<bool> crearModulo(
     int convocatoriaId, {
     required String titulo,
+    String? plantilla,
     String? descripcion,
     int orden = 1,
     String? imagenUrl,
@@ -538,6 +667,7 @@ class ApiService {
       final headers = await _headers();
       final body = {
         'titulo': titulo.trim(),
+        if (plantilla != null) 'plantilla': plantilla,
         'descripcion': descripcion?.trim() ?? '',
         'orden': orden,
         'activo': true,
@@ -795,6 +925,7 @@ class ApiService {
     String? nombreArchivo,
     String? archivoUrl,
     int? grupoId,
+    int? feriaPostulacionId,
   }) async {
     try {
       final headers = await _headers();
@@ -803,6 +934,7 @@ class ApiService {
         'archivoUrl': archivoUrl ?? '/api/uploads/entrega_${DateTime.now().millisecondsSinceEpoch}.pdf',
         if (comentario != null && comentario.isNotEmpty) 'comentarioEstudiante': comentario,
         if (grupoId != null) 'grupoId': grupoId,
+        if (feriaPostulacionId != null) 'feriaPostulacionId': feriaPostulacionId,
       };
 
       final res = await http.post(

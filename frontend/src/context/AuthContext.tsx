@@ -33,6 +33,10 @@ const AuthContext = createContext<AuthContextType>({
   refreshPermissions: async () => {},
 });
 
+const sesionRechazada = (error: unknown): boolean =>
+  typeof error === "object" && error !== null && "status" in error &&
+  (error.status === 401 || error.status === 403);
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -40,19 +44,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<
     Record<string, { puedeVer: boolean; puedeEditar: boolean }>
   >({});
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   const loadPermissionsForRole = async (rol: string) => {
     try {
       const perms = await permisosAPI.getPorRol(rol);
+      if (!localStorage.getItem("auth_token")) return;
       const permMap: Record<string, { puedeVer: boolean; puedeEditar: boolean }> = {};
       perms.forEach((p) => {
         permMap[p.modulo] = { puedeVer: p.puedeVer, puedeEditar: p.puedeEditar };
       });
       setPermissions(permMap);
+      setPermissionsLoaded(true);
     } catch (err) {
+      if (!localStorage.getItem("auth_token")) return;
+      setPermissionsLoaded(false);
       console.error("Error al cargar permisos:", err);
     }
   };
+
+  useEffect(() => {
+    if (!user?.rol || permissionsLoaded) return;
+    const interval = window.setInterval(() => loadPermissionsForRole(user.rol), 5000);
+    return () => window.clearInterval(interval);
+  }, [user?.rol, permissionsLoaded]);
 
   useEffect(() => {
     const savedToken = localStorage.getItem("auth_token");
@@ -78,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authAPI
           .getProfile()
           .then((freshUser) => {
+            if (!localStorage.getItem("auth_token")) return;
             if (!freshUser || freshUser.estado === "SUSPENDIDO") {
               logout();
               window.location.href = "/login?error=suspended";
@@ -87,9 +103,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem("auth_user", JSON.stringify(freshUser));
             loadPermissionsForRole(freshUser.rol);
           })
-          .catch(() => {
-            logout();
-            window.location.href = "/login?error=suspended";
+          .catch((error) => {
+            if (sesionRechazada(error)) {
+              logout();
+              window.location.href = "/login";
+            }
           })
           .finally(() => {
             setLoading(false);
@@ -102,14 +120,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  // Heartbeat reactivo cada 4 segundos: detecta baneos y cambios de rol en vivo sin esperar F5 ni cierre de sesión
+  // Comprobar la sesión periódicamente mientras la pestaña está visible.
   useEffect(() => {
     if (!token || !user) return;
 
     const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       authAPI
         .getProfile()
         .then((freshUser) => {
+          if (!localStorage.getItem("auth_token")) return;
           if (!freshUser || freshUser.estado === "SUSPENDIDO") {
             logout();
             window.location.href = "/login?error=suspended";
@@ -121,11 +141,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             loadPermissionsForRole(freshUser.rol);
           }
         })
-        .catch(() => {
-          logout();
-          window.location.href = "/login?error=suspended";
+        .catch((error) => {
+          if (sesionRechazada(error)) {
+            logout();
+            window.location.href = "/login";
+          }
         });
-    }, 4000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [token, user?.rol, user?.estado]);
@@ -137,6 +159,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       nombre: res.nombre,
       apellido: res.apellido,
       email: res.email,
+      registroUniversitario: res.registroUniversitario,
+      celular: res.celular,
       rol: res.rol,
       estado: res.estado,
       fotoPerfil: res.fotoPerfil,
@@ -164,6 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     setPermissions({});
+    setPermissionsLoaded(false);
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_user");
   };
@@ -174,8 +199,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(freshUser);
       localStorage.setItem("auth_user", JSON.stringify(freshUser));
       await loadPermissionsForRole(freshUser.rol);
-    } catch {
-      logout();
+    } catch (error) {
+      if (sesionRechazada(error)) logout();
+      else throw error;
     }
   };
 

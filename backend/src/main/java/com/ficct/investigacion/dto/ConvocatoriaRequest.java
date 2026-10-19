@@ -1,6 +1,7 @@
 package com.ficct.investigacion.dto;
 
 import com.ficct.investigacion.model.TipoConvocatoria;
+import com.ficct.investigacion.model.ModalidadInscripcion;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
@@ -17,16 +18,22 @@ public class ConvocatoriaRequest {
 
     @NotNull(message = "El tipo de actividad es obligatorio")
     private TipoConvocatoria tipo = TipoConvocatoria.FERIA;
+    private ModalidadInscripcion modalidadInscripcion;
 
     private LocalDate fechaCierre;
 
     private String tamanoEquipo;
 
+    private Integer maxIntegrantesFeria;
+
     private String imagenPortada;
+    private String archivoInformacionUrl;
+    private String archivoInformacionNombre;
 
     private List<String> requisitos = new ArrayList<>();
 
-    // Encargados y Jurados asignados al crear o editar
+    // Los docentes se asignan desde este formulario; juradoIds se conserva
+    // para compatibilidad de clientes antiguos, pero se gestiona en Jurados.
     private List<Long> docenteIds = new ArrayList<>();
     private List<Long> juradoIds = new ArrayList<>();
 
@@ -68,6 +75,10 @@ public class ConvocatoriaRequest {
         this.tipo = tipo;
     }
 
+    public ModalidadInscripcion getModalidadInscripcion() { return modalidadInscripcion; }
+
+    public void setModalidadInscripcion(ModalidadInscripcion modalidadInscripcion) { this.modalidadInscripcion = modalidadInscripcion; }
+
     public LocalDate getFechaCierre() {
         return fechaCierre;
     }
@@ -84,6 +95,14 @@ public class ConvocatoriaRequest {
         this.tamanoEquipo = tamanoEquipo;
     }
 
+    public Integer getMaxIntegrantesFeria() {
+        return maxIntegrantesFeria;
+    }
+
+    public void setMaxIntegrantesFeria(Integer maxIntegrantesFeria) {
+        this.maxIntegrantesFeria = maxIntegrantesFeria;
+    }
+
     public String getImagenPortada() {
         return imagenPortada;
     }
@@ -91,6 +110,14 @@ public class ConvocatoriaRequest {
     public void setImagenPortada(String imagenPortada) {
         this.imagenPortada = imagenPortada;
     }
+
+    public String getArchivoInformacionUrl() { return archivoInformacionUrl; }
+
+    public void setArchivoInformacionUrl(String archivoInformacionUrl) { this.archivoInformacionUrl = archivoInformacionUrl; }
+
+    public String getArchivoInformacionNombre() { return archivoInformacionNombre; }
+
+    public void setArchivoInformacionNombre(String archivoInformacionNombre) { this.archivoInformacionNombre = archivoInformacionNombre; }
 
     public List<String> getRequisitos() {
         return requisitos;

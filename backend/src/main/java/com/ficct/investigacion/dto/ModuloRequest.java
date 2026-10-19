@@ -1,5 +1,6 @@
 package com.ficct.investigacion.dto;
 
+import com.ficct.investigacion.model.PlantillaModulo;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -16,9 +17,13 @@ public class ModuloRequest {
     private Integer orden = 1;
 
     private Boolean activo = true;
+    private PlantillaModulo plantilla;
 
     public ModuloRequest() {
     }
+
+    public PlantillaModulo getPlantilla() { return plantilla; }
+    public void setPlantilla(PlantillaModulo plantilla) { this.plantilla = plantilla; }
 
     public String getTitulo() {
         return titulo;

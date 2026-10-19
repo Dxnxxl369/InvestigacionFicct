@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { UserPlus, XCircle } from "lucide-react";
 import { api, ConvocatoriaDTO } from "@/lib/api";
+import FeriaInscripcionModal from "./FeriaInscripcionModal";
 
 interface InscripcionModalProps {
   isOpen: boolean;
@@ -17,23 +18,23 @@ export default function InscripcionModal({
   onSuccess,
   toast,
 }: InscripcionModalProps) {
-  const [nombreEquipo, setNombreEquipo] = useState("");
   const [inscribiendo, setInscribiendo] = useState(false);
 
   if (!isOpen) return null;
+
+  if (convocatoria.modalidadInscripcion === "GRUPAL") {
+    return <FeriaInscripcionModal isOpen={isOpen} onClose={onClose} convocatoria={convocatoria} onSuccess={onSuccess} toast={toast} />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setInscribiendo(true);
-      await api.inscribirseConvocatoria(convocatoria.id, {
-        nombreEquipo: nombreEquipo.trim() || undefined,
-      });
+      await api.inscribirseConvocatoria(convocatoria.id, {});
       toast(
         "¡Solicitud enviada exitosamente! Tu postulación se encuentra en revisión por el docente encargado.",
         "success"
       );
-      setNombreEquipo("");
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -60,16 +61,7 @@ export default function InscripcionModal({
             Estás a punto de inscribirte formalmente a <strong>{convocatoria.titulo}</strong>. Podrás ver y entregar todas las tareas publicadas por los docentes.
           </p>
 
-          <div>
-            <label className="font-semibold text-ink block mb-1">Nombre de Equipo o Grupo (Opcional)</label>
-            <input
-              type="text"
-              value={nombreEquipo}
-              onChange={(e) => setNombreEquipo(e.target.value)}
-              placeholder="Dejar en blanco si te postulas de forma individual"
-              className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
-            />
-          </div>
+          <p className="text-ink-soft">Tu solicitud será individual, sin proyecto ni equipo.</p>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
             <button

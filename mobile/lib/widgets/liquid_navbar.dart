@@ -20,7 +20,6 @@ class LiquidNavbar extends StatelessWidget {
       _NavItem(icon: Icons.home_rounded, label: 'Inicio'),
       _NavItem(icon: Icons.school_rounded, label: 'Cursos'),
       _NavItem(icon: Icons.description_rounded, label: 'Ferias'),
-      _NavItem(icon: Icons.edit_document, label: 'Docs'),
       _NavItem(icon: Icons.person_rounded, label: 'Perfil'),
     ];
 

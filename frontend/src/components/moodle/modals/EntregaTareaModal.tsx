@@ -17,9 +17,7 @@ import {
   api,
   TareaDTO,
   EntregaRequest,
-  DocumentoDTO,
   GrupoDTO,
-  ActividadGrupoDTO,
   User,
   getMediaUrl,
 } from "@/lib/api";
@@ -34,9 +32,7 @@ interface EntregaTareaModalProps {
   tarea: TareaDTO;
   convocatoriaId: number;
   user: User | null;
-  documentosUsuario: DocumentoDTO[];
   gruposArea: GrupoDTO[];
-  actividadesGrupo: ActividadGrupoDTO[];
   onClose: () => void;
   onSuccess: (updatedTareas: TareaDTO[]) => void;
   onNavigateToGrupos?: () => void;
@@ -47,9 +43,7 @@ export default function EntregaTareaModal({
   tarea,
   convocatoriaId,
   user,
-  documentosUsuario,
   gruposArea,
-  actividadesGrupo,
   onClose,
   onSuccess,
   onNavigateToGrupos,
@@ -62,7 +56,6 @@ export default function EntregaTareaModal({
   const [archivoEntregaTamano, setArchivoEntregaTamano] = useState(0);
   const [archivoEntregaPrevioUrl, setArchivoEntregaPrevioUrl] = useState("");
   const [comentarioEstudiante, setComentarioEstudiante] = useState("");
-  const [docVinculadoId, setDocVinculadoId] = useState<number | "">("");
 
   const [isDraggingEntrega, setIsDraggingEntrega] = useState(false);
   const [errorValidacionArchivo, setErrorValidacionArchivo] = useState<string | null>(null);
@@ -79,13 +72,11 @@ export default function EntregaTareaModal({
       setArchivoEntregaOriginalName(tarea.miEntrega.nombreArchivo || "");
       setArchivoEntregaPrevioUrl(tarea.miEntrega.archivoUrl || "");
       setComentarioEstudiante(tarea.miEntrega.comentarioEstudiante || "");
-      setDocVinculadoId(tarea.miEntrega.documentoId || "");
     } else {
       setNombreArchivoEntrega("");
       setArchivoEntregaOriginalName("");
       setArchivoEntregaPrevioUrl("");
       setComentarioEstudiante("");
-      setDocVinculadoId("");
     }
     setArchivosEntregaFiles([]);
     setArchivoEntregaFile(null);
@@ -94,54 +85,13 @@ export default function EntregaTareaModal({
     setEditandoNombreArchivo(false);
   }, [tarea]);
 
-  // Resolver a qué grupo pertenece el estudiante para esta tarea específica (Moodle Grouping)
-  let miGrupoParaEstaTarea: GrupoDTO | null = null;
-  let actividadAsociada: ActividadGrupoDTO | null = null;
-
-  if (tarea.esGrupal) {
-    if (tarea.actividadGrupoId) {
-      actividadAsociada = actividadesGrupo.find((a) => a.id === tarea.actividadGrupoId) || null;
-      if (actividadAsociada) {
-        miGrupoParaEstaTarea =
-          actividadAsociada.grupos?.find(
-            (g) =>
-              g.id === actividadAsociada?.grupoSeleccionadoId ||
-              g.miembros?.some(
-                (m) =>
-                  m.usuarioId === user?.id ||
-                  (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
-              )
-          ) || null;
-      }
-    } else {
-      miGrupoParaEstaTarea =
-        gruposArea.find((g) =>
-          g.miembros?.some(
-            (m) =>
-              m.usuarioId === user?.id ||
-              (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
-          )
-        ) || null;
-      if (!miGrupoParaEstaTarea) {
-        for (const act of actividadesGrupo) {
-          const g = act.grupos?.find(
-            (gr) =>
-              gr.id === act.grupoSeleccionadoId ||
-              gr.miembros?.some(
-                (m) =>
-                  m.usuarioId === user?.id ||
-                  (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
-              )
-          );
-          if (g) {
-            miGrupoParaEstaTarea = g;
-            actividadAsociada = act;
-            break;
-          }
-        }
-      }
-    }
-  }
+  // Una tarea grupal usa el equipo al que pertenece el estudiante en el aula.
+  const miGrupoParaEstaTarea: GrupoDTO | null = tarea.esGrupal && !tarea.feriaPostulacionId
+    ? gruposArea.find((g) => g.miembros?.some((m) =>
+        m.usuarioId === user?.id ||
+        (user?.email && m.email?.toLowerCase() === user.email.toLowerCase())
+      )) || null
+    : null;
 
   // Agregar lote de archivos con validación acumulada
   const agregarArchivosEntrega = (nuevosArchivos: File[]) => {
@@ -226,10 +176,8 @@ export default function EntregaTareaModal({
 
     const tieneArchivosNuevos = archivosEntregaFiles.length > 0 || Boolean(archivoEntregaFile);
     const tieneArchivoPrevio = Boolean(archivoEntregaPrevioUrl);
-    const tieneDocVinculado = Boolean(docVinculadoId);
-
-    if (!tieneArchivosNuevos && !tieneArchivoPrevio && !tieneDocVinculado) {
-      toast("Debes adjuntar al menos un archivo o vincular un documento de investigación para realizar la entrega.", "error");
+    if (!tieneArchivosNuevos && !tieneArchivoPrevio) {
+      toast("Debes adjuntar al menos un archivo para realizar la entrega.", "error");
       setErrorValidacionArchivo("Por favor arrastra o selecciona al menos un archivo para tu entrega.");
       return;
     }
@@ -295,11 +243,11 @@ export default function EntregaTareaModal({
       }
 
       const req: EntregaRequest = {
-        documentoId: docVinculadoId ? Number(docVinculadoId) : undefined,
         nombreArchivo: finalNombreArchivo || undefined,
         archivoUrl: finalArchivoUrl,
         comentarioEstudiante: comentarioEstudiante.trim() || undefined,
         grupoId: finalGrupoId,
+        feriaPostulacionId: tarea.feriaPostulacionId,
       };
 
       await api.entregarTarea(tarea.id, req);
@@ -360,25 +308,21 @@ export default function EntregaTareaModal({
             <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
               Máx: {tarea.tamanoMaximoMb} MB
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-paper border border-line text-ink font-semibold">
-              Corte: {tarea.fechaCorte ? new Date(tarea.fechaCorte).toLocaleString() : "Abierto"}
-            </span>
           </div>
         </div>
 
-        {/* Alerta de Agrupamiento y Equipo (Moodle Grouping) */}
-        {tarea.esGrupal && (
+        {/* Equipo al que se asignará la entrega grupal */}
+        {tarea.feriaPostulacionId ? (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold text-blue-900">
+            Esta entrega corresponde al equipo {tarea.codigoEquipo}. El archivo y la calificación se guardarán para ese equipo.
+          </div>
+        ) : tarea.esGrupal && (
           miGrupoParaEstaTarea ? (
             <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-200">
                 <Users className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <span>Entrega grupal en representación de: <u>{miGrupoParaEstaTarea.nombre}</u></span>
               </div>
-              {actividadAsociada && (
-                <p className="text-[11px] text-blue-700 dark:text-blue-300">
-                  Actividad de agrupamiento: <strong>{actividadAsociada.titulo}</strong>
-                </p>
-              )}
               {miGrupoParaEstaTarea.miembros && miGrupoParaEstaTarea.miembros.length > 0 && (
                 <p className="text-[10px] text-blue-600 dark:text-blue-400">
                   Integrantes beneficiados: {miGrupoParaEstaTarea.miembros.map((m) => m.nombreCompleto || m.email).join(", ")}
@@ -390,7 +334,7 @@ export default function EntregaTareaModal({
               <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200 font-semibold">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span>
-                  Esta tarea es grupal{actividadAsociada ? ` y corresponde a la actividad "${actividadAsociada.titulo}"` : ""}. Aún no estás registrado en ningún grupo de este agrupamiento.
+                  Esta tarea es grupal. Aún no estás registrado en ningún equipo de esta aula.
                 </span>
               </div>
               <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
@@ -665,27 +609,6 @@ export default function EntregaTareaModal({
             )}
           </div>
 
-          {/* Vincular Documento de Investigación si aplica */}
-          {documentosUsuario.length > 0 && (
-            <div>
-              <label className="font-semibold text-ink block mb-1">
-                Vincular Documento de Investigación de la Plataforma (Opcional)
-              </label>
-              <select
-                value={docVinculadoId}
-                onChange={(e) => setDocVinculadoId(e.target.value ? Number(e.target.value) : "")}
-                className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
-              >
-                <option value="">-- No vincular documento del repositorio --</option>
-                {documentosUsuario.map((doc) => (
-                  <option key={doc.id} value={doc.id}>
-                    {doc.titulo} ({doc.categoria})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Comentario para el Docente */}
           <div>
             <label className="font-semibold text-ink block mb-1">
@@ -712,8 +635,8 @@ export default function EntregaTareaModal({
               </button>
               <button
                 type="submit"
-                disabled={enviandoEntrega || Boolean(tarea.esGrupal && !miGrupoParaEstaTarea)}
-                title={tarea.esGrupal && !miGrupoParaEstaTarea ? "Debes unirte a un grupo para poder realizar la entrega" : ""}
+                disabled={enviandoEntrega || Boolean(tarea.esGrupal && !tarea.feriaPostulacionId && !miGrupoParaEstaTarea)}
+                title={tarea.esGrupal && !tarea.feriaPostulacionId && !miGrupoParaEstaTarea ? "Debes unirte a un grupo para poder realizar la entrega" : ""}
                 className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
               >
                 {enviandoEntrega ? (

@@ -10,7 +10,6 @@ import {
   ConvocatoriaDTO,
   ConvocatoriaParticipanteDTO,
   TareaDTO,
-  DocumentoDTO,
   User,
   getMediaUrl,
   ModuloDTO,
@@ -19,6 +18,7 @@ import {
   ActividadGrupoDTO,
   VersionDTO,
   EntregaTareaDTO,
+  FeriaPostulacionDTO,
 } from "@/lib/api";
 import {
   Users,
@@ -29,7 +29,7 @@ import {
   FolderKanban,
   BookOpen,
   Award,
-  Info,
+  ClipboardList,
   Trash2,
   Archive,
 } from "lucide-react";
@@ -55,8 +55,11 @@ import TareaDetalleView from "@/components/moodle/tabs/TareaDetalleView";
 import TabTareas from "@/components/moodle/tabs/TabTareas";
 import TabGrupos from "@/components/moodle/tabs/TabGrupos";
 import TabParticipantes from "@/components/moodle/tabs/TabParticipantes";
+import TabSolicitudesInscripcion from "@/components/moodle/tabs/TabSolicitudesInscripcion";
+import FeriaPostulacionesPanel from "@/components/moodle/tabs/FeriaPostulacionesPanel";
 import TabCalificaciones from "@/components/moodle/tabs/TabCalificaciones";
-import TabInfo from "@/components/moodle/tabs/TabInfo";
+import TabSeguimiento from "@/components/moodle/tabs/TabSeguimiento";
+import TabJurados from "@/components/moodle/tabs/TabJurados";
 
 export default function ConvocatoriaDetallePage() {
   const { user } = useAuth();
@@ -68,6 +71,7 @@ export default function ConvocatoriaDetallePage() {
   // Estados principales de datos
   const [convocatoria, setConvocatoria] = useState<ConvocatoriaDTO | null>(null);
   const [participantes, setParticipantes] = useState<ConvocatoriaParticipanteDTO[]>([]);
+  const [postulacionesFeria, setPostulacionesFeria] = useState<FeriaPostulacionDTO[]>([]);
   const [tareas, setTareas] = useState<TareaDTO[]>([]);
   const [modulos, setModulos] = useState<ModuloDTO[]>([]);
   const [gruposArea, setGruposArea] = useState<GrupoDTO[]>([]);
@@ -77,13 +81,13 @@ export default function ConvocatoriaDetallePage() {
   const [totalSinEquipoArea, setTotalSinEquipoArea] = useState<number>(0);
   const [actividadesGrupo, setActividadesGrupo] = useState<ActividadGrupoDTO[]>([]);
   const [actividadActiva, setActividadActiva] = useState<ActividadGrupoDTO | null>(null);
-  const [documentosUsuario, setDocumentosUsuario] = useState<DocumentoDTO[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [todasLasEntregas, setTodasLasEntregas] = useState<Record<number, EntregaTareaDTO[]>>({});
   const [cargandoGradebook, setCargandoGradebook] = useState<boolean>(false);
 
   // Estados de carga y feedback
   const [loading, setLoading] = useState(true);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
   const toast = useCallback((text: string, type: "success" | "error" | "info" = "success") => {
@@ -92,13 +96,13 @@ export default function ConvocatoriaDetallePage() {
   }, []);
 
   // Navegación de pestañas y sincronización con URL
-  const [activeTab, setActiveTab] = useState<"tareas" | "grupos" | "participantes" | "calificaciones" | "info">("tareas");
+  const [activeTab, setActiveTab] = useState<"tareas" | "grupos" | "solicitudes" | "participantes" | "jurados" | "calificaciones" | "seguimiento">("tareas");
   const [selectedModuloId, setSelectedModuloId] = useState<number | null>(null);
   const [activeTareaDetalle, setActiveTareaDetalle] = useState<TareaDTO | null>(null);
   const [activeTareaParaEntregas, setActiveTareaParaEntregas] = useState<TareaDTO | null>(null);
 
   const updateUrlParams = useCallback(
-    (newParams: { tab?: string; modulo?: number | null; tarea?: number | null; entregas?: number | null }) => {
+    (newParams: { tab?: string; modulo?: number | null; tarea?: number | null; equipo?: number | null; entregas?: number | null }) => {
       const p = new URLSearchParams(searchParams.toString());
       Object.entries(newParams).forEach(([k, v]) => {
         if (v === null || v === undefined) {
@@ -113,11 +117,11 @@ export default function ConvocatoriaDetallePage() {
   );
 
   const handleCambiarTab = useCallback(
-    (tab: "tareas" | "grupos" | "participantes" | "calificaciones" | "info") => {
+    (tab: "tareas" | "grupos" | "solicitudes" | "participantes" | "jurados" | "calificaciones" | "seguimiento") => {
       setActiveTab(tab);
       setActiveTareaDetalle(null);
       setActiveTareaParaEntregas(null);
-      updateUrlParams({ tab, tarea: null, entregas: null });
+      updateUrlParams({ tab, tarea: null, equipo: null, entregas: null });
     },
     [updateUrlParams]
   );
@@ -210,7 +214,7 @@ export default function ConvocatoriaDetallePage() {
 
   // Carga de datos centralizada
   const cargarDatos = useCallback(async () => {
-    if (!convocatoriaId) return;
+    if (!convocatoriaId || !user || !localStorage.getItem("auth_token")) return;
     try {
       setLoading(true);
 
@@ -225,30 +229,37 @@ export default function ConvocatoriaDetallePage() {
 
       if (!convData) {
         setConvocatoria(null);
+        setErrorCarga(null);
         setLoading(false);
         return;
       }
+      if (!localStorage.getItem("auth_token")) return;
       setConvocatoria(convData);
 
-      const [partsData, tareasData, modulosData, gruposData, actsGrupoData] = await Promise.all([
+      const [partsData, tareasData, modulosData, gruposData, actsGrupoData, feriaData] = await Promise.all([
         api.getParticipantesConvocatoria(convocatoriaId).catch(() => [] as ConvocatoriaParticipanteDTO[]),
-        api.getTareasConvocatoria(convocatoriaId).catch(() => [] as TareaDTO[]),
+        api.getTareasConvocatoria(convocatoriaId),
         api.getModulosConvocatoria(convocatoriaId).catch(() => [] as ModuloDTO[]),
         api.getGruposArea(convocatoriaId).catch(() => null as GruposAreaResponse | null),
         api.getActividadesGrupo(convocatoriaId).catch(() => [] as ActividadGrupoDTO[]),
+        convData.modalidadInscripcion === "GRUPAL" ? api.getPostulacionesFeria(convocatoriaId).catch(() => [] as FeriaPostulacionDTO[]) : Promise.resolve([] as FeriaPostulacionDTO[]),
       ]);
 
       setParticipantes(partsData || []);
+      setPostulacionesFeria(feriaData);
       setTareas(tareasData || []);
       setModulos(modulosData || []);
+      setErrorCarga(null);
 
       // Restauración de estado según query params
       const urlTab = searchParams.get("tab");
       const urlModulo = searchParams.get("modulo");
       const urlTarea = searchParams.get("tarea");
+      const urlEquipo = searchParams.get("equipo");
       const urlEntregas = searchParams.get("entregas");
 
-      if (urlTab && ["tareas", "grupos", "participantes", "calificaciones", "info"].includes(urlTab)) {
+      if (urlTab && ["tareas", "grupos", "solicitudes", "participantes", "jurados", "calificaciones", "seguimiento"].includes(urlTab)
+        && (!["seguimiento", "jurados"].includes(urlTab) || user.rol === "ADMIN" || user.rol === "DOCENTE")) {
         setActiveTab(urlTab as any);
       }
 
@@ -262,15 +273,18 @@ export default function ConvocatoriaDetallePage() {
       if (tareasData) {
         if (urlTarea) {
           const tIdNum = Number(urlTarea);
-          const tEncontrada = tareasData.find((t) => t.id === tIdNum);
+          const tEncontrada = tareasData.find((t) => t.id === tIdNum &&
+            (urlEquipo ? t.feriaPostulacionId === Number(urlEquipo) : !t.feriaPostulacionId));
           if (tEncontrada) {
             setActiveTareaDetalle(tEncontrada);
             if (tEncontrada.moduloId) setSelectedModuloId(tEncontrada.moduloId);
           } else {
-            setActiveTareaDetalle((prev) => (prev ? tareasData.find((t) => t.id === prev.id) || null : null));
+            setActiveTareaDetalle((prev) => (prev ? tareasData.find((t) => t.id === prev.id &&
+              t.feriaPostulacionId === prev.feriaPostulacionId) || null : null));
           }
         } else {
-          setActiveTareaDetalle((prev) => (prev ? tareasData.find((t) => t.id === prev.id) || null : null));
+          setActiveTareaDetalle((prev) => (prev ? tareasData.find((t) => t.id === prev.id &&
+            t.feriaPostulacionId === prev.feriaPostulacionId) || null : null));
         }
 
         if (urlEntregas) {
@@ -312,10 +326,6 @@ export default function ConvocatoriaDetallePage() {
         }
       }
 
-      if (user?.rol === "ESTUDIANTE") {
-        api.getDocumentos().then(setDocumentosUsuario).catch(() => {});
-      }
-
       if (esAdmin) {
         api.getUsers().then(setAllUsers).catch(() => {});
       } else if (user?.rol === "DOCENTE") {
@@ -342,7 +352,13 @@ export default function ConvocatoriaDetallePage() {
         }).catch(() => {});
       }
     } catch (err: any) {
-      toast(err.message || "Error al cargar los datos del área", "error");
+      const mensaje = err?.message || "Error al cargar los datos del área";
+      if (mensaje === "Failed to fetch") {
+        setErrorCarga("No se puede conectar con el servidor. Reintentando cargar el aula...");
+      } else {
+        setErrorCarga(mensaje);
+        toast(mensaje, "error");
+      }
     } finally {
       setLoading(false);
     }
@@ -351,6 +367,12 @@ export default function ConvocatoriaDetallePage() {
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
+
+  useEffect(() => {
+    if (errorCarga !== "No se puede conectar con el servidor. Reintentando cargar el aula...") return;
+    const interval = window.setInterval(cargarDatos, 5000);
+    return () => window.clearInterval(interval);
+  }, [errorCarga, cargarDatos]);
 
   // Cargar calificaciones para el Gradebook
   const cargarTodasLasEntregas = useCallback(async () => {
@@ -447,7 +469,7 @@ export default function ConvocatoriaDetallePage() {
         toast("Tarea eliminada exitosamente", "success");
         if (activeTareaDetalle?.id === itemAEliminar.id) {
           setActiveTareaDetalle(null);
-          updateUrlParams({ tarea: null });
+          updateUrlParams({ tarea: null, equipo: null });
         }
         const updatedTareas = await api.getTareasConvocatoria(convocatoriaId);
         setTareas(updatedTareas);
@@ -711,9 +733,24 @@ export default function ConvocatoriaDetallePage() {
   // Filtrado de participantes para TabParticipantes
   const participantesAceptados = participantes.filter((p) => p.estadoInscripcion === "ACEPTADO");
   const solicitudesPendientes = participantes.filter((p) => p.rol === "ESTUDIANTE" && p.estadoInscripcion === "PENDIENTE");
+  const equiposFeriaAceptados = postulacionesFeria.filter((p) => p.estado === "ACEPTADO");
+  const solicitudesFeria = postulacionesFeria.filter((p) => p.estado === "PENDIENTE");
+  const totalSolicitudesPendientes = convocatoria?.modalidadInscripcion === "GRUPAL"
+    ? solicitudesFeria.length
+    : solicitudesPendientes.length;
   const estudiantesAdmitidos = participantes.filter((p) => p.rol === "ESTUDIANTE" && p.estadoInscripcion === "ACEPTADO");
 
-  const participantesFiltrados = participantesAceptados.filter((p) => {
+  // Una persona conserva una sola participación interna, pero se muestra una fila por equipo de Feria.
+  const participantesParaTabla = convocatoria?.modalidadInscripcion === "GRUPAL"
+    ? participantesAceptados.flatMap((p) => {
+        if (p.rol !== "ESTUDIANTE" || !p.nombreEquipo) return [p];
+        return p.nombreEquipo.split(",").map((codigo) => ({
+          ...p, nombreEquipo: codigo.trim(), gruposNombres: [],
+        })).filter((p) => p.nombreEquipo);
+      })
+    : participantesAceptados;
+
+  const participantesFiltrados = participantesParaTabla.filter((p) => {
     const matchRol = filtroParticipanteRol === "TODOS" || p.rol === filtroParticipanteRol;
     const matchSearch =
       searchParticipante.trim() === "" ||
@@ -725,7 +762,16 @@ export default function ConvocatoriaDetallePage() {
 
   const conteoDocentes = participantesAceptados.filter((p) => p.rol === "DOCENTE").length;
   const conteoJurados = participantesAceptados.filter((p) => p.rol === "JURADO").length;
-  const conteoEstudiantes = participantesAceptados.filter((p) => p.rol === "ESTUDIANTE").length;
+  const conteoEstudiantes = participantesParaTabla.filter((p) => p.rol === "ESTUDIANTE").length;
+
+  const refrescarEquiposFeria = async () => {
+    const [equipos, personas] = await Promise.all([
+      api.getPostulacionesFeria(convocatoriaId),
+      api.getParticipantesConvocatoria(convocatoriaId),
+    ]);
+    setPostulacionesFeria(equipos);
+    setParticipantes(personas);
+  };
 
   const estudiantesFiltradosGradebook = estudiantesAdmitidos.filter((est) => {
     if (!searchGradebookEstudiante.trim()) return true;
@@ -743,6 +789,21 @@ export default function ConvocatoriaDetallePage() {
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[50vh]">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (errorCarga) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-4xl mx-auto py-12 text-center space-y-4">
+          <AlertCircle className="w-10 h-10 text-amber-600 mx-auto" />
+          <p className="text-sm text-ink">{errorCarga}</p>
+          <button type="button" onClick={cargarDatos}
+            className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold">
+            Reintentar ahora
+          </button>
         </div>
       </DashboardLayout>
     );
@@ -824,11 +885,12 @@ export default function ConvocatoriaDetallePage() {
             tarea={activeTareaDetalle}
             convocatoria={convocatoria}
             estudiantesAdmitidos={estudiantesAdmitidos}
+            esEstudiante={user?.rol === "ESTUDIANTE"}
             puedeGestionarTareas={puedeGestionarTareas}
             esJuradoEnEstaArea={esJuradoEnEstaArea}
             onVolver={() => {
               setActiveTareaDetalle(null);
-              updateUrlParams({ tarea: null });
+              updateUrlParams({ tarea: null, equipo: null });
             }}
             onAbrirEntregaModal={(t) => {
               setTareaParaEntrega(t);
@@ -854,9 +916,7 @@ export default function ConvocatoriaDetallePage() {
             tarea={tareaParaEntrega}
             convocatoriaId={convocatoriaId}
             user={user}
-            documentosUsuario={documentosUsuario}
             gruposArea={gruposArea}
-            actividadesGrupo={actividadesGrupo}
             onClose={() => {
               setShowSubirEntregaModal(false);
               setTareaParaEntrega(null);
@@ -864,7 +924,8 @@ export default function ConvocatoriaDetallePage() {
             onSuccess={(updatedTareas) => {
               setTareas(updatedTareas);
               if (activeTareaDetalle) {
-                const refreshed = updatedTareas.find((t) => t.id === activeTareaDetalle.id);
+                const refreshed = updatedTareas.find((t) => t.id === activeTareaDetalle.id &&
+                  t.feriaPostulacionId === activeTareaDetalle.feriaPostulacionId);
                 if (refreshed) setActiveTareaDetalle(refreshed);
               }
             }}
@@ -965,6 +1026,10 @@ export default function ConvocatoriaDetallePage() {
                     {convocatoria.titulo}
                   </h1>
                   <p className="text-xs sm:text-sm text-ink-soft line-clamp-2">{convocatoria.descripcion}</p>
+                  {convocatoria.archivoInformacionUrl && <a href={getMediaUrl(convocatoria.archivoInformacionUrl)}
+                    target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-xs font-semibold text-accent hover:underline">
+                    Ver archivo informativo: {convocatoria.archivoInformacionNombre || "Documento del evento"}
+                  </a>}
 
                   {/* Métricas rápidas del aula */}
                   <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-3 text-xs text-ink-soft">
@@ -982,7 +1047,9 @@ export default function ConvocatoriaDetallePage() {
                     </div>
                     <div className="flex items-center gap-1.5 font-medium">
                       <Users className="w-4 h-4 text-emerald-600" />
-                      <span>{gruposArea.length} grupos</span>
+                      <span>{convocatoria.modalidadInscripcion === "GRUPAL"
+                        ? `${equiposFeriaAceptados.length} ${equiposFeriaAceptados.length === 1 ? "equipo" : "equipos"}`
+                        : `${gruposArea.length} grupos`}</span>
                     </div>
                   </div>
                 </div>
@@ -995,6 +1062,13 @@ export default function ConvocatoriaDetallePage() {
                       className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
                     >
                       {esEstudianteRechazado ? "Volver a Postular" : "Inscribirme al Área"}
+                    </button>
+                  )}
+                  {user?.rol === "ESTUDIANTE" && esEstudianteInscrito &&
+                    convocatoria.modalidadInscripcion === "GRUPAL" && convocatoria.estado === "PUBLICADA" && (
+                    <button type="button" onClick={() => setShowInscripcionModal(true)}
+                      className="rounded-xl bg-accent px-5 py-2.5 text-xs font-semibold text-white">
+                      Inscribir otro equipo
                     </button>
                   )}
 
@@ -1062,8 +1136,24 @@ export default function ConvocatoriaDetallePage() {
           >
             <Users className="w-4 h-4" /> Grupos y Elección
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold">
-              {gruposArea.length}
+              {convocatoria.modalidadInscripcion === "GRUPAL" ? equiposFeriaAceptados.length : gruposArea.length}
             </span>
+          </button>
+
+          <button
+            onClick={() => handleCambiarTab("solicitudes")}
+            className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeTab === "solicitudes"
+                ? "border-accent text-accent bg-accent/5"
+                : "border-transparent text-ink-soft hover:text-ink hover:border-line"
+            }`}
+          >
+            <BookOpen className="w-4 h-4" /> Inscripciones
+            {totalSolicitudesPendientes > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                {totalSolicitudesPendientes}
+              </span>
+            )}
           </button>
 
           <button
@@ -1078,11 +1168,6 @@ export default function ConvocatoriaDetallePage() {
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-paper-sunken border border-line text-ink-faint">
               {participantesAceptados.length}
             </span>
-            {puedeAdmitirEstudiantes && solicitudesPendientes.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-white font-bold animate-pulse">
-                {solicitudesPendientes.length}
-              </span>
-            )}
           </button>
 
           <button
@@ -1096,16 +1181,28 @@ export default function ConvocatoriaDetallePage() {
             <Award className="w-4 h-4" /> Calificaciones
           </button>
 
-          <button
-            onClick={() => handleCambiarTab("info")}
+          {puedeDesignarJurado && <button
+            onClick={() => handleCambiarTab("jurados")}
             className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeTab === "info"
+              activeTab === "jurados"
                 ? "border-accent text-accent bg-accent/5"
                 : "border-transparent text-ink-soft hover:text-ink hover:border-line"
             }`}
           >
-            <Info className="w-4 h-4" /> Información y Bases
-          </button>
+            <Award className="w-4 h-4" /> Jurados
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-paper-sunken border border-line text-ink-faint">{conteoJurados}</span>
+          </button>}
+
+          {puedeGestionarTareas && <button
+            onClick={() => handleCambiarTab("seguimiento")}
+            className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeTab === "seguimiento"
+                ? "border-accent text-accent bg-accent/5"
+                : "border-transparent text-ink-soft hover:text-ink hover:border-line"
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" /> Seguimiento
+          </button>}
         </div>
 
         {/* Contenido Dinámico de la Pestaña Activa */}
@@ -1155,7 +1252,12 @@ export default function ConvocatoriaDetallePage() {
         )}
 
         {activeTab === "grupos" && (
-          <TabGrupos
+          convocatoria.modalidadInscripcion === "GRUPAL" ? (
+            <FeriaPostulacionesPanel convocatoriaId={convocatoriaId}
+              esFeria={convocatoria.tipo === "FERIA"}
+              postulaciones={equiposFeriaAceptados} puedeGestionar={puedeAdmitirEstudiantes}
+              correoActual={user?.email} toast={toast} onRefresh={refrescarEquiposFeria} />
+          ) : <TabGrupos
             user={user}
             convocatoria={convocatoria}
             esEstudianteInscrito={esEstudianteInscrito}
@@ -1193,20 +1295,38 @@ export default function ConvocatoriaDetallePage() {
           />
         )}
 
+        {activeTab === "solicitudes" && (
+          convocatoria.modalidadInscripcion === "GRUPAL" ? (
+            <FeriaPostulacionesPanel convocatoriaId={convocatoriaId} modoSolicitud
+              esFeria={convocatoria.tipo === "FERIA"}
+              postulaciones={solicitudesFeria} puedeGestionar={puedeAdmitirEstudiantes}
+              correoActual={user?.email} toast={toast} onRefresh={refrescarEquiposFeria} />
+          ) : (
+            <TabSolicitudesInscripcion
+              solicitudesPendientes={solicitudesPendientes}
+              puedeAdmitirEstudiantes={puedeAdmitirEstudiantes}
+              selectedSolicitudesLote={selectedSolicitudesLote}
+              setSelectedSolicitudesLote={setSelectedSolicitudesLote}
+              procesandoAdmision={procesandoAdmision}
+              onAdmitir={handleAdmitir}
+              onAdmitirLote={handleAdmitirLote}
+              onOpenRechazoIndividual={(sol) => { setSolicitudRechazoIndividual(sol); setShowRechazoIndividualModal(true); }}
+              onOpenRechazoLote={() => setShowRechazoLoteModal(true)}
+            />
+          )
+        )}
+
         {activeTab === "participantes" && (
+          <div className="space-y-4">
           <TabParticipantes
             user={user}
             convocatoria={convocatoria}
             esEstudianteInscrito={esEstudianteInscrito}
             esEstudiantePendiente={esEstudiantePendiente}
             esAdmin={esAdmin}
-            puedeAdmitirEstudiantes={puedeAdmitirEstudiantes}
-            puedeDesignarJurado={puedeDesignarJurado}
-            participantes={participantes}
+            puedeDesignarJurado={Boolean(esAdmin)}
+            participantes={participantesParaTabla}
             participantesFiltrados={participantesFiltrados}
-            solicitudesPendientes={solicitudesPendientes}
-            selectedSolicitudesLote={selectedSolicitudesLote}
-            setSelectedSolicitudesLote={setSelectedSolicitudesLote}
             searchParticipante={searchParticipante}
             setSearchParticipante={setSearchParticipante}
             filtroParticipanteRol={filtroParticipanteRol}
@@ -1214,18 +1334,11 @@ export default function ConvocatoriaDetallePage() {
             conteoDocentes={conteoDocentes}
             conteoJurados={conteoJurados}
             conteoEstudiantes={conteoEstudiantes}
-            procesandoAdmision={procesandoAdmision}
-            onAdmitir={handleAdmitir}
-            onAdmitirLote={handleAdmitirLote}
-            onOpenRechazoIndividual={(sol) => {
-              setSolicitudRechazoIndividual(sol);
-              setShowRechazoIndividualModal(true);
-            }}
-            onOpenRechazoLote={() => setShowRechazoLoteModal(true)}
             onOpenDesignarModal={() => setShowDesignarModal(true)}
             onRemoverParticipante={handleRemoverParticipante}
             onAbrirPerfilParticipante={handleAbrirPerfilParticipante}
           />
+          </div>
         )}
 
         {activeTab === "calificaciones" && (
@@ -1249,7 +1362,11 @@ export default function ConvocatoriaDetallePage() {
           />
         )}
 
-        {activeTab === "info" && <TabInfo convocatoria={convocatoria} />}
+        {activeTab === "jurados" && puedeDesignarJurado && <TabJurados
+          convocatoriaId={convocatoriaId} allUsers={allUsers} onRefresh={cargarDatos} toast={toast} />}
+
+        {activeTab === "seguimiento" && puedeGestionarTareas &&
+          <TabSeguimiento convocatoria={convocatoria} tareas={tareas} />}
 
         {/* Modales Compartidos */}
         {showSubirEntregaModal && tareaParaEntrega && (
@@ -1257,9 +1374,7 @@ export default function ConvocatoriaDetallePage() {
             tarea={tareaParaEntrega}
             convocatoriaId={convocatoriaId}
             user={user}
-            documentosUsuario={documentosUsuario}
             gruposArea={gruposArea}
-            actividadesGrupo={actividadesGrupo}
             onClose={() => {
               setShowSubirEntregaModal(false);
               setTareaParaEntrega(null);
@@ -1283,7 +1398,6 @@ export default function ConvocatoriaDetallePage() {
           tareaEditing={tareaEditing}
           moduloIdDefault={tareaModuloIdDefault}
           modulos={modulos}
-          actividadesGrupo={actividadesGrupo}
           onSuccess={(updatedTareas, updatedTareaDetalle) => {
             setTareas(updatedTareas);
             if (updatedTareaDetalle) setActiveTareaDetalle(updatedTareaDetalle);
@@ -1300,7 +1414,10 @@ export default function ConvocatoriaDetallePage() {
           convocatoriaId={convocatoriaId}
           moduloEditing={moduloEditing}
           ordenSugerido={modulos.length + 1}
-          onSuccess={(updatedModulos) => setModulos(updatedModulos)}
+          onSuccess={(updatedModulos) => {
+            setModulos(updatedModulos);
+            api.getTareasConvocatoria(convocatoriaId).then(setTareas).catch(() => {});
+          }}
           toast={toast}
         />
 
@@ -1316,6 +1433,7 @@ export default function ConvocatoriaDetallePage() {
           onClose={() => setShowDesignarModal(false)}
           convocatoriaId={convocatoriaId}
           esAdmin={esAdmin}
+          soloDocentes
           allUsers={allUsers}
           onSuccess={cargarDatos}
           toast={toast}

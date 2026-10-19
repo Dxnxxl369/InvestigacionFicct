@@ -53,7 +53,7 @@ interface TabTareasProps {
   onDeclinarSolicitudPropia: () => void;
   onAbrirInscripcionModal: () => void;
   onSeleccionarActividadGrupo: (act: ActividadGrupoDTO) => void;
-  updateUrlParams: (params: { tab?: string; modulo?: number | null; tarea?: number | null }) => void;
+  updateUrlParams: (params: { tab?: string; modulo?: number | null; tarea?: number | null; equipo?: number | null }) => void;
 }
 
 export default function TabTareas({
@@ -397,10 +397,10 @@ export default function TabTareas({
               <div className="space-y-4">
                 {tareasGenerales.map((t) => (
                   <div
-                    key={t.id}
+                    key={`${t.id}-${t.feriaPostulacionId || 0}`}
                     onClick={() => {
                       onSelectTarea(t);
-                      updateUrlParams({ tarea: t.id, modulo: t.moduloId || null });
+                      updateUrlParams({ tarea: t.id, modulo: t.moduloId || null, equipo: t.feriaPostulacionId || null });
                     }}
                     className="bg-paper hover:bg-paper-sunken/60 border border-line rounded-xl p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-2xs"
                   >
@@ -705,10 +705,10 @@ export default function TabTareas({
           <div className="space-y-4">
             {tareasDelModulo.map((t) => (
               <div
-                key={t.id}
+                key={`${t.id}-${t.feriaPostulacionId || 0}`}
                 onClick={() => {
                   onSelectTarea(t);
-                  updateUrlParams({ tarea: t.id, modulo: t.moduloId || selectedModuloId || null });
+                  updateUrlParams({ tarea: t.id, modulo: t.moduloId || selectedModuloId || null, equipo: t.feriaPostulacionId || null });
                 }}
                 className="bg-paper hover:bg-paper-sunken/60 border border-line rounded-xl p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-2xs"
               >

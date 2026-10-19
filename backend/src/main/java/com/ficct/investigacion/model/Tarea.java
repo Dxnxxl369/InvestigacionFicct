@@ -27,6 +27,11 @@ public class Tarea {
     @Column(columnDefinition = "TEXT")
     private String descripcion;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "tarea_adjuntos", joinColumns = @JoinColumn(name = "tarea_id"))
+    @OrderColumn(name = "orden")
+    private List<AdjuntoTarea> adjuntos = new ArrayList<>();
+
     // Triple control de fechas tipo Moodle:
     @Column(name = "fecha_habilitacion")
     private LocalDateTime fechaHabilitacion;
@@ -39,6 +44,15 @@ public class Tarea {
 
     @Column(nullable = false)
     private boolean habilitada = true;
+
+    @Column(name = "plantilla_feria", nullable = false, columnDefinition = "boolean default false")
+    private boolean plantillaFeria = false;
+
+    @Column(name = "plantilla_modulo", nullable = false, columnDefinition = "boolean default false")
+    private boolean plantillaModulo = false;
+
+    @Column(name = "visible_jurados")
+    private Boolean visibleJurados = false;
 
     @Column(name = "tipos_archivos_permitidos", length = 150)
     private String tiposArchivosPermitidos = ".pdf, .docx, .zip";
@@ -99,7 +113,6 @@ public class Tarea {
         if (this.tiposArchivosPermitidos == null) this.tiposArchivosPermitidos = ".pdf, .docx, .zip";
         if (this.tamanoMaximoMb == null) this.tamanoMaximoMb = 10;
         if (this.puntajeMaximo == null) this.puntajeMaximo = 100.0;
-        if (this.fechaHabilitacion == null) this.fechaHabilitacion = LocalDateTime.now();
     }
 
     @PreUpdate
@@ -137,6 +150,10 @@ public class Tarea {
 
     public void setDescripcion(String descripcion) {
         this.descripcion = descripcion;
+    }
+
+    public List<AdjuntoTarea> getAdjuntos() {
+        return adjuntos;
     }
 
     public LocalDateTime getFechaHabilitacion() {
@@ -178,6 +195,25 @@ public class Tarea {
 
     public void setHabilitada(boolean habilitada) {
         this.habilitada = habilitada;
+    }
+
+    public boolean isPlantillaFeria() {
+        return plantillaFeria;
+    }
+
+    public void setPlantillaFeria(boolean plantillaFeria) {
+        this.plantillaFeria = plantillaFeria;
+    }
+
+    public boolean isPlantillaModulo() { return plantillaModulo; }
+    public void setPlantillaModulo(boolean plantillaModulo) { this.plantillaModulo = plantillaModulo; }
+
+    public boolean isVisibleJurados() { return Boolean.TRUE.equals(visibleJurados); }
+    public void setVisibleJurados(boolean visibleJurados) { this.visibleJurados = visibleJurados; }
+
+    public boolean isVisibleParaEstudiantes() {
+        return habilitada && (!(plantillaFeria || plantillaModulo) ||
+                (fechaHabilitacion != null && fechaEntrega != null));
     }
 
     public String getTiposArchivosPermitidos() {

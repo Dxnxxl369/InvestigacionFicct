@@ -549,7 +549,7 @@ class TabGruposMoodle extends StatelessWidget {
 
                       return DropdownMenuItem<int>(
                         value: g.id,
-                        enabled: !estaLleno,
+                        enabled: !estaLleno && (act?.grupoSeleccionadoId == null || act!.permitirCambio || esMiGrupo),
                         child: Text(
                           label,
                           style: TextStyle(
@@ -560,7 +560,7 @@ class TabGruposMoodle extends StatelessWidget {
                         ),
                       );
                     }).toList(),
-                    onChanged: onSelectGrupoForStudent,
+                    onChanged: act?.grupoSeleccionadoId != null && !act!.permitirCambio ? null : onSelectGrupoForStudent,
                   ),
                   const SizedBox(height: 16),
 
@@ -569,7 +569,8 @@ class TabGruposMoodle extends StatelessWidget {
                     onPressed: guardandoEleccion ||
                             act == null ||
                             selectedGrupoIdForStudent == null ||
-                            act.cerrada
+                            act.cerrada ||
+                            (act.grupoSeleccionadoId != null && !act.permitirCambio)
                         ? null
                         : () => onGuardarEleccion(act),
                     icon: guardandoEleccion

@@ -76,12 +76,16 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> updateProfile({
+    String? registroUniversitario,
+    String? celular,
     String? fotoPerfil,
     String? descripcion,
     bool? ocultarCursos,
   }) async {
     if (_currentUser == null) return;
     final updated = await ApiService.updateProfile(
+      registroUniversitario: registroUniversitario,
+      celular: celular,
       fotoPerfil: fotoPerfil,
       descripcion: descripcion,
       ocultarCursos: ocultarCursos,

@@ -24,18 +24,17 @@ export default function CrearEditarActividadSeleccionModal({
   onSuccess,
   toast,
 }: CrearEditarActividadSeleccionModalProps) {
-  const [titulo, setTitulo] = useState("Seleccionar grupo para 1er examen parcial");
+  const [titulo, setTitulo] = useState("Elección de grupo");
   const [descripcion, setDescripcion] = useState(
-    "Seleccionar número de grupo según se les asignó en la hoja que presentaron en clases."
+    "Elige el grupo al que quieres pertenecer."
   );
   const [fechaApertura, setFechaApertura] = useState("");
   const [fechaCierre, setFechaCierre] = useState("");
   const [capacidadPorGrupo, setCapacidadPorGrupo] = useState(5);
-  const [permitirCambio, setPermitirCambio] = useState(true);
+  const [permitirCambio, setPermitirCambio] = useState<boolean | null>(null);
   const [mostrarMiembros, setMostrarMiembros] = useState(true);
-  const [generarGrupos, setGenerarGrupos] = useState(true);
   const [cantidadGrupos, setCantidadGrupos] = useState(10);
-  const [prefijoGrupos, setPrefijoGrupos] = useState("Gr1erPar ");
+  const [prefijoGrupos, setPrefijoGrupos] = useState("G");
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
@@ -47,10 +46,9 @@ export default function CrearEditarActividadSeleccionModal({
       setCapacidadPorGrupo(editingActividad.capacidadPorGrupo || 5);
       setPermitirCambio(editingActividad.permitirCambio ?? true);
       setMostrarMiembros(editingActividad.mostrarMiembros ?? true);
-      setGenerarGrupos(false);
     } else {
-      setTitulo("Seleccionar grupo para 1er examen parcial");
-      setDescripcion("Seleccionar número de grupo según se les asignó en la hoja que presentaron en clases.");
+      setTitulo("Elección de grupo");
+      setDescripcion("Elige el grupo al que quieres pertenecer.");
       const now = new Date();
       const nowStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
       const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -58,11 +56,10 @@ export default function CrearEditarActividadSeleccionModal({
       setFechaApertura(nowStr);
       setFechaCierre(nextWeekStr);
       setCapacidadPorGrupo(5);
-      setPermitirCambio(true);
+      setPermitirCambio(null);
       setMostrarMiembros(true);
-      setGenerarGrupos(true);
       setCantidadGrupos(10);
-      setPrefijoGrupos("Gr1erPar ");
+      setPrefijoGrupos("G");
     }
   }, [editingActividad, isOpen]);
 
@@ -70,6 +67,18 @@ export default function CrearEditarActividadSeleccionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (permitirCambio === null) {
+      toast("Selecciona si se podrá cambiar de grupo después de elegirlo", "error");
+      return;
+    }
+    if (!editingActividad && (!Number.isInteger(cantidadGrupos) || cantidadGrupos < 1 || cantidadGrupos > 50)) {
+      toast("La cantidad de grupos debe estar entre 1 y 50", "error");
+      return;
+    }
+    if (!Number.isInteger(capacidadPorGrupo) || capacidadPorGrupo < 1 || capacidadPorGrupo > 100) {
+      toast("El máximo de integrantes por grupo debe estar entre 1 y 100", "error");
+      return;
+    }
     if (!titulo.trim()) {
       toast("El título de la actividad es obligatorio", "error");
       return;
@@ -82,12 +91,12 @@ export default function CrearEditarActividadSeleccionModal({
         descripcion: descripcion.trim() || undefined,
         fechaApertura: formatDateTimeForBackend(fechaApertura),
         fechaCierre: formatDateTimeForBackend(fechaCierre),
-        capacidadPorGrupo: capacidadPorGrupo > 0 ? capacidadPorGrupo : 5,
+        capacidadPorGrupo,
         permitirCambio,
         mostrarMiembros,
-        generarGrupos: editingActividad ? false : generarGrupos,
+        generarGrupos: !editingActividad,
         cantidadGrupos,
-        prefijoGrupos: prefijoGrupos.trim() || "Gr1erPar ",
+        prefijoGrupos: prefijoGrupos.trim() || "G",
       };
 
       let result: ActividadGrupoDTO;
@@ -115,7 +124,7 @@ export default function CrearEditarActividadSeleccionModal({
             <ListPlus className="w-5 h-5 text-accent" />
             {editingActividad
               ? "Editar Plazos y Reglas de Actividad"
-              : "Nueva Actividad: Selección de Grupo (Moodle Choice)"}
+              : "Habilitar elección de grupos"}
           </h3>
           <button
             type="button"
@@ -173,7 +182,7 @@ export default function CrearEditarActividadSeleccionModal({
           </div>
 
           <div>
-            <label className="font-semibold text-ink block mb-1">Límite de Cupos por Grupo</label>
+            <label className="font-semibold text-ink block mb-1">Máximo de integrantes por grupo *</label>
             <input
               type="number"
               min={1}
@@ -191,15 +200,12 @@ export default function CrearEditarActividadSeleccionModal({
             </span>
 
             <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={permitirCambio}
-                onChange={(e) => setPermitirCambio(e.target.checked)}
-                className="w-4 h-4 text-accent rounded focus:ring-accent cursor-pointer"
-              />
-              <span className="text-ink">
-                Permitir a los estudiantes cambiar de grupo mientras la actividad esté abierta
-              </span>
+              <input type="radio" name="cambioGrupo" checked={permitirCambio === false} onChange={() => setPermitirCambio(false)} />
+              <span className="text-ink">Una vez elegido, no podrá cambiar de grupo</span>
+            </label>
+            <label className="flex items-center gap-2.5 cursor-pointer text-ink">
+              <input type="radio" name="cambioGrupo" checked={permitirCambio === true} onChange={() => setPermitirCambio(true)} />
+              Podrá cambiar libremente mientras la elección esté abierta
             </label>
 
             <label className="flex items-center gap-2.5 cursor-pointer">
@@ -218,21 +224,13 @@ export default function CrearEditarActividadSeleccionModal({
           {/* Generación automática de grupos iniciales (sólo al crear) */}
           {!editingActividad && (
             <div className="bg-paper-sunken/60 p-4 rounded-xl border border-line space-y-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={generarGrupos}
-                  onChange={(e) => setGenerarGrupos(e.target.checked)}
-                  className="w-4 h-4 text-accent rounded focus:ring-accent cursor-pointer"
-                />
-                <b className="text-ink">Generar grupos automáticamente para esta actividad</b>
-              </label>
+              <b className="text-ink">Grupos disponibles para elegir</b>
 
-              {generarGrupos && (
+              {(
                 <div className="grid grid-cols-2 gap-3 pt-2 border-t border-line-soft">
                   <div>
                     <label className="text-[10px] font-semibold text-ink-faint block mb-1">
-                      Cantidad de Grupos
+                      Cantidad de grupos *
                     </label>
                     <input
                       type="number"
@@ -251,7 +249,7 @@ export default function CrearEditarActividadSeleccionModal({
                       type="text"
                       value={prefijoGrupos}
                       onChange={(e) => setPrefijoGrupos(e.target.value)}
-                      placeholder="Gr1erPar "
+                      placeholder="G"
                       className="w-full px-2.5 py-1.5 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:border-accent"
                     />
                   </div>

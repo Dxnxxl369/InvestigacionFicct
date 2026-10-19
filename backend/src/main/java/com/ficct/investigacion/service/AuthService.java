@@ -15,6 +15,7 @@ import com.ficct.investigacion.model.User;
 import com.ficct.investigacion.repository.ConvocatoriaParticipanteRepository;
 import com.ficct.investigacion.repository.ConvocatoriaRepository;
 import com.ficct.investigacion.repository.UserRepository;
+import com.ficct.investigacion.util.CorreoPermitido;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -39,44 +40,57 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final FeriaMembresiaService feriaMembresiaService;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
                        ConvocatoriaParticipanteRepository participanteRepository,
-                       ConvocatoriaRepository convocatoriaRepository) {
+                       ConvocatoriaRepository convocatoriaRepository,
+                       FeriaMembresiaService feriaMembresiaService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.participanteRepository = participanteRepository;
         this.convocatoriaRepository = convocatoriaRepository;
+        this.feriaMembresiaService = feriaMembresiaService;
     }
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         String cleanEmail = request.getEmail().trim().toLowerCase();
 
+        if (!CorreoPermitido.esValido(cleanEmail)) {
+            throw new IllegalArgumentException("Usa un correo @uagrm.edu.bo o @gmail.com");
+        }
+
         if (userRepository.existsByEmail(cleanEmail)) {
             throw new IllegalArgumentException("Ya existe una cuenta registrada con el correo: " + cleanEmail);
         }
 
-        Rol rolAsignado = request.getRol() != null ? request.getRol() : Rol.ESTUDIANTE;
+        if (request.getCelular() == null || request.getCelular().isBlank()) {
+            throw new IllegalArgumentException("El celular es obligatorio");
+        }
 
         User user = new User(
                 request.getNombre().trim(),
                 request.getApellido().trim(),
                 cleanEmail,
                 passwordEncoder.encode(request.getPassword()),
-                rolAsignado,
+                Rol.ESTUDIANTE,
                 EstadoUsuario.ACTIVO
         );
+        String registro = request.getRegistroUniversitario() == null ? "" : request.getRegistroUniversitario().trim();
+        user.setRegistroUniversitario(registro.isEmpty() ? null : registro);
+        user.setCelular(request.getCelular().trim());
 
         User savedUser = userRepository.save(user);
+        feriaMembresiaService.asociarCorreo(savedUser.getEmail());
         String jwtToken = jwtService.generateToken(savedUser);
 
-        return new AuthResponse(
+        AuthResponse response = new AuthResponse(
                 jwtToken,
                 savedUser.getId(),
                 savedUser.getNombre(),
@@ -88,6 +102,9 @@ public class AuthService {
                 savedUser.getDescripcion(),
                 savedUser.getOcultarCursos()
         );
+        response.setRegistroUniversitario(savedUser.getRegistroUniversitario());
+        response.setCelular(savedUser.getCelular());
+        return response;
     }
 
     public AuthResponse login(AuthRequest request) {
@@ -128,9 +145,11 @@ public class AuthService {
             userRepository.save(user);
         }
 
+        feriaMembresiaService.asociarCorreo(user.getEmail());
+
         String jwtToken = jwtService.generateToken(user);
 
-        return new AuthResponse(
+        AuthResponse response = new AuthResponse(
                 jwtToken,
                 user.getId(),
                 user.getNombre(),
@@ -142,6 +161,9 @@ public class AuthService {
                 user.getDescripcion(),
                 user.getOcultarCursos()
         );
+        response.setRegistroUniversitario(user.getRegistroUniversitario());
+        response.setCelular(user.getCelular());
+        return response;
     }
 
     public UserDTO getCurrentUser(String email) {
@@ -164,6 +186,16 @@ public class AuthService {
             }
             if (request.getOcultarCursos() != null) {
                 user.setOcultarCursos(request.getOcultarCursos());
+            }
+            if (request.getRegistroUniversitario() != null) {
+                String registro = request.getRegistroUniversitario().trim();
+                if (registro.length() > 30) throw new IllegalArgumentException("El registro universitario admite hasta 30 caracteres");
+                user.setRegistroUniversitario(registro.isEmpty() ? null : registro);
+            }
+            if (request.getCelular() != null) {
+                String celular = request.getCelular().trim();
+                if (celular.length() > 30) throw new IllegalArgumentException("El celular admite hasta 30 caracteres");
+                user.setCelular(celular.isEmpty() ? null : celular);
             }
         }
         User updated = userRepository.save(user);

@@ -22,8 +22,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailCtrl = TextEditingController(text: 'rmartinez@uagrm.edu.bo');
-  final _passCtrl = TextEditingController(text: 'docente123');
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
   String _currentServer = ApiService.baseUrl;
@@ -345,7 +345,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
-                  labelText: 'Correo Institucional',
+                  labelText: 'Correo electrónico',
                   prefixIcon: Icon(Icons.email_outlined),
                 ),
               ),
@@ -369,60 +369,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                     : const Text('Iniciar Sesión'),
-              ),
-              const SizedBox(height: 24),
-
-              // Acceso Rápido con Cuentas Reales de la BD PostgreSQL
-              Text(
-                'ACCESO RÁPIDO INSTITUCIONAL:',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                  color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.badge_rounded, size: 16),
-                      label: const Text('Docente', style: TextStyle(fontSize: 12)),
-                      onPressed: () => _handleLogin('rmartinez@uagrm.edu.bo', 'docente123'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.school_outlined, size: 16),
-                      label: const Text('Estudiante', style: TextStyle(fontSize: 12)),
-                      onPressed: () => _handleLogin('daniel.quispe@uagrm.edu.bo', 'estudiante123'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.gavel_rounded, size: 16),
-                      label: const Text('Jurado', style: TextStyle(fontSize: 12)),
-                      onPressed: () => _handleLogin('cfernandez@uagrm.edu.bo', 'jurado123'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.admin_panel_settings_outlined, size: 16),
-                      label: const Text('Admin', style: TextStyle(fontSize: 12)),
-                      onPressed: () => _handleLogin('admin@uagrm.edu.bo', 'admin369'),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),

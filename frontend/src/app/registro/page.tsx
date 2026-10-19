@@ -15,6 +15,8 @@ export default function RegistroPage() {
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
   const [email, setEmail] = useState("");
+  const [registroUniversitario, setRegistroUniversitario] = useState("");
+  const [celular, setCelular] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,21 +26,26 @@ export default function RegistroPage() {
   const [loading, setLoading] = useState(false);
 
   // Validaciones inline dinámicas
-  const isEmailUagrm = email.trim().toLowerCase().endsWith("@uagrm.edu.bo");
-  const isPasswordValid = password.length >= 6;
+  const isEmailPermitido = /^[A-Za-z0-9._%+-]+@(uagrm\.edu\.bo|gmail\.com)$/i.test(email.trim());
+  const isPasswordValid = password.length >= 8;
   const doPasswordsMatch = isPasswordValid && password === confirmPassword;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!isEmailUagrm) {
-      setError("El correo debe ser institucional con terminación @uagrm.edu.bo");
+    if (!isEmailPermitido) {
+      setError("Usa un correo @uagrm.edu.bo o @gmail.com");
+      return;
+    }
+
+    if (!celular.trim()) {
+      setError("El celular es obligatorio.");
       return;
     }
 
     if (!isPasswordValid) {
-      setError("La contraseña debe tener un mínimo de 6 caracteres.");
+      setError("La contraseña debe tener un mínimo de 8 caracteres.");
       return;
     }
 
@@ -53,6 +60,8 @@ export default function RegistroPage() {
         nombre: nombre.trim(),
         apellido: apellido.trim(),
         email: email.trim().toLowerCase(),
+        registroUniversitario: registroUniversitario.trim(),
+        celular: celular.trim(),
         password,
       });
 
@@ -149,25 +158,25 @@ export default function RegistroPage() {
                 </div>
               </div>
 
-              {/* Correo con validación de sufijo @uagrm.edu.bo */}
+              {/* Correo permitido para crear la cuenta */}
               <div>
                 <label className="block text-xs font-medium text-ink-soft mb-1">
-                  Correo Institucional (@uagrm.edu.bo)
+                  Correo electrónico (@uagrm.edu.bo o @gmail.com)
                 </label>
                 <div className="relative">
                   <input
                     type="email"
                     required
-                    placeholder="daniel.quispe@uagrm.edu.bo"
+                    placeholder="nombre@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className={`w-full px-3.5 py-2 rounded-xl border text-xs sm:text-sm bg-paper-sunken text-ink transition-all focus:outline-none focus:bg-paper-raised ${
-                      isEmailUagrm
+                      isEmailPermitido
                         ? "border-accent focus:ring-2 focus:ring-accent/20"
                         : "border-line focus:border-ink"
                     }`}
                   />
-                  {isEmailUagrm && (
+                  {isEmailPermitido && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-accent/20 text-accent flex items-center justify-center">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
@@ -175,10 +184,25 @@ export default function RegistroPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs font-medium text-ink-soft">
+                  Registro universitario (opcional)
+                  <input type="text" maxLength={30} value={registroUniversitario}
+                    onChange={(e) => setRegistroUniversitario(e.target.value)} placeholder="Ej. 226127982"
+                    className="mt-1 w-full px-3.5 py-2 rounded-xl border border-line bg-paper-sunken text-ink text-xs sm:text-sm focus:outline-none focus:border-accent" />
+                </label>
+                <label className="block text-xs font-medium text-ink-soft">
+                  Celular *
+                  <input type="tel" required maxLength={30} value={celular}
+                    onChange={(e) => setCelular(e.target.value)} placeholder="Ej. 73106766"
+                    className="mt-1 w-full px-3.5 py-2 rounded-xl border border-line bg-paper-sunken text-ink text-xs sm:text-sm focus:outline-none focus:border-accent" />
+                </label>
+              </div>
+
               {/* Contraseña */}
               <div>
                 <label className="block text-xs font-medium text-ink-soft mb-1">
-                  Contraseña (mínimo 6 caracteres)
+                  Contraseña (mínimo 8 caracteres)
                 </label>
                 <div className="relative">
                   <input

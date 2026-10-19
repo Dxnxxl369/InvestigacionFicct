@@ -4,8 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/context/AuthContext";
-import { useToast } from "@/context/ToastContext";
-import { api, ConvocatoriaDTO } from "@/lib/api";
+import { api, ConvocatoriaDTO, TareaDTO } from "@/lib/api";
 import {
   FileText,
   PlusCircle,
@@ -15,60 +14,37 @@ import {
   Check,
   Calendar,
   Sparkles,
-  ArrowRight,
 } from "lucide-react";
-
-interface TaskItem {
-  id: string;
-  title: string;
-  tag: string;
-  done: boolean;
-}
 
 export default function DashboardHomePage() {
   const { user, canEditModule } = useAuth();
-  const { toast } = useToast();
   const [convocatorias, setConvocatorias] = useState<ConvocatoriaDTO[]>([]);
+  const [tasks, setTasks] = useState<TareaDTO[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Lista interactiva de tareas del sprint/investigación (Nielsen #3: Control y libertad)
-  const [tasks, setTasks] = useState<TaskItem[]>([
-    { id: "1", title: "Completar sección de metodología en borrador de informe", tag: "Tesis de Grado", done: false },
-    { id: "2", title: "Revisar observaciones de supervisión del Ing. Rolando Martínez", tag: "Supervisión", done: true },
-    { id: "3", title: "Configurar rangos de integrantes para la nueva Feria Científica", tag: "Convocatorias", done: false },
-    { id: "4", title: "Ejecutar análisis de originalidad con clasificador IA RoBERTa", tag: "Control IA", done: false },
-  ]);
 
   useEffect(() => {
     const fetchStats = async () => {
-      try {
-        const data = await api.getConvocatorias();
-        setConvocatorias(data);
-      } catch (err) {
-        console.error("Error al cargar convocatorias:", err);
-      } finally {
-        setLoading(false);
-      }
+      const [convocatoriasResult, tareasResult] = await Promise.allSettled([
+        api.getConvocatorias(),
+        api.getMisTareas(),
+      ]);
+      if (convocatoriasResult.status === "fulfilled") setConvocatorias(convocatoriasResult.value);
+      else console.error("Error al cargar convocatorias:", convocatoriasResult.reason);
+      if (tareasResult.status === "fulfilled") setTasks(tareasResult.value);
+      else console.error("Error al cargar tareas:", tareasResult.reason);
+      setLoading(false);
     };
     fetchStats();
   }, []);
 
-  const toggleTask = (id: string) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id === id) {
-          const nextState = !t.done;
-          if (nextState) toast("Tarea marcada como completada", "success");
-          return { ...t, done: nextState };
-        }
-        return t;
-      })
-    );
-  };
-
   const total = convocatorias.length;
   const publicadas = convocatorias.filter((c) => c.estado === "PUBLICADA").length;
   const borradores = convocatorias.filter((c) => c.estado === "BORRADOR").length;
+  const tareasEntregadas = tasks.filter((t) => Boolean(t.miEntrega)).length;
+  const proximasFechas = convocatorias
+    .filter((c) => c.estado === "PUBLICADA" && c.fechaCierre && new Date(`${c.fechaCierre}T23:59:59`) >= new Date())
+    .sort((a, b) => (a.fechaCierre || "").localeCompare(b.fechaCierre || ""))
+    .slice(0, 3);
 
   return (
     <DashboardLayout>
@@ -88,7 +64,7 @@ export default function DashboardHomePage() {
               <span className="font-bold text-ink px-2 py-0.5 rounded-md bg-accent-soft text-accent-dark">
                 {user?.rol}
               </span>
-              . Gestiona convocatorias de investigación, ferias científicas y redacción colaborativa.
+              . Gestiona convocatorias de investigación, ferias científicas y sus actividades.
             </p>
           </div>
 
@@ -177,45 +153,46 @@ export default function DashboardHomePage() {
                   Mis Tareas de Investigación
                 </h2>
                 <p className="text-xs text-ink-faint">
-                  Haz clic en cualquier tarea para marcarla como realizada
+                  Actividades asignadas en tus convocatorias
                 </p>
               </div>
               <span className="text-xs font-mono font-bold text-accent bg-accent-soft px-2.5 py-0.5 rounded-full">
-                {tasks.filter((t) => t.done).length}/{tasks.length} completadas
+                {tareasEntregadas}/{tasks.length} entregadas
               </span>
             </div>
 
             <div className="divide-y divide-line-soft">
+              {!loading && tasks.length === 0 && (
+                <p className="py-5 text-xs text-ink-faint">No tienes tareas asignadas.</p>
+              )}
               {tasks.map((t) => (
-                <div
-                  key={t.id}
-                  onClick={() => toggleTask(t.id)}
-                  className="py-3 px-2 flex items-start gap-3.5 cursor-pointer rounded-xl hover:bg-paper-sunken transition-all group"
+                <Link
+                  key={`${t.id}-${t.feriaPostulacionId || 0}`}
+                  href={`/dashboard/convocatorias/${t.convocatoriaId}?tarea=${t.id}${t.feriaPostulacionId ? `&equipo=${t.feriaPostulacionId}` : ""}`}
+                  className="py-3 px-2 flex items-start gap-3.5 rounded-xl hover:bg-paper-sunken transition-all group"
                 >
                   <div
                     className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
-                      t.done
+                      t.miEntrega
                         ? "bg-accent border-accent text-white"
                         : "border-line group-hover:border-ink-soft bg-paper"
                     }`}
                   >
-                    {t.done && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    {t.miEntrega && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                   </div>
                   <div className="flex-1">
                     <p
                       className={`text-xs sm:text-sm font-medium transition-all ${
-                        t.done
-                          ? "line-through text-ink-faint"
-                          : "text-ink group-hover:text-accent-dark"
+                        t.miEntrega ? "text-ink-faint" : "text-ink group-hover:text-accent-dark"
                       }`}
                     >
-                      {t.title}
+                      {t.titulo}
                     </p>
                     <span className="text-[10px] text-ink-faint block mt-0.5">
-                      {t.tag}
+                      {t.convocatoriaTitulo || "Convocatoria"} · {t.miEntrega ? "Enviada" : "Pendiente"}
                     </span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
@@ -228,42 +205,23 @@ export default function DashboardHomePage() {
                 <span>Fechas Límite Próximas</span>
               </h3>
               <div className="space-y-2.5 text-xs">
-                <div className="p-2.5 rounded-xl bg-paper-sunken flex justify-between items-center">
-                  <div>
-                    <div className="font-semibold text-ink">Feria Científica 2026</div>
-                    <span className="text-[10px] text-ink-faint">Cierre de postulaciones</span>
+                {!loading && proximasFechas.length === 0 && (
+                  <p className="text-ink-faint">No hay fechas límite próximas.</p>
+                )}
+                {proximasFechas.map((c) => (
+                  <div key={c.id} className="p-2.5 rounded-xl bg-paper-sunken flex justify-between items-center gap-3">
+                    <div>
+                      <div className="font-semibold text-ink">{c.titulo}</div>
+                      <span className="text-[10px] text-ink-faint">Cierre de postulaciones</span>
+                    </div>
+                    <span className="font-mono text-accent-dark font-semibold text-[11px] whitespace-nowrap">
+                      {new Date(`${c.fechaCierre}T12:00:00`).toLocaleDateString("es-BO", { day: "numeric", month: "short" })}
+                    </span>
                   </div>
-                  <span className="font-mono text-accent-dark font-semibold text-[11px]">30 Oct</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-paper-sunken flex justify-between items-center">
-                  <div>
-                    <div className="font-semibold text-ink">Hackathon FICCT</div>
-                    <span className="text-[10px] text-ink-faint">Entrega de prototipos</span>
-                  </div>
-                  <span className="font-mono text-seal font-semibold text-[11px]">15 Nov</span>
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* Acceso directo a Documentos & IA */}
-            <div className="liquid-glass rounded-2xl p-5 shadow-md">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-accent" />
-                <span className="font-serif text-sm font-semibold text-ink">
-                  Espacio Colaborativo &amp; IA
-                </span>
-              </div>
-              <p className="text-xs text-ink-soft mb-3 leading-relaxed">
-                Continúa redactando tu informe técnico con cursores en tiempo real y detector de originalidad.
-              </p>
-              <Link
-                href="/dashboard/documentos"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-dark hover:text-accent group"
-              >
-                <span>Abrir documento en vivo</span>
-                <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
           </div>
         </div>
 
@@ -287,6 +245,9 @@ export default function DashboardHomePage() {
           </div>
 
           <div className="divide-y divide-line-soft">
+            {!loading && convocatorias.length === 0 && (
+              <p className="p-5 text-xs text-ink-faint">Aún no hay convocatorias registradas.</p>
+            )}
             {convocatorias.slice(0, 4).map((c) => (
               <div
                 key={c.id}
@@ -328,10 +289,10 @@ export default function DashboardHomePage() {
                   </div>
                   <div>
                     <span className="block text-[10px] text-ink-faint uppercase font-medium">
-                      Equipo
+                      Modalidad
                     </span>
                     <span className="font-semibold text-ink-soft">
-                      {c.tamanoEquipo || "1 a 5 integrantes"}
+                      {c.modalidadInscripcion === "GRUPAL" ? (c.tamanoEquipo || "Inscripción grupal") : "Inscripción individual"}
                     </span>
                   </div>
                 </div>

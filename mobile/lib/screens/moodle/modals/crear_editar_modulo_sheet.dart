@@ -14,10 +14,11 @@ class CrearEditarModuloModal {
     final descCtrl = TextEditingController();
     final ordenCtrl = TextEditingController(text: '${totalModulos + 1}');
     final imgCtrl = TextEditingController();
+    String? plantilla;
 
     showLiquidGlassModalBottomSheet(
       context: context,
-      builder: (ctx) => Padding(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) => Padding(
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
@@ -34,8 +35,42 @@ class CrearEditarModuloModal {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                initialValue: plantilla ?? '',
+                decoration: const InputDecoration(labelText: 'Plantilla de módulo'),
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('Módulo en blanco')),
+                  DropdownMenuItem(value: 'PRIMER_AVANCE', child: Text('Primer avance (1 actividad)')),
+                  DropdownMenuItem(value: 'SEGUNDO_AVANCE', child: Text('Segundo avance (1 actividad)')),
+                  DropdownMenuItem(value: 'PRESENTACION_FINAL', child: Text('Presentación final (5 actividades)')),
+                  DropdownMenuItem(value: 'ACTIVIDADES', child: Text('Actividades (2 actividades)')),
+                ],
+                onChanged: (value) {
+                  setSheetState(() => plantilla = value?.isEmpty == true ? null : value);
+                  if (value == 'PRIMER_AVANCE') {
+                    titleCtrl.text = 'Primer avance';
+                    descCtrl.text = 'Primera revisión del proyecto.';
+                  } else if (value == 'SEGUNDO_AVANCE') {
+                    titleCtrl.text = 'Segundo avance';
+                    descCtrl.text = 'Segunda revisión del proyecto.';
+                  } else if (value == 'PRESENTACION_FINAL') {
+                    titleCtrl.text = 'Presentación final';
+                    descCtrl.text = 'Materiales para la evaluación final de la actividad.';
+                  } else if (value == 'ACTIVIDADES') {
+                    titleCtrl.text = 'Actividades';
+                    descCtrl.text = 'Entregables de la convocatoria.';
+                  }
+                },
+              ),
+              if (plantilla != null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text('Las actividades tendrán fechas por definir y permanecerán ocultas hasta programarlas.'),
+                ),
+              const SizedBox(height: 12),
               TextField(
                 controller: titleCtrl,
+                readOnly: plantilla != null,
                 decoration: const InputDecoration(
                   labelText: 'Título del Módulo *',
                   hintText: 'Ej. Módulo 3: Pruebas y Resultados',
@@ -44,6 +79,7 @@ class CrearEditarModuloModal {
               const SizedBox(height: 12),
               TextField(
                 controller: descCtrl,
+                readOnly: plantilla != null,
                 maxLines: 2,
                 decoration: const InputDecoration(
                   labelText: 'Descripción del Módulo',
@@ -96,6 +132,7 @@ class CrearEditarModuloModal {
                           final ok = await ApiService.crearModulo(
                             cursoId,
                             titulo: titleCtrl.text.trim(),
+                            plantilla: plantilla,
                             descripcion: descCtrl.text.trim(),
                             orden: ord,
                             imagenUrl: imgCtrl.text.trim(),
@@ -121,7 +158,7 @@ class CrearEditarModuloModal {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 

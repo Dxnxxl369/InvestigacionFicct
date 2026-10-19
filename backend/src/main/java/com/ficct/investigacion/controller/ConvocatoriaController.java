@@ -238,6 +238,40 @@ public class ConvocatoriaController {
         }
     }
 
+    @GetMapping("/{id}/postulaciones-feria")
+    public ResponseEntity<List<FeriaPostulacionDTO>> listarPostulacionesFeria(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(convocatoriaService.listarPostulacionesFeria(id, userDetails.getUsername()));
+    }
+
+    @PostMapping("/{id}/buscar-integrante-feria")
+    public ResponseEntity<Map<String, Object>> buscarIntegranteFeria(
+            @PathVariable Long id, @RequestBody Map<String, String> request
+    ) {
+        return ResponseEntity.ok(convocatoriaService.buscarIntegranteFeria(id, request.get("correo")));
+    }
+
+    @PutMapping("/{id}/postulaciones-feria/{postulacionId}/codigo-equipo")
+    public ResponseEntity<FeriaPostulacionDTO> cambiarCodigoEquipoFeria(
+            @PathVariable Long id, @PathVariable Long postulacionId,
+            @RequestBody Map<String, String> request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(convocatoriaService.cambiarCodigoEquipoFeria(
+                id, postulacionId, request.get("codigoEquipo"), userDetails.getUsername()));
+    }
+
+    @PutMapping("/{id}/postulaciones-feria/{postulacionId}/responder")
+    public ResponseEntity<FeriaPostulacionDTO> responderPostulacionFeria(
+            @PathVariable Long id, @PathVariable Long postulacionId,
+            @RequestBody Map<String, Boolean> request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(convocatoriaService.responderPostulacionFeria(
+                id, postulacionId, Boolean.TRUE.equals(request.get("admitir")), userDetails.getUsername()));
+    }
+
     /**
      * Declinar / cancelar solicitud pendiente de inscripción por el estudiante
      */

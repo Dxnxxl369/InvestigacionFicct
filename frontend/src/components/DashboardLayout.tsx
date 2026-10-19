@@ -13,7 +13,6 @@ import {
   Users,
   LogOut,
   LayoutDashboard,
-  FileEdit,
   GraduationCap,
   Menu,
   X,
@@ -37,6 +36,7 @@ export default function DashboardLayout({
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const cerrandoSesionRef = React.useRef(false);
 
   // Cargar preferencia persistida del sidebar
   useEffect(() => {
@@ -60,10 +60,16 @@ export default function DashboardLayout({
     });
   };
 
+  const handleCerrarSesion = () => {
+    cerrandoSesionRef.current = true;
+    logout();
+    window.location.replace("/login?logout=1");
+  };
+
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        router.push("/login");
+        if (!cerrandoSesionRef.current) router.replace("/login");
       } else if (user.estado === "SUSPENDIDO") {
         logout();
         router.push("/login?error=suspended");
@@ -87,7 +93,13 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-paper text-ink-soft">
+        <p className="text-sm">Redirigiendo al inicio de sesión...</p>
+      </div>
+    );
+  }
 
   const getInitial = (name?: string) => (name ? name.charAt(0).toUpperCase() : "U");
 
@@ -125,14 +137,6 @@ export default function DashboardLayout({
           },
         ]
       : []),
-    {
-      href: "/dashboard/documentos",
-      label: "Documentos & IA",
-      icon: FileEdit,
-      isActive: pathname === "/dashboard/documentos",
-      badge: "Colaborativo",
-      badgeColor: "bg-accent/20 text-accent-dark",
-    },
     {
       href: "/dashboard/mis-areas",
       label: "Mis Áreas",
@@ -207,7 +211,7 @@ export default function DashboardLayout({
             <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border-2 border-paper-raised status-dot-ping" />
           </Link>
           <button
-            onClick={logout}
+            onClick={handleCerrarSesion}
             title="Cerrar sesión"
             className="p-1.5 rounded-lg text-ink-faint hover:text-danger hover:bg-danger-soft/30 transition-colors"
           >
@@ -290,7 +294,7 @@ export default function DashboardLayout({
                 </div>
               </Link>
               <button
-                onClick={logout}
+                onClick={handleCerrarSesion}
                 title="Cerrar sesión"
                 className="p-2 rounded-lg text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all ml-1"
               >
@@ -454,7 +458,7 @@ export default function DashboardLayout({
 
               {/* Botón cerrar sesión colapsado */}
               <button
-                onClick={logout}
+                onClick={handleCerrarSesion}
                 title="Cerrar sesión"
                 className="p-2 rounded-xl text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all"
               >
@@ -494,7 +498,7 @@ export default function DashboardLayout({
               </Link>
 
               <button
-                onClick={logout}
+                onClick={handleCerrarSesion}
                 title="Cerrar sesión"
                 className="p-2 rounded-lg text-ink-faint hover:text-danger hover:bg-danger-soft/40 transition-all ml-1 flex-shrink-0"
               >
@@ -542,15 +546,6 @@ export default function DashboardLayout({
           <span>Áreas</span>
         </Link>
 
-        <Link
-          href="/dashboard/documentos"
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[10.5px] font-semibold transition-all ${
-            pathname === "/dashboard/documentos" ? "text-accent scale-105" : "text-ink-faint hover:text-ink"
-          }`}
-        >
-          <FileEdit className="w-4 h-4" />
-          <span>Docs</span>
-        </Link>
 
         <Link
           href="/dashboard/perfil"

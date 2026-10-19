@@ -24,9 +24,12 @@ import {
   Archive,
 } from "lucide-react";
 import ConfirmarEliminacionModal from "@/components/moodle/modals/ConfirmarEliminacionModal";
+import FeriaInscripcionModal from "@/components/moodle/modals/FeriaInscripcionModal";
+import { useToast } from "@/context/ToastContext";
 
 export default function ConvocatoriasListPage() {
   const { user, canEditModule } = useAuth();
+  const { toast } = useToast();
   const [convocatorias, setConvocatorias] = useState<ConvocatoriaDTO[]>([]);
   const [filtered, setFiltered] = useState<ConvocatoriaDTO[]>([]);
   const [misAreasMap, setMisAreasMap] = useState<Record<number, ConvocatoriaDTO>>({});
@@ -47,6 +50,7 @@ export default function ConvocatoriasListPage() {
   const [eliminandoConv, setEliminandoConv] = useState(false);
 
   const fetchConvocatorias = useCallback(async () => {
+    if (!user || !localStorage.getItem("auth_token")) return;
     try {
       setLoading(true);
       const [data, misAreas] = await Promise.all([
@@ -56,6 +60,7 @@ export default function ConvocatoriasListPage() {
 
       setConvocatorias(data);
       setFiltered(data);
+      setError(null);
 
       const map: Record<number, ConvocatoriaDTO> = {};
       misAreas.forEach((a) => {
@@ -63,7 +68,9 @@ export default function ConvocatoriasListPage() {
       });
       setMisAreasMap(map);
     } catch (err: any) {
-      setError(err.message || "Error al cargar las convocatorias");
+      setError(err?.message === "Failed to fetch"
+        ? "No se puede conectar con el servidor. Reintentando..."
+        : err?.message || "Error al cargar las convocatorias");
     } finally {
       setLoading(false);
     }
@@ -72,6 +79,12 @@ export default function ConvocatoriasListPage() {
   useEffect(() => {
     fetchConvocatorias();
   }, [fetchConvocatorias]);
+
+  useEffect(() => {
+    if (error !== "No se puede conectar con el servidor. Reintentando...") return;
+    const interval = window.setInterval(fetchConvocatorias, 5000);
+    return () => window.clearInterval(interval);
+  }, [error, fetchConvocatorias]);
 
   // Filter effect
   useEffect(() => {
@@ -146,9 +159,7 @@ export default function ConvocatoriasListPage() {
     if (!selectedConvForInscripcion) return;
     try {
       setInscribiendo(true);
-      await api.inscribirseConvocatoria(selectedConvForInscripcion.id, {
-        nombreEquipo: nombreEquipo.trim() || undefined,
-      });
+      await api.inscribirseConvocatoria(selectedConvForInscripcion.id, {});
       setActionSuccess("¡Solicitud de inscripción enviada con éxito! Está en espera de admisión por el docente o admin.");
       setSelectedConvForInscripcion(null);
       setNombreEquipo("");
@@ -211,7 +222,7 @@ export default function ConvocatoriasListPage() {
             {canEditModule("CONVOCATORIAS") && (
               <Link
                 href="/dashboard/convocatorias/nueva"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-ink text-white hover:bg-black text-xs font-semibold transition-all shadow-sm"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-ink text-white dark:bg-ficct-green-dark hover:opacity-90 text-xs font-semibold transition-all shadow-sm"
               >
                 <PlusCircle className="w-4 h-4 text-accent" />
                 <span>Nueva Convocatoria</span>
@@ -347,6 +358,10 @@ export default function ConvocatoriasListPage() {
                     <p className="text-xs text-ink-soft leading-relaxed max-w-3xl">
                       {conv.descripcion}
                     </p>
+                    {conv.archivoInformacionUrl && <a href={getMediaUrl(conv.archivoInformacionUrl)} target="_blank" rel="noopener noreferrer"
+                      className="inline-block text-xs font-semibold text-accent hover:underline">
+                      Ver archivo informativo: {conv.archivoInformacionNombre || "Documento del evento"}
+                    </a>}
 
                     {/* Resumen de Asignaciones (Visible para Admin y Docente) */}
                     {(esAdmin || esDocente) && (
@@ -391,7 +406,7 @@ export default function ConvocatoriasListPage() {
                     <div className="pt-1 flex flex-wrap items-center gap-5 text-xs text-ink-faint">
                       <div className="flex items-center gap-1.5">
                         <Users className="w-3.5 h-3.5 text-accent" />
-                        <span>{conv.tamanoEquipo || "Individual o equipo"}</span>
+                        <span>{conv.modalidadInscripcion === "GRUPAL" ? (conv.tamanoEquipo || "Inscripción grupal") : "Inscripción individual"}</span>
                       </div>
 
                       {conv.fechaCierre && (
@@ -434,7 +449,7 @@ export default function ConvocatoriasListPage() {
                         {estaAceptado ? (
                           <Link
                             href={`/dashboard/convocatorias/${conv.id}`}
-                            className="px-3.5 py-1.5 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-black transition-all flex items-center gap-1.5 shadow-sm"
+                            className="px-3.5 py-1.5 rounded-lg bg-ink text-white dark:bg-ficct-green-dark text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-1.5 shadow-sm"
                           >
                             <GraduationCap className="w-3.5 h-3.5 text-accent" />
                             <span>Ingresar al Aula</span>
@@ -491,7 +506,7 @@ export default function ConvocatoriasListPage() {
                       <>
                         <Link
                           href={`/dashboard/convocatorias/${conv.id}`}
-                          className="px-3 py-1.5 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-black transition-all flex items-center gap-1.5 shadow-sm"
+                          className="px-3 py-1.5 rounded-lg bg-ink text-white dark:bg-ficct-green-dark text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-1.5 shadow-sm"
                         >
                           <GraduationCap className="w-3.5 h-3.5 text-accent" />
                           <span>Ingresar al Aula</span>
@@ -557,7 +572,16 @@ export default function ConvocatoriasListPage() {
         )}
 
         {/* Modal para solicitar inscripción de Estudiante */}
-        {selectedConvForInscripcion && (
+        {selectedConvForInscripcion?.modalidadInscripcion === "GRUPAL" && (
+          <FeriaInscripcionModal
+            isOpen
+            onClose={() => setSelectedConvForInscripcion(null)}
+            convocatoria={selectedConvForInscripcion}
+            onSuccess={fetchConvocatorias}
+            toast={toast}
+          />
+        )}
+        {selectedConvForInscripcion && selectedConvForInscripcion.modalidadInscripcion !== "GRUPAL" && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
             <div className="bg-paper-raised dark:bg-slate-900 border border-line rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between">
@@ -584,26 +608,12 @@ export default function ConvocatoriasListPage() {
                 <div className="p-3 rounded-xl bg-paper-sunken border border-line-soft text-xs text-ink-soft space-y-1">
                   <span className="font-semibold text-ink block">Requisitos y Modalidad:</span>
                   <p className="text-[11px] leading-relaxed">
-                    Modalidad: <b>{selectedConvForInscripcion.tamanoEquipo || "Individual o equipo"}</b>.
+                    Modalidad: <b>Individual</b>.
                     Al enviar la solicitud, el docente a cargo o administrador revisará tu postulación para admitirte en el aula virtual.
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-ink mb-1">
-                    Nombre del Equipo / Grupo (Opcional):
-                  </label>
-                    <input
-                      type="text"
-                      value={nombreEquipo}
-                      onChange={(e) => setNombreEquipo(e.target.value)}
-                      placeholder="Dejar en blanco si te postulas de forma individual"
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-paper border border-line-soft focus:border-accent focus:outline-none"
-                    />
-                  <span className="text-[10px] text-ink-faint block mt-1">
-                    Si te postulas de manera individual, puedes dejarlo en blanco.
-                  </span>
-                </div>
+                <p className="text-xs text-ink-soft">La solicitud se enviará a tu nombre, sin proyecto ni equipo.</p>
 
                 <div className="flex items-center justify-end gap-2 pt-2">
                   <button

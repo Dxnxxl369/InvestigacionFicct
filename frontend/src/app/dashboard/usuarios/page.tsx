@@ -156,7 +156,6 @@ export default function UsuariosAdminPage() {
 
   const modulosList = [
     { id: "CONVOCATORIAS", label: "Convocatorias y Ferias", desc: "Gestión, creación y publicación de actividades y ferias" },
-    { id: "DOCUMENTOS", label: "Documentos de Investigación", desc: "Creación y seguimiento de perfiles de proyectos y documentos" },
     { id: "CERTIFICADOS", label: "Certificación y Trazabilidad", desc: "Emisión y verificación de certificados digitales" },
     { id: "USUARIOS", label: "Gestión de Usuarios y Roles", desc: "Administración central de cuentas y permisos del sistema" },
   ];
@@ -257,7 +256,7 @@ export default function UsuariosAdminPage() {
                 <Search className="w-4 h-4 absolute left-3 top-3 text-ink-faint" />
                 <input
                   type="text"
-                  placeholder="Buscar por nombre o correo institucional..."
+                  placeholder="Buscar por nombre o correo electrónico..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 rounded-lg border border-line bg-paper text-ink text-xs focus:outline-none focus:ring-2 focus:ring-accent"
@@ -289,7 +288,7 @@ export default function UsuariosAdminPage() {
                   <thead>
                     <tr className="border-b border-line bg-paper/60 text-ink-faint uppercase tracking-wider font-semibold">
                       <th className="py-3 px-4">Usuario</th>
-                      <th className="py-3 px-4">Correo Institucional</th>
+                      <th className="py-3 px-4">Correo electrónico</th>
                       <th className="py-3 px-4">Rol en el Sistema</th>
                       <th className="py-3 px-4">Estado</th>
                       <th className="py-3 px-4 text-right">Acciones</th>

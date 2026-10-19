@@ -242,7 +242,7 @@ export default function MisAreasPage() {
                       )}
                       <div className="flex items-center gap-1.5">
                         <Users className="w-3.5 h-3.5 text-seal" />
-                        <span>{area.tamanoEquipo || "Individual o equipo"}</span>
+                        <span>{area.modalidadInscripcion === "GRUPAL" ? (area.tamanoEquipo || "Inscripción grupal") : "Inscripción individual"}</span>
                       </div>
                     </div>
                   </div>
@@ -269,7 +269,7 @@ export default function MisAreasPage() {
                       <>
                         <Link
                           href={`/dashboard/convocatorias/${area.id}`}
-                          className="px-3.5 py-1.5 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-black transition-all flex items-center gap-1.5 shadow-xs"
+                          className="px-3.5 py-1.5 rounded-lg bg-ink text-white dark:bg-ficct-green-dark text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-1.5 shadow-xs"
                         >
                           <GraduationCap className="w-3.5 h-3.5 text-accent" />
                           <span>Ingresar al Aula</span>

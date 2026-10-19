@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { tareasAPI, TareaDTO } from "@/lib/api";
+import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import {
   Clock,
@@ -72,7 +73,7 @@ function diasRestantes(iso?: string): number | null {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
-export default function MisPendientesPage() {
+function MisPendientesContent() {
   const { user } = useAuth();
   const [tareas, setTareas] = useState<TareaDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,8 +95,8 @@ export default function MisPendientesPage() {
   };
 
   useEffect(() => {
-    cargar();
-  }, []);
+    if (user?.rol === "ESTUDIANTE") cargar();
+  }, [user?.rol]);
 
   const tareasFiltradas = useMemo(() => {
     return tareas.filter((t) => {
@@ -230,7 +231,7 @@ export default function MisPendientesPage() {
           {tareasFiltradas.map((tarea) => {
             const estado = tarea.miEstado ?? "NO_DISPONIBLE";
             const cfg = ESTADO_CONFIG[estado] ?? ESTADO_CONFIG.NO_DISPONIBLE;
-            const dias = diasRestantes(tarea.fechaEntrega ?? tarea.fechaCorte);
+            const dias = diasRestantes(tarea.fechaEntrega ?? tarea.fechaLimite);
             const urgente = dias !== null && dias <= 2 && dias >= 0 && estado === "PENDIENTE";
 
             const targetUrl = `/dashboard/convocatorias/${tarea.convocatoriaId}?tab=tareas&tarea=${tarea.id}`;
@@ -311,12 +312,6 @@ export default function MisPendientesPage() {
                       {tiempoInfo.texto}
                     </span>
                   )}
-                  {tarea.fechaCorte && (
-                    <span className="flex items-center gap-1 text-red-500">
-                      <XCircle className="w-3.5 h-3.5" />
-                      Corte: {formatMoodleDate(tarea.fechaCorte)}
-                    </span>
-                  )}
                   {tarea.miEntrega && (
                     <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                       <FileText className="w-3.5 h-3.5" />
@@ -337,5 +332,13 @@ export default function MisPendientesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MisPendientesPage() {
+  return (
+    <DashboardLayout>
+      <MisPendientesContent />
+    </DashboardLayout>
   );
 }

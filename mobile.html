@@ -843,7 +843,7 @@
           <button class="screen-nav-item" id="pill-convocatoria-detalle" onclick="irAPantalla('convocatoria-detalle')">
             <span>8. Detalle & Postulación</span> <span>→</span>
           </button>
-          <button class="screen-nav-item" id="pill-documentos" onclick="irAPantalla('documentos')">
+          <button class="screen-nav-item" id="pill-documentos" style="display: none" onclick="irAPantalla('documentos')">
             <span>9. Docs & Control IA</span> <span>→</span>
           </button>
           <button class="screen-nav-item" id="pill-perfil" onclick="irAPantalla('perfil')">
@@ -1500,7 +1500,7 @@
             <!-- ================================================ -->
             <!-- PANTALLA 9: DOCUMENTOS COLABORATIVOS & IA         -->
             <!-- ================================================ -->
-            <section class="screen-view" id="view-documentos">
+            <section class="screen-view" id="view-documentos" style="display: none">
               <header class="mobile-header">
                 <button class="header-btn" onclick="irAPantalla('dashboard')">◀</button>
                 <div class="brand-title">Docs &amp; <b>Control IA</b></div>
@@ -1717,6 +1717,7 @@
 
     // Navegar entre Pantallas
     function irAPantalla(screenId) {
+      if (screenId === 'documentos') screenId = 'dashboard';
       appState.screen = screenId;
 
       // Ocultar todas las pantallas

@@ -12,7 +12,6 @@ import 'moodle/mis_pendientes_screen.dart';
 import 'convocatorias/convocatorias_screen.dart';
 import 'convocatorias/convocatoria_detalle_screen.dart';
 import 'convocatorias/crear_convocatoria_screen.dart';
-import 'documentos/documentos_screen.dart';
 import 'perfil/perfil_screen.dart';
 import '../config/app_theme.dart';
 import '../services/fcm_service.dart';
@@ -171,9 +170,6 @@ class _MainScaffoldState extends State<MainScaffold> {
         );
         break;
       case 3:
-        currentBody = const DocumentosScreen();
-        break;
-      case 4:
         currentBody = PerfilScreen(
           authService: widget.authService,
           onLogout: widget.onLogout,

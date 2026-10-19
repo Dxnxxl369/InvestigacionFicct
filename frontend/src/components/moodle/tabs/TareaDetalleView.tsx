@@ -1,6 +1,7 @@
 import React from "react";
 import {
   FileUp,
+  FileText,
   Users,
   Award,
   Pencil,
@@ -35,6 +36,7 @@ interface TareaDetalleViewProps {
   tarea: TareaDTO;
   convocatoria: ConvocatoriaDTO;
   estudiantesAdmitidos: ConvocatoriaParticipanteDTO[];
+  esEstudiante: boolean;
   puedeGestionarTareas: boolean;
   esJuradoEnEstaArea: boolean;
   onVolver: () => void;
@@ -50,6 +52,7 @@ export default function TareaDetalleView({
   tarea,
   convocatoria,
   estudiantesAdmitidos,
+  esEstudiante,
   puedeGestionarTareas,
   esJuradoEnEstaArea,
   onVolver,
@@ -204,12 +207,37 @@ export default function TareaDetalleView({
           </div>
         )}
 
+        {tarea.adjuntos && tarea.adjuntos.length > 0 && (
+          <div className="space-y-2 border-t border-line-soft pt-3">
+            <h3 className="flex items-center gap-2 text-xs font-bold text-ink">
+              <FileText className="h-4 w-4 text-accent" /> Archivos de apoyo
+            </h3>
+            <ul className="space-y-2">
+              {tarea.adjuntos.map((adjunto, index) => (
+                <li key={`${adjunto.ruta}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paper-sunken/50 px-3 py-2">
+                  <span className="min-w-0 break-all text-xs font-medium text-ink">{adjunto.nombre}</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setArchivoAVisualizar({ url: adjunto.ruta, nombre: adjunto.nombre })}
+                      className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-xs text-accent hover:bg-paper" aria-label={`Ver ${adjunto.nombre}`}>
+                      <Eye className="h-3.5 w-3.5" /> Ver
+                    </button>
+                    <a href={`${getMediaUrl(adjunto.ruta)}?download=true&nombre=${encodeURIComponent(adjunto.nombre)}`}
+                      className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-xs text-accent hover:bg-paper" aria-label={`Descargar ${adjunto.nombre}`}>
+                      <Download className="h-3.5 w-3.5" /> Descargar
+                    </a>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Parámetros de entrega */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 text-xs text-ink-soft border-t border-line-soft">
           <span><strong>Formatos permitidos:</strong> {tarea.tiposArchivosPermitidos || "*"}</span>
           <span>•</span>
           <span><strong>Tamaño máximo:</strong> {tarea.tamanoMaximoMb || 10} MB</span>
-          {tarea.fechaCorte && (
+          {tarea.fechaCorte && (puedeGestionarTareas || esJuradoEnEstaArea) && (
             <>
               <span>•</span>
               <span className="text-rose-700 dark:text-rose-300">
@@ -349,6 +377,7 @@ export default function TareaDetalleView({
       )}
 
       {/* Tabla de "Estado de la entrega" */}
+      {esEstudiante && (<>
       <div className="bg-paper border border-line rounded-2xl p-6 shadow-xs space-y-4">
         <h2 className="text-base sm:text-lg font-serif font-bold text-ink">
           Estado de la entrega
@@ -575,8 +604,7 @@ export default function TareaDetalleView({
                 <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>
-                    Esta tarea ya no acepta entregas debido a que ha expirado la fecha límite de corte (
-                    {formatMoodleDate(tarea.fechaCorte)}).
+                    Esta tarea ya no acepta entregas.
                   </span>
                 </div>
               );
@@ -643,6 +671,7 @@ export default function TareaDetalleView({
           </div>
         </div>
       )}
+      </>)}
 
       <VisorArchivoModal
         isOpen={Boolean(archivoAVisualizar)}

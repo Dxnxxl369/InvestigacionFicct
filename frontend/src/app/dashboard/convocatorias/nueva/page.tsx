@@ -18,7 +18,6 @@ import {
   UploadCloud,
   Image as ImageIcon,
   ShieldCheck,
-  Award,
   Search,
   Check,
   Trash2,
@@ -56,6 +55,7 @@ export default function NuevaConvocatoriaPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tipo, setTipo] = useState<"FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION">("FERIA");
+  const [modalidadInscripcion, setModalidadInscripcion] = useState<"INDIVIDUAL" | "GRUPAL">("GRUPAL");
   const [titulo, setTitulo] = useState("Feria de Ingeniería 2026");
   const [descripcion, setDescripcion] = useState(
     "Exposición anual de proyectos estudiantiles de todas las carreras de la facultad."
@@ -65,9 +65,10 @@ export default function NuevaConvocatoriaPage() {
   const [imageMode, setImageMode] = useState<"LOCAL" | "URL">("LOCAL");
   const [imagenPortada, setImagenPortada] = useState("");
   const [imagenNombre, setImagenNombre] = useState<string>("");
+  const [archivoInformacion, setArchivoInformacion] = useState<File | null>(null);
 
   const [fechaFinInscripcion, setFechaFinInscripcion] = useState("2026-10-30");
-  const [cuposMinEquipo, setCuposMinEquipo] = useState(1);
+  const [cuposMinEquipo, setCuposMinEquipo] = useState(2);
   const [cuposMaxEquipo, setCuposMaxEquipo] = useState(4);
 
   // Requisitos dinámicos
@@ -78,13 +79,10 @@ export default function NuevaConvocatoriaPage() {
   ]);
   const [newReq, setNewReq] = useState("");
 
-  // Asignación de Encargados (Docentes y Jurados)
+  // Asignación de docentes encargados
   const [availableDocentes, setAvailableDocentes] = useState<UserDTO[]>([]);
-  const [availableJurados, setAvailableJurados] = useState<UserDTO[]>([]);
   const [selectedDocenteIds, setSelectedDocenteIds] = useState<number[]>([]);
-  const [selectedJuradoIds, setSelectedJuradoIds] = useState<number[]>([]);
   const [searchDocente, setSearchDocente] = useState("");
-  const [searchJurado, setSearchJurado] = useState("");
   const [loadingEncargados, setLoadingEncargados] = useState(true);
 
   // LocalStorage Draft State
@@ -94,16 +92,15 @@ export default function NuevaConvocatoriaPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. Cargar lista de Docentes y Jurados disponibles
+  // 1. Cargar lista de docentes disponibles
   useEffect(() => {
     const fetchEncargados = async () => {
       try {
         setLoadingEncargados(true);
         const res = await api.getEncargadosDisponibles();
         setAvailableDocentes(res.docentes || []);
-        setAvailableJurados(res.jurados || []);
       } catch (err: any) {
-        console.error("Error al cargar docentes y jurados:", err);
+        console.error("Error al cargar docentes:", err);
       } finally {
         setLoadingEncargados(false);
       }
@@ -121,12 +118,12 @@ export default function NuevaConvocatoriaPage() {
         if (d.titulo) setTitulo(d.titulo);
         if (d.descripcion !== undefined) setDescripcion(d.descripcion);
         if (d.tipo) setTipo(d.tipo);
+        if (d.modalidadInscripcion) setModalidadInscripcion(d.modalidadInscripcion);
         if (d.fechaFinInscripcion) setFechaFinInscripcion(d.fechaFinInscripcion);
         if (d.cuposMinEquipo) setCuposMinEquipo(d.cuposMinEquipo);
         if (d.cuposMaxEquipo) setCuposMaxEquipo(d.cuposMaxEquipo);
         if (d.requisitos) setRequisitos(d.requisitos);
         if (d.selectedDocenteIds) setSelectedDocenteIds(d.selectedDocenteIds);
-        if (d.selectedJuradoIds) setSelectedJuradoIds(d.selectedJuradoIds);
         if (d.imagenPortada) setImagenPortada(d.imagenPortada);
         if (d.imagenNombre) setImagenNombre(d.imagenNombre);
         if (d.imageMode) setImageMode(d.imageMode);
@@ -147,12 +144,12 @@ export default function NuevaConvocatoriaPage() {
       titulo,
       descripcion,
       tipo,
+      modalidadInscripcion,
       fechaFinInscripcion,
       cuposMinEquipo,
       cuposMaxEquipo,
       requisitos,
       selectedDocenteIds,
-      selectedJuradoIds,
       imagenPortada,
       imagenNombre,
       imageMode,
@@ -168,12 +165,12 @@ export default function NuevaConvocatoriaPage() {
     titulo,
     descripcion,
     tipo,
+    modalidadInscripcion,
     fechaFinInscripcion,
     cuposMinEquipo,
     cuposMaxEquipo,
     requisitos,
     selectedDocenteIds,
-    selectedJuradoIds,
     imagenPortada,
     imagenNombre,
     imageMode,
@@ -194,7 +191,6 @@ export default function NuevaConvocatoriaPage() {
         "Carta de aval del docente guía",
       ]);
       setSelectedDocenteIds([]);
-      setSelectedJuradoIds([]);
       setImagenPortada("");
       setImagenNombre("");
       setImageMode("LOCAL");
@@ -243,23 +239,21 @@ export default function NuevaConvocatoriaPage() {
     );
   };
 
-  // Toggle de selección jurado (soporta N jurados)
-  const handleToggleJurado = (id: number) => {
-    setSelectedJuradoIds((prev) =>
-      prev.includes(id) ? prev.filter((jId) => jId !== id) : [...prev, id]
-    );
-  };
-
   const handleSubmit = async (estado: "BORRADOR" | "PUBLICADA") => {
     setError(null);
     if (!titulo.trim()) {
       setError("El título de la convocatoria es obligatorio.");
       return;
     }
+    if (modalidadInscripcion === "GRUPAL" && (cuposMinEquipo < 2 || cuposMaxEquipo < cuposMinEquipo || cuposMaxEquipo > 50)) {
+      setError("La inscripción grupal requiere entre 2 y 50 integrantes y un máximo igual o mayor que el mínimo.");
+      return;
+    }
 
     setLoading(true);
     try {
       let finalImageUrl: string | undefined = imagenPortada.trim() || undefined;
+      const documento = archivoInformacion ? await api.uploadArchivo(archivoInformacion) : null;
 
       // Si la imagen es un Base64 local, ahora sí la subimos al servidor para persistirla
       if (imagenPortada && imagenPortada.startsWith("data:image/")) {
@@ -276,15 +270,18 @@ export default function NuevaConvocatoriaPage() {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         tipo,
+        modalidadInscripcion,
         fechaCierre: fechaFinInscripcion || undefined,
-        tamanoEquipo:
+        tamanoEquipo: modalidadInscripcion === "GRUPAL" ? (
           cuposMinEquipo === cuposMaxEquipo
             ? `Hasta ${cuposMaxEquipo} integrantes`
-            : `${cuposMinEquipo} a ${cuposMaxEquipo} integrantes`,
+            : `${cuposMinEquipo} a ${cuposMaxEquipo} integrantes`) : undefined,
+        maxIntegrantesFeria: modalidadInscripcion === "GRUPAL" ? cuposMaxEquipo : undefined,
         imagenPortada: finalImageUrl,
+        archivoInformacionUrl: documento?.relativePath,
+        archivoInformacionNombre: archivoInformacion?.name,
         requisitos: requisitos,
         docenteIds: selectedDocenteIds,
-        juradoIds: selectedJuradoIds,
       };
 
       const creada = await api.createConvocatoria(payload);
@@ -294,9 +291,6 @@ export default function NuevaConvocatoriaPage() {
         const assignPromises = [
           ...selectedDocenteIds.map((dId) =>
             api.designarParticipante(creada.id, { usuarioId: dId, rol: "DOCENTE" }).catch(() => {})
-          ),
-          ...selectedJuradoIds.map((jId) =>
-            api.designarParticipante(creada.id, { usuarioId: jId, rol: "JURADO" }).catch(() => {})
           ),
         ];
         await Promise.all(assignPromises);
@@ -337,16 +331,7 @@ export default function NuevaConvocatoriaPage() {
     return full.includes(qDoc) || email.includes(qDoc);
   });
 
-  const qJur = normalizeText(searchJurado);
-  const filteredJurados = availableJurados.filter((j) => {
-    if (!qJur) return true;
-    const full = normalizeText(`${j.nombre} ${j.apellido}`);
-    const email = normalizeText(j.email);
-    return full.includes(qJur) || email.includes(qJur);
-  });
-
   const selectedDocentesObj = availableDocentes.filter((d) => selectedDocenteIds.includes(d.id));
-  const selectedJuradosObj = availableJurados.filter((j) => selectedJuradoIds.includes(j.id));
 
   if (!canEditModule("CONVOCATORIAS")) {
     return (
@@ -381,7 +366,7 @@ export default function NuevaConvocatoriaPage() {
               Nueva Convocatoria
             </h1>
             <p className="text-xs text-ink-soft mt-1">
-              Configura los parámetros, personal docente/jurados a cargo y fotografía con previsualización en vivo.
+              Configura los parámetros, docentes a cargo y fotografía con previsualización en vivo.
             </p>
           </div>
 
@@ -432,7 +417,7 @@ export default function NuevaConvocatoriaPage() {
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setTipo(item.key as any)}
+                    onClick={() => { setTipo(item.key as any); setModalidadInscripcion(item.key === "FERIA" ? "GRUPAL" : "INDIVIDUAL"); }}
                     className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                       tipo === item.key
                         ? "bg-accent-soft text-accent-dark font-semibold border-2 border-accent"
@@ -443,6 +428,19 @@ export default function NuevaConvocatoriaPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="p-4 bg-paper rounded-xl border border-line space-y-2">
+              <span className="block text-xs font-semibold text-ink">Modalidad de inscripción</span>
+              <div className="flex gap-4 text-sm text-ink">
+                <label className="flex items-center gap-2"><input type="radio" name="modalidad" checked={modalidadInscripcion === "INDIVIDUAL"}
+                  onChange={() => setModalidadInscripcion("INDIVIDUAL")} /> Individual</label>
+                <label className="flex items-center gap-2"><input type="radio" name="modalidad" checked={modalidadInscripcion === "GRUPAL"}
+                  onChange={() => setModalidadInscripcion("GRUPAL")} /> Grupal</label>
+              </div>
+              <p className="text-xs text-ink-soft">{modalidadInscripcion === "GRUPAL"
+                ? "El responsable registra a su equipo; tras la aprobación se asigna un código G001, G002…"
+                : "Cada persona se inscribe por separado. Los grupos se configuran después en Grupos y Elección."}</p>
             </div>
 
             {/* Título */}
@@ -471,6 +469,15 @@ export default function NuevaConvocatoriaPage() {
                 placeholder="Describe el objetivo y alcance de la actividad..."
                 className="w-full px-3.5 py-2.5 rounded-md border border-line bg-paper text-ink text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
               />
+            </div>
+
+            <div className="p-4 bg-paper rounded-xl border border-line space-y-2">
+              <label className="block text-xs font-semibold text-ink">Archivo con información del evento (opcional)</label>
+              <p className="text-xs text-ink-soft">PDF, DOC o DOCX para consultar las bases o indicaciones de la convocatoria.</p>
+              <input key={archivoInformacion?.name ?? "sin-archivo"} type="file" accept=".pdf,.doc,.docx" onChange={e => setArchivoInformacion(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-ink" />
+              {archivoInformacion && <button type="button" onClick={() => setArchivoInformacion(null)}
+                className="text-xs text-danger">Quitar {archivoInformacion.name}</button>}
             </div>
 
             {/* SECCIÓN: FOTO DE PORTADA CON PREVISUALIZACIÓN IN SITU EN EL RECUADRO */}
@@ -573,7 +580,7 @@ export default function NuevaConvocatoriaPage() {
                     >
                       <UploadCloud className="w-9 h-9 text-accent mx-auto mb-2" />
                       <p className="text-xs font-semibold text-ink">
-                        Haz clic aquí para seleccionar una foto de tu equipo
+                        Haz clic aquí para seleccionar una foto de portada del evento
                       </p>
                       <p className="text-[11px] text-ink-faint mt-1">
                         Formatos soportados: JPG, PNG, WEBP o GIF (previsualización instantánea en este recuadro)
@@ -606,14 +613,14 @@ export default function NuevaConvocatoriaPage() {
               )}
             </div>
 
-            {/* SECCIÓN: ENCARGADOS Y JURADOS (N DOCENTES Y N JURADOS) */}
+            {/* SECCIÓN: DOCENTES ENCARGADOS */}
             <div className="space-y-4 pt-2 border-t border-line-soft">
               <div>
                 <span className="block text-xs font-semibold text-ink uppercase tracking-wider mb-1">
                   Personal a Cargo de la Convocatoria
                 </span>
                 <p className="text-[11px] text-ink-soft">
-                  Selecciona y asigna <b>N docentes guías</b> y <b>N jurados evaluadores</b>. Se guardan en el borrador local automáticamente.
+                  Selecciona los <b>docentes guías</b>. Los jurados se añaden después desde la sección Jurados de la convocatoria.
                 </p>
               </div>
 
@@ -716,104 +723,6 @@ export default function NuevaConvocatoriaPage() {
                 )}
               </div>
 
-              {/* 2. Jurados Evaluadores */}
-              <div className="p-4 bg-paper rounded-xl border border-line space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Award className="w-4 h-4 text-purple-600" />
-                    <span className="text-xs font-semibold text-ink">Jurados Evaluadores</span>
-                  </div>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">
-                    {selectedJuradoIds.length} asignado(s)
-                  </span>
-                </div>
-
-                {/* Buscador de jurados */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-                  <input
-                    type="text"
-                    placeholder="Buscar jurado por nombre o correo (ej: Carlos, cfernandez@uagrm.edu.bo)..."
-                    value={searchJurado}
-                    onChange={(e) => setSearchJurado(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-paper-sunken border border-line-soft focus:border-accent focus:outline-none"
-                  />
-                </div>
-
-                {/* Lista de selección de jurados */}
-                <div className="max-h-44 overflow-y-auto border border-line-soft rounded-lg divide-y divide-line-soft bg-paper">
-                  {loadingEncargados ? (
-                    <div className="p-3 text-center text-xs text-ink-faint">Cargando jurados disponibles...</div>
-                  ) : filteredJurados.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-ink-soft">
-                      No se encontró ningún jurado con &quot;{searchJurado}&quot;.
-                    </div>
-                  ) : (
-                    filteredJurados.map((jur) => {
-                      const isSelected = selectedJuradoIds.includes(jur.id);
-                      return (
-                        <div
-                          key={jur.id}
-                          onClick={() => handleToggleJurado(jur.id)}
-                          className={`p-2.5 flex items-center justify-between cursor-pointer transition-colors text-xs ${
-                            isSelected ? "bg-purple-50 hover:bg-purple-100" : "hover:bg-paper-sunken"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-purple-200 text-purple-800 font-bold flex items-center justify-center text-[11px]">
-                              {jur.nombre.charAt(0)}{jur.apellido ? jur.apellido.charAt(0) : ""}
-                            </div>
-                            <div>
-                              <span className="font-semibold text-ink block">{jur.nombre} {jur.apellido}</span>
-                              <span className="text-[10px] text-ink-faint">{jur.email}</span>
-                            </div>
-                          </div>
-                          <div className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all ${
-                            isSelected
-                              ? "bg-purple-600 text-white"
-                              : "bg-paper-sunken text-ink-soft hover:bg-purple-600 hover:text-white"
-                          }`}>
-                            {isSelected ? (
-                              <>
-                                <Check className="w-3 h-3" /> Asignado
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-3 h-3" /> Agregar
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* Chips de jurados seleccionados */}
-                {selectedJuradosObj.length > 0 && (
-                  <div className="space-y-1.5 pt-1">
-                    <span className="text-[11px] font-medium text-ink-faint">Jurados que evaluarán a los proyectos:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedJuradosObj.map((jur) => (
-                        <span
-                          key={jur.id}
-                          className="inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-900 text-xs font-medium shadow-2xs"
-                        >
-                          <span>{jur.nombre} {jur.apellido}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleJurado(jur.id)}
-                            className="w-4 h-4 rounded-full hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center text-ink-soft"
-                            title="Quitar de la lista"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Fechas y Equipos */}
@@ -830,17 +739,17 @@ export default function NuevaConvocatoriaPage() {
                 />
               </div>
 
-              <div>
+              {modalidadInscripcion === "GRUPAL" && <div>
                 <label className="block text-xs font-medium text-ink-soft mb-1.5">
-                  Tamaño de equipo (Integrantes)
+                  {tipo === "FERIA" ? "Integrantes por proyecto" : "Integrantes por equipo"}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <div className="text-[11px] text-ink-faint mb-1">Mínimo</div>
                     <input
                       type="number"
-                      min={1}
-                      max={15}
+                      min={2}
+                      max={50}
                       value={cuposMinEquipo}
                       onChange={(e) => setCuposMinEquipo(Number(e.target.value) || 1)}
                       placeholder="Min"
@@ -851,8 +760,8 @@ export default function NuevaConvocatoriaPage() {
                     <div className="text-[11px] text-ink-faint mb-1">Máximo</div>
                     <input
                       type="number"
-                      min={1}
-                      max={15}
+                      min={2}
+                      max={50}
                       value={cuposMaxEquipo}
                       onChange={(e) => setCuposMaxEquipo(Number(e.target.value) || 1)}
                       placeholder="Max"
@@ -860,12 +769,14 @@ export default function NuevaConvocatoriaPage() {
                     />
                   </div>
                 </div>
-                <div className="text-[11px] text-accent font-medium mt-1.5">
-                  {cuposMinEquipo === cuposMaxEquipo
+                <div className={`text-[11px] font-medium mt-1.5 ${cuposMinEquipo < 2 || cuposMaxEquipo < cuposMinEquipo || cuposMaxEquipo > 50 ? "text-danger" : "text-accent"}`}>
+                  {cuposMinEquipo < 2 || cuposMaxEquipo < cuposMinEquipo || cuposMaxEquipo > 50
+                    ? "Ingresa un rango válido entre 2 y 50 integrantes"
+                    : cuposMinEquipo === cuposMaxEquipo
                     ? `Hasta ${cuposMaxEquipo} integrantes`
                     : `De ${cuposMinEquipo} a ${cuposMaxEquipo} integrantes`}
                 </div>
-              </div>
+              </div>}
             </div>
 
             {/* Requisitos de Inscripción */}
@@ -988,7 +899,7 @@ export default function NuevaConvocatoriaPage() {
                 </p>
 
                 {/* Encargados seleccionados en preview */}
-                {(selectedDocentesObj.length > 0 || selectedJuradosObj.length > 0) && (
+                {selectedDocentesObj.length > 0 && (
                   <div className="p-2.5 rounded-lg bg-paper-sunken border border-line-soft space-y-1.5 text-[11px]">
                     {selectedDocentesObj.length > 0 && (
                       <div className="flex items-center gap-1.5 text-accent-dark">
@@ -998,25 +909,17 @@ export default function NuevaConvocatoriaPage() {
                         </span>
                       </div>
                     )}
-                    {selectedJuradosObj.length > 0 && (
-                      <div className="flex items-center gap-1.5 text-purple-900">
-                        <Award className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
-                        <span className="truncate">
-                          <b>Jurado(s):</b> {selectedJuradosObj.map((j) => `${j.nombre} ${j.apellido}`).join(", ")}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )}
 
                 {/* Metadatos */}
                 <div className="pt-3 border-t border-line-soft flex items-center justify-between text-xs text-ink-faint">
-                  <span className="flex items-center gap-1">
+                  {modalidadInscripcion === "GRUPAL" && <span className="flex items-center gap-1">
                     <Users className="w-3.5 h-3.5 text-accent" />
                     {cuposMinEquipo === cuposMaxEquipo
                       ? `Hasta ${cuposMaxEquipo} integrantes`
                       : `${cuposMinEquipo} a ${cuposMaxEquipo} integrantes`}
-                  </span>
+                  </span>}
 
                   <span className="flex items-center gap-1 font-medium text-ink-soft">
                     <Calendar className="w-3.5 h-3.5 text-seal" />

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_theme.dart';
 import '../../models/convocatoria_model.dart';
 import '../../models/user_model.dart';
@@ -7,6 +8,7 @@ import '../../services/storage_service.dart';
 import '../../widgets/moodle_widgets.dart';
 import '../../widgets/confirmar_eliminacion_dialog.dart';
 import 'crear_convocatoria_screen.dart';
+import 'feria_inscripcion_screen.dart';
 
 class ConvocatoriaDetalleScreen extends StatefulWidget {
   final ConvocatoriaModel convocatoria;
@@ -27,9 +29,23 @@ class ConvocatoriaDetalleScreen extends StatefulWidget {
 class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
   UserModel? _currentUser;
   List<Map<String, dynamic>> _participantes = [];
+  List<Map<String, dynamic>> _postulacionesFeria = [];
   bool _isLoadingParticipantes = false;
   bool _isActionLoading = false;
   String? _miEstado;
+
+  Future<void> _abrirArchivoInformacion(String enlace) async {
+    final base = Uri.parse(ApiService.baseUrl);
+    final uri = enlace.startsWith('/')
+        ? base.replace(path: enlace, query: null, fragment: null)
+        : Uri.tryParse(enlace);
+    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir el archivo informativo.')));
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -44,6 +60,7 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
       setState(() => _currentUser = user);
     }
     await _refreshDetalleYEstado();
+    if (widget.convocatoria.modalidadInscripcion == 'GRUPAL') _loadPostulacionesFeria();
     if (user != null && (user.rol == 'ADMIN' || user.rol == 'DOCENTE')) {
       _loadParticipantes();
     }
@@ -76,6 +93,30 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
       });
     }
     _refreshDetalleYEstado();
+    if (widget.convocatoria.modalidadInscripcion == 'GRUPAL') _loadPostulacionesFeria();
+  }
+
+  Future<void> _loadPostulacionesFeria() async {
+    final list = await ApiService.getPostulacionesFeria(widget.convocatoria.id);
+    if (mounted) setState(() => _postulacionesFeria = list);
+  }
+
+  Future<void> _editarCodigoEquipo(Map<String, dynamic> postulacion) async {
+    final controller = TextEditingController(text: (postulacion['codigoEquipo'] ?? '').toString());
+    final codigo = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Código del equipo'),
+      content: TextField(controller: controller, maxLength: 30, decoration: const InputDecoration(labelText: 'Código, por ejemplo G001')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+        TextButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Guardar')),
+      ],
+    ));
+    controller.dispose();
+    if (codigo == null || codigo.isEmpty) return;
+    final ok = await ApiService.cambiarCodigoEquipoFeria(widget.convocatoria.id, (postulacion['id'] as num).toInt(), codigo);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Código actualizado.' : 'No se pudo cambiar el código.')));
+    if (ok) _loadPostulacionesFeria();
   }
 
   Future<void> _handleArchivar() async {
@@ -161,6 +202,19 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
           content: Text('Esta convocatoria aún se encuentra en borrador y no admite postulaciones de estudiantes.'),
         ),
       );
+      return;
+    }
+
+    if (widget.convocatoria.modalidadInscripcion == 'GRUPAL') {
+      final ok = await Navigator.push<bool>(context,
+        MaterialPageRoute(builder: (_) => FeriaInscripcionScreen(convocatoria: widget.convocatoria)));
+      if (ok == true && mounted) {
+        setState(() => _miEstado = 'PENDIENTE');
+        _loadPostulacionesFeria();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Postulación del equipo enviada para revisión.')),
+        );
+      }
       return;
     }
 
@@ -443,7 +497,7 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                   )
                 else ...[
                   DropdownButtonFormField<int>(
-                    value: usuarioSeleccionadoId,
+                    initialValue: usuarioSeleccionadoId,
                     isExpanded: true,
                     decoration: InputDecoration(
                       labelText: rolSeleccionado == 'DOCENTE' ? 'Seleccionar Docente' : 'Seleccionar Jurado',
@@ -706,6 +760,12 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                         height: 1.45,
                       ),
                     ),
+                    if (conv.archivoInformacionUrl?.isNotEmpty == true)
+                      TextButton.icon(
+                        onPressed: () => _abrirArchivoInformacion(conv.archivoInformacionUrl!),
+                        icon: const Icon(Icons.description_outlined),
+                        label: Text('Ver archivo informativo: ${conv.archivoInformacionNombre ?? 'Documento del evento'}'),
+                      ),
                     const SizedBox(height: 16),
 
                     // TRIBUNAL Y ENCARGADOS CON ASIGNACIÓN DIRECTA
@@ -1013,6 +1073,14 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                             onPressed: _isActionLoading ? null : _handleInscribirse,
                           ),
                         ),
+                    if (widget.convocatoria.modalidadInscripcion == 'GRUPAL' && _miEstado == 'ACEPTADO') ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _handleInscribirse,
+                        icon: const Icon(Icons.group_add_outlined),
+                        label: const Text('Inscribir otro equipo'),
+                      ),
+                    ],
                     ],
                     if (isDocenteOAdmin && widget.onOpenAula != null) ...[
                       const SizedBox(height: 10),
@@ -1033,6 +1101,55 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                 ),
               ),
             ),
+
+            if (widget.convocatoria.modalidadInscripcion == 'GRUPAL' && _postulacionesFeria.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              const Text('Proyectos y equipos de Feria', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ..._postulacionesFeria.map((postulacion) {
+                final integrantes = (postulacion['integrantes'] as List<dynamic>? ?? []);
+                final jefeCorreo = (postulacion['jefeCorreo'] ?? '').toString().toLowerCase();
+                return Card(child: ExpansionTile(
+                  title: Text('${postulacion['codigoEquipo'] ?? ''} · ${postulacion['tema'] ?? ''}'),
+                  subtitle: Text('${postulacion['estado'] ?? ''} · ${integrantes.length} integrantes'),
+                  children: [
+                    Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Área: ${postulacion['area'] ?? ''} · Categoría: ${postulacion['categoria'] ?? ''}'),
+                        Text('Materia: ${postulacion['materia'] ?? ''} · Sigla: ${postulacion['sigla'] ?? ''}'),
+                        Text('Grupo de materia: ${postulacion['grupoMateria'] ?? ''}'),
+                        Text('Docente: ${postulacion['docente'] ?? ''}'),
+                        if (isDocenteOAdmin) TextButton.icon(
+                          onPressed: () => _editarCodigoEquipo(postulacion),
+                          icon: const Icon(Icons.edit_outlined), label: const Text('Cambiar código del equipo'),
+                        ),
+                        if (isDocenteOAdmin && postulacion['estado'] == 'PENDIENTE')
+                          Wrap(spacing: 12, children: [
+                            TextButton(onPressed: () async {
+                              final ok = await ApiService.responderPostulacionFeria(
+                                  widget.convocatoria.id, postulacion['id'] as int, true);
+                              if (ok) _loadPostulacionesFeria();
+                            }, child: const Text('Admitir equipo')),
+                            TextButton(onPressed: () async {
+                              final ok = await ApiService.responderPostulacionFeria(
+                                  widget.convocatoria.id, postulacion['id'] as int, false);
+                              if (ok) _loadPostulacionesFeria();
+                            }, child: const Text('Rechazar equipo')),
+                          ]),
+                        const Divider(),
+                        for (final raw in integrantes)
+                          if (raw is Map<String, dynamic>) ListTile(
+                            dense: true,
+                            title: Text('${raw['nombre'] ?? ''} · ${(raw['correo'] ?? '').toString().toLowerCase() == jefeCorreo ? 'Jefe' : 'Integrante'}'),
+                            subtitle: Text('Registro: ${raw['registro'] ?? ''} · ${raw['carrera'] ?? ''} · Cel: ${raw['celular'] ?? ''}\nSemestre: ${raw['semestre'] ?? ''} · Ferias: ${raw['ferias'] ?? ''} · ${raw['correo'] ?? ''}'),
+                          ),
+                      ],
+                    )),
+                  ],
+                ));
+              }),
+            ],
 
             // SECCIÓN GESTIÓN DE PARTICIPANTES ESTUDIANTILES (Para Docente y Admin)
             if (isDocenteOAdmin) ...[
