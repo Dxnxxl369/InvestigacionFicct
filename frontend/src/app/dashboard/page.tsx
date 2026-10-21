@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/context/AuthContext";
@@ -18,11 +19,13 @@ import {
 
 export default function DashboardHomePage() {
   const { user, canEditModule } = useAuth();
+  const router = useRouter();
   const [convocatorias, setConvocatorias] = useState<ConvocatoriaDTO[]>([]);
   const [tasks, setTasks] = useState<TareaDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (user?.rol === "JURADO") { router.replace("/dashboard/jurado"); return; }
     const fetchStats = async () => {
       const [convocatoriasResult, tareasResult] = await Promise.allSettled([
         api.getConvocatorias(),
@@ -35,7 +38,7 @@ export default function DashboardHomePage() {
       setLoading(false);
     };
     fetchStats();
-  }, []);
+  }, [user?.rol, router]);
 
   const total = convocatorias.length;
   const publicadas = convocatorias.filter((c) => c.estado === "PUBLICADA").length;

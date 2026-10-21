@@ -44,6 +44,9 @@ class ConvocatoriaServiceTest {
     @Mock
     private TareaRepository tareaRepository;
 
+    @Mock
+    private PlantillaService plantillaService;
+
     @InjectMocks
     private ConvocatoriaService convocatoriaService;
 
@@ -117,20 +120,17 @@ class ConvocatoriaServiceTest {
         request.setMaxIntegrantesFeria(5);
         when(userRepository.findByEmail(docUser.getEmail())).thenReturn(Optional.of(docUser));
         when(convocatoriaRepository.save(any(Convocatoria.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(moduloRepository.save(any(Modulo.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(tareaRepository.save(any(Tarea.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ConvocatoriaDTO result = convocatoriaService.crearConvocatoria(request, docUser.getEmail());
 
         assertEquals(ModalidadInscripcion.GRUPAL, result.getModalidadInscripcion());
         assertEquals(5, result.getMaxIntegrantesFeria());
-        var tareas = org.mockito.ArgumentCaptor.forClass(Tarea.class);
-        verify(tareaRepository, times(2)).save(tareas.capture());
-        assertTrue(tareas.getAllValues().stream().allMatch(t -> t.isEsGrupal() && !t.isPlantillaFeria()));
+        verify(plantillaService).crearParaConvocatoria(argThat(c -> c.getTipo() == TipoConvocatoria.HACKATHON
+                && c.getModalidadInscripcion() == ModalidadInscripcion.GRUPAL), eq(docUser));
     }
 
     @Test
-    @DisplayName("Una Feria nueva crea tres módulos y siete actividades pendientes de fechas")
+    @DisplayName("Una Feria nueva solicita sus plantillas configuradas")
     void testCrearPlantillaFeria() {
         ConvocatoriaRequest request = new ConvocatoriaRequest(
                 "Feria 2026", "Proyectos", TipoConvocatoria.FERIA,
@@ -141,52 +141,23 @@ class ConvocatoriaServiceTest {
             c.setId(101L);
             return c;
         });
-        when(moduloRepository.save(any(Modulo.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(tareaRepository.save(any(Tarea.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
         convocatoriaService.crearConvocatoria(request, docUser.getEmail());
 
-        var modulos = org.mockito.ArgumentCaptor.forClass(Modulo.class);
-        var tareas = org.mockito.ArgumentCaptor.forClass(Tarea.class);
-        verify(moduloRepository, times(3)).save(modulos.capture());
-        verify(tareaRepository, times(7)).save(tareas.capture());
-        assertEquals(List.of("Primer avance", "Segundo avance", "Presentación final"),
-                modulos.getAllValues().stream().map(Modulo::getTitulo).toList());
-        assertEquals(List.of("Primera presentación de documento", "Segunda presentación de documento",
-                "Documento final para jurados", "Tríptico", "Diapositivas", "Banner", "Logo"),
-                tareas.getAllValues().stream().map(Tarea::getTitulo).toList());
-        assertTrue(tareas.getAllValues().stream().allMatch(t -> t.isPlantillaFeria() && t.isEsGrupal()
-                && !t.isHabilitada() && !t.isVisibleParaEstudiantes()
-                && t.getFechaHabilitacion() == null && t.getFechaEntrega() == null));
-        assertEquals(List.of(false, false, true, true, true, true, true),
-                tareas.getAllValues().stream().map(Tarea::isVisibleJurados).toList());
+        verify(plantillaService).crearParaConvocatoria(argThat(c -> c.getTipo() == TipoConvocatoria.FERIA), eq(docUser));
     }
 
     @ParameterizedTest
     @EnumSource(value = TipoConvocatoria.class, names = {"HACKATHON", "CONCURSO", "INVESTIGACION"})
-    @DisplayName("Hackathon, Concurso e Investigación crean un módulo con dos entregables para jurados")
+    @DisplayName("Hackathon, Concurso e Investigación usan sus plantillas configuradas")
     void testCrearPlantillaActividades(TipoConvocatoria tipo) {
         ConvocatoriaRequest request = new ConvocatoriaRequest(
                 "Nueva convocatoria", "Descripción", tipo,
                 LocalDate.of(2026, 11, 15), null, null, List.of());
         when(userRepository.findByEmail(docUser.getEmail())).thenReturn(Optional.of(docUser));
         when(convocatoriaRepository.save(any(Convocatoria.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(moduloRepository.save(any(Modulo.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(tareaRepository.save(any(Tarea.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
         convocatoriaService.crearConvocatoria(request, docUser.getEmail());
 
-        var modulo = org.mockito.ArgumentCaptor.forClass(Modulo.class);
-        var tareas = org.mockito.ArgumentCaptor.forClass(Tarea.class);
-        verify(moduloRepository).save(modulo.capture());
-        verify(tareaRepository, times(2)).save(tareas.capture());
-        assertEquals("Actividades", modulo.getValue().getTitulo());
-        assertEquals(List.of("Documentación", "Diapositiva"),
-                tareas.getAllValues().stream().map(Tarea::getTitulo).toList());
-        assertTrue(tareas.getAllValues().stream().allMatch(t -> t.isVisibleJurados()
-                && t.isPlantillaModulo() && !t.isEsGrupal() && !t.isPlantillaFeria()
-                && !t.isHabilitada() && !t.isVisibleParaEstudiantes()
-                && t.getFechaHabilitacion() == null && t.getFechaEntrega() == null));
+        verify(plantillaService).crearParaConvocatoria(argThat(c -> c.getTipo() == tipo), eq(docUser));
     }
 
     @Test

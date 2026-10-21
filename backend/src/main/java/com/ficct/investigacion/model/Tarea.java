@@ -74,11 +74,11 @@ public class Tarea {
     @JoinColumn(name = "creador_id")
     private User creador;
 
-    @Column(name = "documento_colaborativo_habilitado", nullable = false)
+    // El modulo colaborativo esta desactivado y sus columnas se retiraron de la BD.
+    @Transient
     private boolean documentoColaborativoHabilitado = false;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "documento_colaborativo_id")
+    @Transient
     private Documento documentoColaborativo;
 
     @OneToMany(mappedBy = "tarea", cascade = CascadeType.ALL, orphanRemoval = true)

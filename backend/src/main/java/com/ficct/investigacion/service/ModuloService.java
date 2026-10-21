@@ -20,17 +20,20 @@ public class ModuloService {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final TareaRepository tareaRepository;
     private final UserRepository userRepository;
+    private final PlantillaService plantillaService;
 
     public ModuloService(ModuloRepository moduloRepository,
                          ConvocatoriaRepository convocatoriaRepository,
                          ConvocatoriaParticipanteRepository participanteRepository,
                          TareaRepository tareaRepository,
-                         UserRepository userRepository) {
+                         UserRepository userRepository,
+                         PlantillaService plantillaService) {
         this.moduloRepository = moduloRepository;
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.tareaRepository = tareaRepository;
         this.userRepository = userRepository;
+        this.plantillaService = plantillaService;
     }
 
     private User getUserByEmail(String email) {
@@ -79,12 +82,10 @@ public class ModuloService {
             throw new AccessDeniedException("Solo un docente a cargo del área o un Administrador puede crear módulos.");
         }
 
-        if (request.getPlantilla() != null) {
-            return new ModuloDTO(PlantillaModuloFactory.crear(convocatoria, user,
-                    request.getPlantilla(), request.getOrden() != null ? request.getOrden() : 1,
-                    moduloRepository, tareaRepository));
+        if (request.getPlantillaId() != null) {
+            return new ModuloDTO(plantillaService.crearModulo(convocatoria, user,
+                    request.getPlantillaId(), request.getOrden() != null ? request.getOrden() : 1));
         }
-
         Modulo modulo = new Modulo(
                 convocatoria,
                 request.getTitulo().trim(),

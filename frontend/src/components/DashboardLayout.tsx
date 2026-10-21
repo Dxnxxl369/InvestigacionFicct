@@ -22,6 +22,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Clock,
+  Layers3,
 } from "lucide-react";
 import NotificacionesCampana from "./NotificacionesCampana";
 
@@ -112,12 +113,12 @@ export default function DashboardLayout({
       isActive: pathname === "/",
     },
     {
-      href: "/dashboard",
-      label: "Panel Principal",
+      href: user.rol === "JURADO" ? "/dashboard/jurado" : "/dashboard",
+      label: user.rol === "JURADO" ? "Mis evaluaciones" : "Panel Principal",
       icon: LayoutDashboard,
-      isActive: pathname === "/dashboard",
+      isActive: user.rol === "JURADO" ? pathname === "/dashboard/jurado" : pathname === "/dashboard",
     },
-    ...(canViewModule("CONVOCATORIAS")
+    ...(user.rol !== "JURADO" && canViewModule("CONVOCATORIAS")
       ? [
           {
             href: "/dashboard/convocatorias",
@@ -137,14 +138,22 @@ export default function DashboardLayout({
           },
         ]
       : []),
-    {
+    ...(["ADMIN", "DOCENTE"].includes(user.rol)
+      ? [{
+          href: "/dashboard/plantillas",
+          label: "Plantillas",
+          icon: Layers3,
+          isActive: pathname === "/dashboard/plantillas",
+        }]
+      : []),
+    ...(user.rol !== "JURADO" ? [{
       href: "/dashboard/mis-areas",
       label: "Mis Áreas",
       icon: GraduationCap,
       isActive: pathname.startsWith("/dashboard/mis-areas"),
       badge: "Moodle",
       badgeColor: "bg-seal/20 text-seal-dark",
-    },
+    }] : []),
     ...(user.rol === "ESTUDIANTE"
       ? [
           {

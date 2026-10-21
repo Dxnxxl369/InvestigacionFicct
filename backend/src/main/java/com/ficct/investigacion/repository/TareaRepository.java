@@ -3,6 +3,8 @@ package com.ficct.investigacion.repository;
 import com.ficct.investigacion.model.Convocatoria;
 import com.ficct.investigacion.model.Tarea;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -19,5 +21,6 @@ public interface TareaRepository extends JpaRepository<Tarea, Long> {
 
     List<Tarea> findByConvocatoriaIdAndHabilitadaTrueOrderByFechaEntregaAsc(Long convocatoriaId);
 
-    Optional<Tarea> findByDocumentoColaborativoId(Long documentoId);
+    @Query(value = "SELECT * FROM tareas WHERE documento_colaborativo_id = :documentoId LIMIT 1", nativeQuery = true)
+    Optional<Tarea> findByDocumentoColaborativoId(@Param("documentoId") Long documentoId);
 }

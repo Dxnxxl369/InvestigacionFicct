@@ -349,6 +349,9 @@ public class TareaService {
     @Transactional(readOnly = true)
     public List<TareaDTO> listarPorConvocatoria(Long convocatoriaId, String userEmail) {
         User user = getUserByEmail(userEmail);
+        if (user.getRol() == Rol.JURADO) {
+            throw new AccessDeniedException("El jurado consulta las tareas desde sus grupos asignados.");
+        }
         Convocatoria convocatoria = convocatoriaRepository.findById(convocatoriaId)
                 .orElseThrow(() -> new IllegalArgumentException("Área no encontrada con ID: " + convocatoriaId));
 
@@ -376,6 +379,9 @@ public class TareaService {
     @Transactional(readOnly = true)
     public TareaDTO obtenerPorId(Long tareaId, String userEmail, Long feriaPostulacionId) {
         User user = getUserByEmail(userEmail);
+        if (user.getRol() == Rol.JURADO) {
+            throw new AccessDeniedException("El jurado consulta las tareas desde sus grupos asignados.");
+        }
         Tarea tarea = tareaRepository.findById(tareaId)
                 .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
         if (user.getRol() == Rol.ESTUDIANTE && !participanteRepository
@@ -712,13 +718,8 @@ public class TareaService {
         Convocatoria conv = tarea.getConvocatoria();
         boolean esAdmin = evaluador.getRol() == Rol.ADMIN;
         boolean esDocente = participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRol(conv.getId(), evaluador.getId(), Rol.DOCENTE);
-        boolean esJurado = participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRol(conv.getId(), evaluador.getId(), Rol.JURADO);
-
-        if (!esAdmin && !esDocente && !esJurado) {
-            throw new AccessDeniedException("Solo los docentes o jurados asignados a esta área pueden calificar entregas.");
-        }
-        if (!esAdmin && !esDocente && !juradoAsignacionService.puedeRevisar(evaluador, entrega)) {
-            throw new AccessDeniedException("Esta entrega no pertenece a los proyectos asignados al jurado.");
+        if (!esAdmin && !esDocente) {
+            throw new AccessDeniedException("Las notas de tareas solo pueden registrarlas docentes o administradores. El jurado usa su formulario de evaluación.");
         }
 
         List<RubricaCriterio> rubrica = rubricaCriterioRepository.findByTareaOrderByOrdenAsc(tarea);

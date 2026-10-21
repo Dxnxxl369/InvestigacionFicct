@@ -17,6 +17,7 @@ import {
   ConvocatoriaParticipanteDTO,
 } from "@/lib/api";
 import { formatMoodleDate } from "../moodleUtils";
+import CalificacionesJurados from "./CalificacionesJurados";
 
 interface TabCalificacionesProps {
   user: User | null;
@@ -293,6 +294,8 @@ export default function TabCalificaciones({
   // VISTA DE CALIFICACIONES: DOCENTE / ADMIN (MATRIZ)
   return (
     <div className="space-y-5">
+      {(user?.rol === "ADMIN" || user?.rol === "DOCENTE") &&
+        <CalificacionesJurados convocatoriaId={convocatoria.id} />}
       {/* Header del Gradebook Docente */}
       <div className="bg-paper border border-line rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

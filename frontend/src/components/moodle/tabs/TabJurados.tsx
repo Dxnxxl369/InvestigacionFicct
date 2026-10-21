@@ -1,8 +1,9 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
-import { Award, Save, Trash2, UserPlus } from "lucide-react";
+import { Award, Pencil, Save, Trash2, UserPlus } from "lucide-react";
 import { api, JuradoAsignacionDTO, JuradosConvocatoriaDTO, User } from "@/lib/api";
+import EditorFormularioJurado from "./EditorFormularioJurado";
 
 type Alcance = "NINGUNO" | "TODOS" | "SELECCION";
 
@@ -18,6 +19,7 @@ export default function TabJurados({ convocatoriaId, allUsers, onRefresh, toast 
   const [guardando, setGuardando] = useState<number | null>(null);
   const [cargando, setCargando] = useState(true);
   const [mostrarCrear, setMostrarCrear] = useState(false);
+  const [editarFormulario, setEditarFormulario] = useState(false);
   const [nuevoJurado, setNuevoJurado] = useState({ nombre: "", apellido: "", correo: "", contrasena: "" });
 
   const cargar = async () => {
@@ -103,7 +105,7 @@ export default function TabJurados({ convocatoriaId, allUsers, onRefresh, toast 
 
   return <div className="space-y-4">
     <div className="bg-paper border border-line rounded-2xl p-5 space-y-4">
-      <div className="flex items-center gap-2 text-ink font-semibold"><Award className="w-5 h-5 text-accent" /> Jurados de la convocatoria</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-ink font-semibold"><Award className="w-5 h-5 text-accent" /> Jurados de la convocatoria</div><button type="button" onClick={() => setEditarFormulario(true)} className="flex items-center gap-2 rounded-xl border border-accent px-3 py-2 text-sm font-semibold text-accent"><Pencil size={15} /> Editar formulario de evaluación</button></div>
       <p className="text-xs text-ink-soft">Cada jurado comienza sin proyectos. Puedes asignarle algunos o todos; «Todos» incluye también los proyectos que se admitan después.</p>
       <div className="flex flex-col sm:flex-row gap-2">
         <select aria-label="Seleccionar jurado" value={usuarioId} onChange={e => setUsuarioId(e.target.value)}
@@ -170,5 +172,6 @@ export default function TabJurados({ convocatoriaId, allUsers, onRefresh, toast 
           <Save className="w-4 h-4" /> Guardar asignación</button></div>
       </div>;
     })}
+    {editarFormulario && <EditorFormularioJurado convocatoriaId={convocatoriaId} onClose={() => setEditarFormulario(false)} toast={toast} />}
   </div>;
 }

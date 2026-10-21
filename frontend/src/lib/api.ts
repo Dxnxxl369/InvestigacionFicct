@@ -1250,7 +1250,7 @@ export interface ModuloDTO {
 
 export interface ModuloRequest {
   titulo: string;
-  plantilla?: "PRIMER_AVANCE" | "SEGUNDO_AVANCE" | "PRESENTACION_FINAL" | "ACTIVIDADES";
+  plantillaId?: number;
   descripcion?: string;
   imagenUrl?: string;
   orden?: number;
@@ -1300,6 +1300,106 @@ export const modulosAPI = {
 };
 
 // Subida de archivos / imágenes / documentos
+export interface PlantillaActividadDTO {
+  id?: number;
+  titulo: string;
+  descripcion?: string;
+  tiposArchivosPermitidos?: string;
+  tamanoMaximoMb?: number;
+  puntajeMaximo?: number;
+  visibleJurados: boolean;
+  entregaGrupal: boolean;
+  adjuntos?: { nombre: string; ruta: string; tamanoBytes?: number }[];
+  rubrica?: { nombre: string; descripcion?: string; puntajeMaximo: number }[];
+}
+
+export interface PlantillaDTO {
+  id?: number;
+  titulo: string;
+  descripcion?: string;
+  actividades: PlantillaActividadDTO[];
+}
+
+export type TipoConvocatoriaPlantilla = "FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION";
+
+export interface ConfiguracionTipoPlantilla {
+  tipo: TipoConvocatoriaPlantilla;
+  plantillaIds: number[];
+}
+
+export const plantillasAPI = {
+  async listar(): Promise<PlantillaDTO[]> {
+    return handleResponse<PlantillaDTO[]>(await fetch(`${API_BASE_URL}/plantillas`, { headers: getAuthHeader() }));
+  },
+  async tipos(): Promise<ConfiguracionTipoPlantilla[]> {
+    return handleResponse<ConfiguracionTipoPlantilla[]>(await fetch(`${API_BASE_URL}/plantillas/tipos`, { headers: getAuthHeader() }));
+  },
+  async crear(data: PlantillaDTO): Promise<PlantillaDTO> {
+    return handleResponse<PlantillaDTO>(await fetch(`${API_BASE_URL}/plantillas`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeader() }, body: JSON.stringify(data),
+    }));
+  },
+  async actualizar(id: number, data: PlantillaDTO): Promise<PlantillaDTO> {
+    return handleResponse<PlantillaDTO>(await fetch(`${API_BASE_URL}/plantillas/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeader() }, body: JSON.stringify(data),
+    }));
+  },
+  async eliminar(id: number): Promise<{ message: string }> {
+    return handleResponse<{ message: string }>(await fetch(`${API_BASE_URL}/plantillas/${id}`, {
+      method: "DELETE", headers: getAuthHeader(),
+    }));
+  },
+  async configurarTipo(tipo: TipoConvocatoriaPlantilla, plantillaIds: number[]): Promise<ConfiguracionTipoPlantilla> {
+    return handleResponse<ConfiguracionTipoPlantilla>(await fetch(`${API_BASE_URL}/plantillas/tipos/${tipo}`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeader() }, body: JSON.stringify({ plantillaIds }),
+    }));
+  },
+};
+
+export interface CriterioEvaluacionJurado { id: string; texto: string }
+export interface SeccionEvaluacionJurado { id: string; titulo: string; peso: number; indicacion?: string; criterios: CriterioEvaluacionJurado[] }
+export interface FormularioEvaluacionJurado { titulo: string; subtitulo: string; secciones: SeccionEvaluacionJurado[] }
+export interface GrupoAsignadoJurado {
+  convocatoriaId: number; convocatoriaTitulo: string; tipo: "FERIA" | "GRUPO";
+  proyectoId: number; codigo: string; nombre: string; evaluado: boolean;
+}
+export interface EvaluacionJuradoDTO {
+  id: number; formulario: FormularioEvaluacionJurado; valores: Record<string, "R" | "B" | "E" | "NA">;
+  comentarios: string; notaFinal: number; fechaEnvio: string; juradoNombre: string;
+}
+export interface DetalleGrupoJurado {
+  grupo: GrupoAsignadoJurado; materia: string; docente: string;
+  tareas: { id: number; titulo: string; descripcion: string; entregas: {
+    id: number; estudiante: string; nombreArchivo: string; archivoUrl: string;
+    comentario: string; fechaEntrega: string;
+  }[] }[];
+  formulario: FormularioEvaluacionJurado; formularioRevision: number; evaluacion: EvaluacionJuradoDTO | null;
+}
+export interface CalificacionGrupoJurado {
+  tipo: "FERIA" | "GRUPO"; proyectoId: number; codigo: string; nombre: string;
+  cantidadEvaluaciones: number; promedio: number | null; evaluaciones: EvaluacionJuradoDTO[];
+}
+export const juradoAPI = {
+  grupos: async () => handleResponse<GrupoAsignadoJurado[]>(await fetch(`${API_BASE_URL}/jurado/grupos`, { headers: getAuthHeader() })),
+  detalle: async (convocatoriaId: number, tipo: string, proyectoId: number) =>
+    handleResponse<DetalleGrupoJurado>(await fetch(`${API_BASE_URL}/jurado/convocatorias/${convocatoriaId}/grupos/${tipo}/${proyectoId}`, { headers: getAuthHeader() })),
+  evaluar: async (convocatoriaId: number, tipo: string, proyectoId: number,
+            valores: Record<string, string>, comentarios: string, formularioRevision: number) =>
+    handleResponse<EvaluacionJuradoDTO>(await fetch(`${API_BASE_URL}/jurado/convocatorias/${convocatoriaId}/grupos/${tipo}/${proyectoId}/evaluacion`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({ valores, comentarios, formularioRevision }),
+    })),
+  formulario: async (convocatoriaId: number) => handleResponse<FormularioEvaluacionJurado>(
+    await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/jurados/formulario`, { headers: getAuthHeader() })),
+  guardarFormulario: async (convocatoriaId: number, formulario: FormularioEvaluacionJurado) =>
+    handleResponse<FormularioEvaluacionJurado>(await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/jurados/formulario`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(formulario),
+    })),
+  calificaciones: async (convocatoriaId: number) => handleResponse<CalificacionGrupoJurado[]>(
+    await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/jurados/calificaciones`, { headers: getAuthHeader() })),
+};
+
 export const uploadsAPI = {
   async uploadImagen(file: File): Promise<{ url: string; relativePath: string; filename: string; size: number }> {
     const formData = new FormData();

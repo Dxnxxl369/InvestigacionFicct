@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FolderKanban, XCircle, AlertCircle, UploadCloud } from "lucide-react";
-import { api, ModuloDTO, ModuloRequest } from "@/lib/api";
+import { api, ModuloDTO, ModuloRequest, PlantillaDTO, plantillasAPI } from "@/lib/api";
 
 interface CrearEditarModuloModalProps {
   isOpen: boolean;
@@ -22,7 +22,8 @@ export default function CrearEditarModuloModal({
   toast,
 }: CrearEditarModuloModalProps) {
   const [moduloTitulo, setModuloTitulo] = useState("");
-  const [plantilla, setPlantilla] = useState<ModuloRequest["plantilla"] | "">("");
+  const [plantillaId, setPlantillaId] = useState<number | "">("");
+  const [plantillas, setPlantillas] = useState<PlantillaDTO[]>([]);
   const [moduloDescripcion, setModuloDescripcion] = useState("");
   const [moduloImagenUrl, setModuloImagenUrl] = useState("");
   const [moduloImagenFile, setModuloImagenFile] = useState<File | null>(null);
@@ -34,6 +35,12 @@ export default function CrearEditarModuloModal({
   const fileInputModuloImgRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (isOpen && !moduloEditing) {
+      plantillasAPI.listar().then(setPlantillas).catch(() => setPlantillas([]));
+    }
+  }, [isOpen, moduloEditing]);
+
+  useEffect(() => {
     if (moduloEditing) {
       setModuloTitulo(moduloEditing.titulo || "");
       setModuloDescripcion(moduloEditing.descripcion || "");
@@ -41,7 +48,7 @@ export default function CrearEditarModuloModal({
       setModuloImagenPreview(moduloEditing.imagenUrl || null);
       setModuloOrden(moduloEditing.orden || ordenSugerido);
     } else {
-      setPlantilla("");
+      setPlantillaId("");
       setModuloTitulo("");
       setModuloDescripcion("");
       setModuloImagenUrl("");
@@ -97,7 +104,7 @@ export default function CrearEditarModuloModal({
 
       const req: ModuloRequest = {
         titulo: moduloTitulo.trim(),
-        plantilla: !moduloEditing && plantilla ? plantilla : undefined,
+        plantillaId: !moduloEditing && plantillaId !== "" ? plantillaId : undefined,
         descripcion: moduloDescripcion.trim() || undefined,
         imagenUrl: imgFinal,
         orden: Number(moduloOrden) || 1,
@@ -143,30 +150,22 @@ export default function CrearEditarModuloModal({
             <div>
               <label className="font-semibold text-ink block mb-1">Plantilla de módulo</label>
               <select
-                value={plantilla}
+                value={plantillaId}
                 onChange={(e) => {
-                  const value = e.target.value as ModuloRequest["plantilla"] | "";
-                  setPlantilla(value);
-                  const datos = {
-                    PRIMER_AVANCE: ["Primer avance", "Primera revisión del proyecto."],
-                    SEGUNDO_AVANCE: ["Segundo avance", "Segunda revisión del proyecto."],
-                    PRESENTACION_FINAL: ["Presentación final", "Materiales para la evaluación final de la actividad."],
-                    ACTIVIDADES: ["Actividades", "Entregables de la convocatoria."],
-                  } as const;
-                  if (value) {
-                    setModuloTitulo(datos[value][0]);
-                    setModuloDescripcion(datos[value][1]);
+                  const value = e.target.value ? Number(e.target.value) : "";
+                  setPlantillaId(value);
+                  const elegida = plantillas.find(p => p.id === value);
+                  if (elegida) {
+                    setModuloTitulo(elegida.titulo);
+                    setModuloDescripcion(elegida.descripcion || "");
                   }
                 }}
                 className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink"
               >
                 <option value="">Módulo en blanco</option>
-                <option value="PRIMER_AVANCE">Primer avance (1 actividad)</option>
-                <option value="SEGUNDO_AVANCE">Segundo avance (1 actividad)</option>
-                <option value="PRESENTACION_FINAL">Presentación final (5 actividades)</option>
-                <option value="ACTIVIDADES">Actividades (2 actividades)</option>
+                {plantillas.map(p => <option key={p.id} value={p.id}>{p.titulo} ({p.actividades.length} tareas)</option>)}
               </select>
-              {plantilla && <p className="mt-1 text-ink-soft">Se crearán sus actividades con fechas por definir y ocultas hasta programarlas.</p>}
+              {plantillaId !== "" && <p className="mt-1 text-ink-soft">Se crearán sus actividades con fechas por definir y ocultas hasta programarlas.</p>}
             </div>
           )}
           <div>
@@ -175,7 +174,7 @@ export default function CrearEditarModuloModal({
               type="text"
               required
               value={moduloTitulo}
-              readOnly={Boolean(plantilla && !moduloEditing)}
+              readOnly={plantillaId !== "" && !moduloEditing}
               onChange={(e) => setModuloTitulo(e.target.value)}
               placeholder="Ej. Módulo 1: Fundamentación Teórica y Estado del Arte"
               className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent"
@@ -187,7 +186,7 @@ export default function CrearEditarModuloModal({
             <textarea
               rows={3}
               value={moduloDescripcion}
-              readOnly={Boolean(plantilla && !moduloEditing)}
+              readOnly={plantillaId !== "" && !moduloEditing}
               onChange={(e) => setModuloDescripcion(e.target.value)}
               placeholder="Breve resumen del objetivo pedagógico o temática a cubrir..."
               className="w-full px-3 py-2 bg-paper-sunken border border-line rounded-xl text-ink focus:outline-none focus:border-accent resize-none"

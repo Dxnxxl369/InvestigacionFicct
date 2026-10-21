@@ -11,7 +11,8 @@ import java.util.Set;
 /** Keeps the disabled collaborative-document tables out of Hibernate schema updates. */
 public class DocumentosSchemaFilterProvider implements SchemaFilterProvider {
 
-    private static final Set<String> TABLAS_DESHABILITADAS = Set.of("documentos", "documento_colaboradores");
+    private static final Set<String> TABLAS_DESHABILITADAS = Set.of(
+            "documentos", "documento_colaboradores", "documento_versiones");
 
     private static final SchemaFilter FILTER = new SchemaFilter() {
         @Override

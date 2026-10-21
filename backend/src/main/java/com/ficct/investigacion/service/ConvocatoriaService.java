@@ -39,8 +39,11 @@ public class ConvocatoriaService {
     private final ModuloRepository moduloRepository;
     private final FeriaPostulacionRepository feriaPostulacionRepository;
     private final JuradoAsignacionRepository juradoAsignacionRepository;
+    private final EvaluacionJuradoRepository evaluacionJuradoRepository;
+    private final FormularioEvaluacionJuradoRepository formularioEvaluacionJuradoRepository;
     private final FeriaMembresiaService feriaMembresiaService;
     private final PasswordEncoder passwordEncoder;
+    private final PlantillaService plantillaService;
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
                                ConvocatoriaParticipanteRepository participanteRepository,
@@ -58,8 +61,11 @@ public class ConvocatoriaService {
                                ModuloRepository moduloRepository,
                                FeriaPostulacionRepository feriaPostulacionRepository,
                                JuradoAsignacionRepository juradoAsignacionRepository,
+                               EvaluacionJuradoRepository evaluacionJuradoRepository,
+                               FormularioEvaluacionJuradoRepository formularioEvaluacionJuradoRepository,
                                FeriaMembresiaService feriaMembresiaService,
-                               PasswordEncoder passwordEncoder) {
+                               PasswordEncoder passwordEncoder,
+                               PlantillaService plantillaService) {
         this.convocatoriaRepository = convocatoriaRepository;
         this.participanteRepository = participanteRepository;
         this.userRepository = userRepository;
@@ -76,8 +82,11 @@ public class ConvocatoriaService {
         this.moduloRepository = moduloRepository;
         this.feriaPostulacionRepository = feriaPostulacionRepository;
         this.juradoAsignacionRepository = juradoAsignacionRepository;
+        this.evaluacionJuradoRepository = evaluacionJuradoRepository;
+        this.formularioEvaluacionJuradoRepository = formularioEvaluacionJuradoRepository;
         this.feriaMembresiaService = feriaMembresiaService;
         this.passwordEncoder = passwordEncoder;
+        this.plantillaService = plantillaService;
     }
 
     @Transactional
@@ -112,14 +121,7 @@ public class ConvocatoriaService {
         }
 
         Convocatoria saved = convocatoriaRepository.save(c);
-        if (saved.getTipo() == TipoConvocatoria.FERIA) {
-            crearPlantillaFeria(saved, creador);
-        } else if (saved.getTipo() == TipoConvocatoria.HACKATHON
-                || saved.getTipo() == TipoConvocatoria.CONCURSO
-                || saved.getTipo() == TipoConvocatoria.INVESTIGACION) {
-            PlantillaModuloFactory.crear(saved, creador, PlantillaModulo.ACTIVIDADES,
-                    1, moduloRepository, tareaRepository);
-        }
+        plantillaService.crearParaConvocatoria(saved, creador);
 
         // Si el creador tiene rol DOCENTE, registrarlo como docente a cargo del área
         if (creador.getRol() == Rol.DOCENTE) {
@@ -146,15 +148,6 @@ public class ConvocatoriaService {
         }
 
         return new ConvocatoriaDTO(saved);
-    }
-
-    private void crearPlantillaFeria(Convocatoria convocatoria, User creador) {
-        PlantillaModuloFactory.crear(convocatoria, creador, PlantillaModulo.PRIMER_AVANCE,
-                1, moduloRepository, tareaRepository);
-        PlantillaModuloFactory.crear(convocatoria, creador, PlantillaModulo.SEGUNDO_AVANCE,
-                2, moduloRepository, tareaRepository);
-        PlantillaModuloFactory.crear(convocatoria, creador, PlantillaModulo.PRESENTACION_FINAL,
-                3, moduloRepository, tareaRepository);
     }
 
     @Transactional
@@ -334,7 +327,9 @@ public class ConvocatoriaService {
             c.getTareas().clear();
         }
 
-        // 3. Alcances de jurados: liberar referencias a proyectos y grupos.
+        // 3. Evaluaciones y alcances de jurados.
+        evaluacionJuradoRepository.deleteByConvocatoriaId(id);
+        formularioEvaluacionJuradoRepository.deleteByConvocatoriaId(id);
         juradoAsignacionRepository.deleteByConvocatoriaId(id);
         juradoAsignacionRepository.flush();
 
@@ -577,7 +572,10 @@ public class ConvocatoriaService {
 
         boolean esAdmin = solicitante != null && solicitante.getRol() == Rol.ADMIN;
         boolean puedeGestionar = solicitante != null && puedeGestionarConvocatoria(conv, solicitante);
-        boolean esDocenteOJurado = solicitante != null && (solicitante.getRol() == Rol.DOCENTE || solicitante.getRol() == Rol.JURADO);
+        boolean esDocente = solicitante != null && solicitante.getRol() == Rol.DOCENTE;
+
+        // Los jurados consultan exclusivamente los proyectos asignados mediante /api/jurado/grupos.
+        if (solicitante != null && solicitante.getRol() == Rol.JURADO) return List.of();
 
         Optional<ConvocatoriaParticipante> miPart = solicitante != null
                 ? participanteRepository.findByConvocatoriaIdAndUsuarioId(convocatoriaId, solicitante.getId())
@@ -587,8 +585,8 @@ public class ConvocatoriaService {
         boolean esFinalizada = conv.getEstado() == EstadoConvocatoria.FINALIZADA;
 
         // Reglas de visibilidad:
-        // 1. Admin y Docentes/Jurados encargados ven todo (incluyendo pendientes para poder admitir).
-        if (esAdmin || puedeGestionar || esDocenteOJurado) {
+        // 1. Admin y docentes encargados ven todo (incluyendo pendientes para poder admitir).
+        if (esAdmin || puedeGestionar || esDocente) {
             return participanteRepository.findByConvocatoriaIdOrderByFechaAsignacionAsc(convocatoriaId).stream()
                     .map(ConvocatoriaParticipanteDTO::new)
                     .collect(Collectors.toList());

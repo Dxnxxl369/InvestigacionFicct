@@ -214,7 +214,7 @@ export default function ConvocatoriaDetallePage() {
 
   // Carga de datos centralizada
   const cargarDatos = useCallback(async () => {
-    if (!convocatoriaId || !user || !localStorage.getItem("auth_token")) return;
+    if (!convocatoriaId || !user || user.rol === "JURADO" || !localStorage.getItem("auth_token")) return;
     try {
       setLoading(true);
 
@@ -365,8 +365,9 @@ export default function ConvocatoriaDetallePage() {
   }, [convocatoriaId, user?.rol, user?.id, esAdmin, toast, searchParams]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [cargarDatos]);
+    if (user?.rol === "JURADO") router.replace("/dashboard/jurado");
+    else cargarDatos();
+  }, [cargarDatos, user?.rol, router]);
 
   useEffect(() => {
     if (errorCarga !== "No se puede conectar con el servidor. Reintentando cargar el aula...") return;
