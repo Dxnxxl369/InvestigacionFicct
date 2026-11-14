@@ -13,6 +13,7 @@ import 'convocatorias/convocatorias_screen.dart';
 import 'convocatorias/convocatoria_detalle_screen.dart';
 import 'convocatorias/crear_convocatoria_screen.dart';
 import 'perfil/perfil_screen.dart';
+import 'documentos/biblioteca_screen.dart';
 import '../config/app_theme.dart';
 import '../services/fcm_service.dart';
 
@@ -100,6 +101,10 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
 
+  void _abrirBiblioteca() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BibliotecaScreen()));
+  }
+
   void _abrirSpeedGrader({int? tareaId}) {
     if (tareaId == null) {
       _onTabTapped(1); // Redirigir a Mis Áreas para elegir materia y tarea real
@@ -155,6 +160,7 @@ class _MainScaffoldState extends State<MainScaffold> {
           onOpenSpeedGrader: () => _abrirSpeedGrader(),
           onOpenAula: _abrirAula,
           onOpenMisPendientes: _abrirMisPendientes,
+          onOpenBiblioteca: _abrirBiblioteca,
           onToggleTheme: widget.onToggleTheme,
         );
         break;

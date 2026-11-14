@@ -14,6 +14,7 @@ class DashboardScreen extends StatefulWidget {
   final Function(ConvocatoriaModel) onOpenAula;
   final VoidCallback onToggleTheme;
   final VoidCallback? onOpenMisPendientes;
+  final VoidCallback? onOpenBiblioteca;
 
   const DashboardScreen({
     super.key,
@@ -23,6 +24,7 @@ class DashboardScreen extends StatefulWidget {
     required this.onOpenAula,
     required this.onToggleTheme,
     this.onOpenMisPendientes,
+    this.onOpenBiblioteca,
   });
 
   @override
@@ -567,6 +569,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                 ),
               ),
+            if (user != null && user.rol == 'ESTUDIANTE') ...[
+              const SizedBox(height: 8),
+              Card(child: ListTile(
+                onTap: widget.onOpenBiblioteca,
+                leading: const Icon(Icons.menu_book_rounded, color: AppTheme.accent),
+                title: const Text('Biblioteca virtual', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Busca PDF y descubre materiales para tu feria'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+              )),
+            ],
             const SizedBox(height: 95), // Margen para la barra flotante
           ],
         ),

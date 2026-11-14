@@ -23,6 +23,7 @@ import {
   PanelLeftOpen,
   Clock,
   Layers3,
+  BookOpen,
 } from "lucide-react";
 import NotificacionesCampana from "./NotificacionesCampana";
 
@@ -144,6 +145,14 @@ export default function DashboardLayout({
           label: "Plantillas",
           icon: Layers3,
           isActive: pathname === "/dashboard/plantillas",
+        }]
+      : []),
+    ...(["ADMIN", "ESTUDIANTE"].includes(user.rol)
+      ? [{
+          href: "/dashboard/biblioteca",
+          label: "Biblioteca virtual",
+          icon: BookOpen,
+          isActive: pathname.startsWith("/dashboard/biblioteca"),
         }]
       : []),
     ...(user.rol !== "JURADO" ? [{
