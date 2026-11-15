@@ -24,6 +24,7 @@ import {
   Clock,
   Layers3,
   BookOpen,
+  BarChart3,
 } from "lucide-react";
 import NotificacionesCampana from "./NotificacionesCampana";
 
@@ -145,6 +146,14 @@ export default function DashboardLayout({
           label: "Plantillas",
           icon: Layers3,
           isActive: pathname === "/dashboard/plantillas",
+        },
+        {
+          href: "/dashboard/reportes",
+          label: "Reportes IA",
+          icon: BarChart3,
+          isActive: pathname === "/dashboard/reportes",
+          badge: "IA",
+          badgeColor: "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400",
         }]
       : []),
     ...(["ADMIN", "ESTUDIANTE"].includes(user.rol)

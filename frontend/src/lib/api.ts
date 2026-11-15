@@ -577,12 +577,70 @@ export const convocatoriasAPI = {
     return handleResponse<ConvocatoriaParticipanteDTO>(res);
   },
 
+  async consultarReporteIA(data: {
+    prompt: string;
+    tablaFiltro?: string;
+  }): Promise<{
+    exito: boolean;
+    titulo: string;
+    explicacion: string;
+    sqlEjecutado: string;
+    columnas: string[];
+    filas: Array<Record<string, any>>;
+    kpis: Array<{ etiqueta: string; valor: string; subtitulo: string; icono: string }>;
+    grafico?: {
+      tipo: "BAR" | "PIE" | "LINE";
+      ejeX: string;
+      ejeY: string;
+      series: Array<{ label: string; value: number }>;
+    };
+    tiempoEjecucionMs: number;
+    error?: string;
+  }> {
+    const res = await fetch(`${API_BASE_URL}/reportes-ia/consultar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<any>(res);
+  },
+
   async removerParticipante(convocatoriaId: number, participanteId: number): Promise<{ message: string }> {
     const res = await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/participantes/${participanteId}`, {
       method: "DELETE",
       headers: { ...getAuthHeader() },
     });
     return handleResponse<{ message: string }>(res);
+  },
+
+  async chatAgenteConvocatoria(data: {
+    mensaje: string;
+    estadoActual?: any;
+    historial?: Array<{ remitente: string; texto: string }>;
+  }): Promise<{
+    mensajeAgente: string;
+    borradorActualizado: {
+      tipo?: "FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION";
+      modalidadInscripcion?: "INDIVIDUAL" | "GRUPAL";
+      titulo?: string;
+      descripcion?: string;
+      fechaFinInscripcion?: string;
+      cuposMinEquipo?: number;
+      cuposMaxEquipo?: number;
+      requisitos?: string[];
+      selectedDocenteIds?: number[];
+      docenteSugeridoNombre?: string;
+    };
+    camposFaltantes: string[];
+    docentesDisponibles: Array<{ id: number; nombreCompleto: string; email: string }>;
+    porcentajeProgreso: number;
+  }> {
+    const res = await fetch(`${API_BASE_URL}/agente/convocatorias/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<any>(res);
   },
 
   async responderLote(
@@ -1665,6 +1723,8 @@ export const api = {
   crearYAnadirJurado: convocatoriasAPI.crearYAnadirJurado,
   guardarAsignacionJurado: convocatoriasAPI.guardarAsignacionJurado,
   inscribirseConvocatoria: convocatoriasAPI.inscribirse,
+  chatAgenteConvocatoria: convocatoriasAPI.chatAgenteConvocatoria,
+  consultarReporteIA: convocatoriasAPI.consultarReporteIA,
   getPostulacionesFeria: convocatoriasAPI.getPostulacionesFeria,
   buscarIntegranteFeria: convocatoriasAPI.buscarIntegranteFeria,
   cambiarCodigoEquipoFeria: convocatoriasAPI.cambiarCodigoEquipoFeria,

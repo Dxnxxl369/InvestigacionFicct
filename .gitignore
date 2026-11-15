@@ -24,6 +24,9 @@ backend/*.iml
 backend/.settings/
 backend/.project
 backend/.classpath
+*application-local.properties
+.env
+.env.*
 
 # Ignored non-code directories as requested
 docs/
@@ -41,6 +44,7 @@ scrum-engine/
 !/usuarios.txt
 /*.ps1
 /*.png
+/*.md
 
 # OS and IDE Files
 .DS_Store

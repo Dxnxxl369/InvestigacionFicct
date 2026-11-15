@@ -27,7 +27,8 @@ import {
 
 const DRAFT_KEY = "ficct_convocatoria_nueva_draft";
 
-// Normalizador para búsqueda insensible a acentos
+import ConfirmarEliminacionModal from "@/components/moodle/modals/ConfirmarEliminacionModal";
+import AgenteConvocatoriaModal from "@/components/moodle/modals/AgenteConvocatoriaModal";
 function normalizeText(text: string): string {
   return (text || "")
     .toLowerCase()
@@ -54,12 +55,10 @@ export default function NuevaConvocatoriaPage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [tipo, setTipo] = useState<"FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION">("FERIA");
+  const [tipo, setTipo] = useState<"FERIA" | "HACKATHON" | "CONCURSO" | "INVESTIGACION">("HACKATHON");
   const [modalidadInscripcion, setModalidadInscripcion] = useState<"INDIVIDUAL" | "GRUPAL">("GRUPAL");
-  const [titulo, setTitulo] = useState("Feria de Ingeniería 2026");
-  const [descripcion, setDescripcion] = useState(
-    "Exposición anual de proyectos estudiantiles de todas las carreras de la facultad."
-  );
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
 
   // Imagen Portada (Local vs URL)
   const [imageMode, setImageMode] = useState<"LOCAL" | "URL">("LOCAL");
@@ -67,16 +66,12 @@ export default function NuevaConvocatoriaPage() {
   const [imagenNombre, setImagenNombre] = useState<string>("");
   const [archivoInformacion, setArchivoInformacion] = useState<File | null>(null);
 
-  const [fechaFinInscripcion, setFechaFinInscripcion] = useState("2026-10-30");
+  const [fechaFinInscripcion, setFechaFinInscripcion] = useState("2026-11-15");
   const [cuposMinEquipo, setCuposMinEquipo] = useState(2);
-  const [cuposMaxEquipo, setCuposMaxEquipo] = useState(4);
+  const [cuposMaxEquipo, setCuposMaxEquipo] = useState(5);
 
   // Requisitos dinámicos
-  const [requisitos, setRequisitos] = useState<string[]>([
-    "Estudiante regular de la FICCT",
-    "Promedio acumulado ≥ 70",
-    "Carta de aval del docente guía",
-  ]);
+  const [requisitos, setRequisitos] = useState<string[]>([]);
   const [newReq, setNewReq] = useState("");
 
   // Asignación de docentes encargados
@@ -91,6 +86,7 @@ export default function NuevaConvocatoriaPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agenteModalOpen, setAgenteModalOpen] = useState(false);
 
   // 1. Cargar lista de docentes disponibles
   useEffect(() => {
@@ -115,15 +111,15 @@ export default function NuevaConvocatoriaPage() {
       const savedDraftStr = localStorage.getItem(DRAFT_KEY);
       if (savedDraftStr) {
         const d = JSON.parse(savedDraftStr);
-        if (d.titulo) setTitulo(d.titulo);
+        if (d.titulo !== undefined) setTitulo(d.titulo);
         if (d.descripcion !== undefined) setDescripcion(d.descripcion);
         if (d.tipo) setTipo(d.tipo);
         if (d.modalidadInscripcion) setModalidadInscripcion(d.modalidadInscripcion);
         if (d.fechaFinInscripcion) setFechaFinInscripcion(d.fechaFinInscripcion);
-        if (d.cuposMinEquipo) setCuposMinEquipo(d.cuposMinEquipo);
-        if (d.cuposMaxEquipo) setCuposMaxEquipo(d.cuposMaxEquipo);
-        if (d.requisitos) setRequisitos(d.requisitos);
-        if (d.selectedDocenteIds) setSelectedDocenteIds(d.selectedDocenteIds);
+        if (d.cuposMinEquipo !== undefined) setCuposMinEquipo(d.cuposMinEquipo);
+        if (d.cuposMaxEquipo !== undefined) setCuposMaxEquipo(d.cuposMaxEquipo);
+        if (d.requisitos && Array.isArray(d.requisitos)) setRequisitos(d.requisitos);
+        if (d.selectedDocenteIds && Array.isArray(d.selectedDocenteIds)) setSelectedDocenteIds(d.selectedDocenteIds);
         if (d.imagenPortada) setImagenPortada(d.imagenPortada);
         if (d.imagenNombre) setImagenNombre(d.imagenNombre);
         if (d.imageMode) setImageMode(d.imageMode);
@@ -138,7 +134,8 @@ export default function NuevaConvocatoriaPage() {
   // 3. Auto-guardar en LocalStorage cada vez que cambien los datos (sin saturar la base de datos)
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Solo auto-guardar si al menos hay algo escrito
+    // No pisar si todo está completamente en blanco
+    if (!titulo && !descripcion && requisitos.length === 0 && selectedDocenteIds.length === 0) return;
     const now = new Date().toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const draftData = {
       titulo,
@@ -372,6 +369,15 @@ export default function NuevaConvocatoriaPage() {
 
           {/* Indicador de Auto-guardado LocalStorage */}
           <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={() => setAgenteModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-accent to-indigo-600 text-white hover:opacity-90 text-xs font-semibold transition-all shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Asistente IA</span>
+            </button>
+
             {lastSavedLocal && (
               <span className="text-[11px] px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 flex items-center gap-1.5 font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -950,6 +956,36 @@ export default function NuevaConvocatoriaPage() {
             </div>
           </div>
         </div>
+
+        {/* Modal de Asistente IA */}
+        <AgenteConvocatoriaModal
+          isOpen={agenteModalOpen}
+          onClose={() => setAgenteModalOpen(false)}
+          estadoFormulario={{
+            tipo,
+            modalidadInscripcion,
+            titulo,
+            descripcion,
+            fechaFinInscripcion,
+            cuposMinEquipo,
+            cuposMaxEquipo,
+            requisitos,
+            selectedDocenteIds,
+          }}
+          onAplicarBorrador={(b) => {
+            if (b.tipo) setTipo(b.tipo);
+            if (b.modalidadInscripcion) setModalidadInscripcion(b.modalidadInscripcion);
+            if (b.titulo) setTitulo(b.titulo);
+            if (b.descripcion) setDescripcion(b.descripcion);
+            if (b.fechaFinInscripcion) setFechaFinInscripcion(b.fechaFinInscripcion);
+            if (b.cuposMinEquipo !== undefined) setCuposMinEquipo(b.cuposMinEquipo);
+            if (b.cuposMaxEquipo !== undefined) setCuposMaxEquipo(b.cuposMaxEquipo);
+            if (b.requisitos && Array.isArray(b.requisitos)) setRequisitos(b.requisitos);
+            if (b.selectedDocenteIds && Array.isArray(b.selectedDocenteIds)) {
+              setSelectedDocenteIds(b.selectedDocenteIds);
+            }
+          }}
+        />
       </div>
     </DashboardLayout>
   );

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import ConfirmarEliminacionModal from "@/components/moodle/modals/ConfirmarEliminacionModal";
 import FeriaInscripcionModal from "@/components/moodle/modals/FeriaInscripcionModal";
+import AgenteConvocatoriaModal from "@/components/moodle/modals/AgenteConvocatoriaModal";
 import { useToast } from "@/context/ToastContext";
 
 export default function ConvocatoriasListPage() {
@@ -48,6 +49,9 @@ export default function ConvocatoriasListPage() {
   // Modal para eliminar o archivar área (Admin)
   const [convocatoriaAEliminar, setConvocatoriaAEliminar] = useState<ConvocatoriaDTO | null>(null);
   const [eliminandoConv, setEliminandoConv] = useState(false);
+
+  // Modal Agente IA
+  const [agenteModalOpen, setAgenteModalOpen] = useState(false);
 
   const fetchConvocatorias = useCallback(async () => {
     if (!user || !localStorage.getItem("auth_token")) return;
@@ -220,13 +224,24 @@ export default function ConvocatoriasListPage() {
             </Link>
 
             {canEditModule("CONVOCATORIAS") && (
-              <Link
-                href="/dashboard/convocatorias/nueva"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-ink text-white dark:bg-ficct-green-dark hover:opacity-90 text-xs font-semibold transition-all shadow-sm"
-              >
-                <PlusCircle className="w-4 h-4 text-accent" />
-                <span>Nueva Convocatoria</span>
-              </Link>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAgenteModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-accent to-indigo-600 text-white hover:opacity-90 text-xs font-semibold transition-all shadow-sm"
+                >
+                  <Award className="w-4 h-4 text-amber-300" />
+                  <span>Crear con Agente IA</span>
+                </button>
+
+                <Link
+                  href="/dashboard/convocatorias/nueva"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-ink text-white dark:bg-ficct-green-dark hover:opacity-90 text-xs font-semibold transition-all shadow-sm"
+                >
+                  <PlusCircle className="w-4 h-4 text-accent" />
+                  <span>Nueva Convocatoria</span>
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -635,6 +650,30 @@ export default function ConvocatoriasListPage() {
             </div>
           </div>
         )}
+
+        {/* Modal Agente IA */}
+        <AgenteConvocatoriaModal
+          isOpen={agenteModalOpen}
+          onClose={() => setAgenteModalOpen(false)}
+          estadoFormulario={{
+            tipo: "HACKATHON",
+            modalidadInscripcion: "GRUPAL",
+            titulo: "",
+            descripcion: "",
+            fechaFinInscripcion: "2026-11-15",
+            cuposMinEquipo: 2,
+            cuposMaxEquipo: 5,
+            requisitos: [],
+            selectedDocenteIds: [],
+          }}
+          onAplicarBorrador={(borrador) => {
+            try {
+              localStorage.setItem("ficct_convocatoria_nueva_draft", JSON.stringify(borrador));
+            } catch (e) {
+              console.warn(e);
+            }
+          }}
+        />
 
         {/* Modal de Confirmación para Eliminar / Archivar Convocatoria */}
         {convocatoriaAEliminar && (
