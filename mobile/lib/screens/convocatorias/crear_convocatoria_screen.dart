@@ -4,17 +4,20 @@ import 'package:file_picker/file_picker.dart';
 import '../../config/app_theme.dart';
 import '../../models/convocatoria_model.dart';
 import '../../services/api_service.dart';
+import 'agente_convocatoria_screen.dart';
 
 class CrearConvocatoriaScreen extends StatefulWidget {
   final VoidCallback onBack;
   final ConvocatoriaModel? convocatoriaParaEditar;
   final VoidCallback? onSaved;
+  final Map<String, dynamic>? initialDraft;
 
   const CrearConvocatoriaScreen({
     super.key,
     required this.onBack,
     this.convocatoriaParaEditar,
     this.onSaved,
+    this.initialDraft,
   });
 
   @override
@@ -110,6 +113,30 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
       }
 
       _selectedDocenteIds.addAll(c.docenteIds);
+    } else if (widget.initialDraft != null) {
+      final d = widget.initialDraft!;
+      if (d['titulo'] != null) _tituloCtrl.text = d['titulo'].toString();
+      if (d['descripcion'] != null) _descCtrl.text = d['descripcion'].toString();
+      if (d['tipo'] != null) _tipo = d['tipo'].toString();
+      if (d['modalidadInscripcion'] != null) _modalidadInscripcion = d['modalidadInscripcion'].toString();
+      if (d['cuposMinEquipo'] != null) _cuposMinCtrl.text = d['cuposMinEquipo'].toString();
+      if (d['cuposMaxEquipo'] != null) _cuposMaxCtrl.text = d['cuposMaxEquipo'].toString();
+      if (d['fechaFinInscripcion'] != null) {
+        try {
+          _fechaCierre = DateTime.parse(d['fechaFinInscripcion'].toString());
+        } catch (_) {}
+      }
+      if (d['requisitos'] is List) {
+        _restricciones = (d['requisitos'] as List).map((e) => e.toString()).toList();
+      }
+      if (d['selectedDocenteIds'] is List) {
+        _selectedDocenteIds.clear();
+        for (final id in d['selectedDocenteIds']) {
+          final nid = (id as num?)?.toInt();
+          if (nid != null) _selectedDocenteIds.add(nid);
+        }
+      }
+      _imagenSeleccionada = _imagenesPredeterminadas[0]['url'];
     } else {
       _imagenSeleccionada = _imagenesPredeterminadas[0]['url'];
     }
@@ -562,6 +589,32 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
           onPressed: widget.onBack,
         ),
         title: Text(isEditing ? 'Editar Convocatoria' : 'Crear Convocatoria'),
+        actions: [
+          if (!isEditing)
+            IconButton(
+              icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.accent),
+              tooltip: 'Crear con Agente IA',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (ctx) => AgenteConvocatoriaScreen(
+                      onBack: () => Navigator.of(ctx).pop(),
+                      borradorInicial: {
+                        'tipo': _tipo,
+                        'modalidadInscripcion': _modalidadInscripcion,
+                        'titulo': _tituloCtrl.text,
+                        'descripcion': _descCtrl.text,
+                        'cuposMinEquipo': int.tryParse(_cuposMinCtrl.text) ?? 2,
+                        'cuposMaxEquipo': int.tryParse(_cuposMaxCtrl.text) ?? 5,
+                        'requisitos': _restricciones,
+                        'selectedDocenteIds': _selectedDocenteIds.toList(),
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 40),
@@ -570,6 +623,68 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Banner para invocar al Agente IA Conversacional
+              if (!isEditing) ...[
+                InkWell(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (ctx) => AgenteConvocatoriaScreen(
+                          onBack: () => Navigator.of(ctx).pop(),
+                          borradorInicial: {
+                            'tipo': _tipo,
+                            'modalidadInscripcion': _modalidadInscripcion,
+                            'titulo': _tituloCtrl.text,
+                            'descripcion': _descCtrl.text,
+                            'cuposMinEquipo': int.tryParse(_cuposMinCtrl.text) ?? 2,
+                            'cuposMaxEquipo': int.tryParse(_cuposMaxCtrl.text) ?? 5,
+                            'requisitos': _restricciones,
+                            'selectedDocenteIds': _selectedDocenteIds.toList(),
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.indigo.withValues(alpha: 0.12),
+                          AppTheme.accent.withValues(alpha: 0.12),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.indigo.withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, color: Colors.indigo, size: 22),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Crear con Agente IA Conversacional',
+                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.indigo),
+                              ),
+                              Text(
+                                'Conversa con la IA y deja que estructure el evento por ti',
+                                style: TextStyle(fontSize: 10.5, color: AppTheme.inkSoft),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, color: Colors.indigo),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
               // Banner informativo institucional
               Container(
                 padding: const EdgeInsets.all(14),
@@ -619,7 +734,7 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
 
                       // Tipo de Convocatoria
                       DropdownButtonFormField<String>(
-                        initialValue: _tipo,
+                        value: _tipo,
                         decoration: const InputDecoration(
                           labelText: 'Tipo de Evento Académico',
                           prefixIcon: Icon(Icons.category_rounded),
@@ -1049,7 +1164,7 @@ class _CrearConvocatoriaScreenState extends State<CrearConvocatoriaScreen> {
                             ),
                             Switch(
                               value: _publicarInmediatamente,
-                              activeThumbColor: const Color(0xFF10B981),
+                              activeColor: const Color(0xFF10B981),
                               onChanged: (val) => setState(() => _publicarInmediatamente = val),
                             ),
                           ],

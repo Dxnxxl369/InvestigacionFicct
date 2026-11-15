@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/moodle_widgets.dart';
 import '../../widgets/confirmar_eliminacion_dialog.dart';
+import 'agente_convocatoria_screen.dart';
 
 class ConvocatoriasScreen extends StatefulWidget {
   final Function(ConvocatoriaModel) onOpenDetalle;
@@ -197,12 +198,27 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
             tooltip: 'Actualizar catálogo',
             onPressed: _loadData,
           ),
-          if (isAdmin)
+          if (isAdmin) ...[
+            IconButton(
+              icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.accent),
+              tooltip: 'Agente IA Convocatorias',
+              onPressed: () async {
+                final creada = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (ctx) => AgenteConvocatoriaScreen(
+                      onBack: () => Navigator.of(ctx).pop(),
+                    ),
+                  ),
+                );
+                if (creada == true) _loadData();
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.add_rounded),
               tooltip: 'Nueva Convocatoria',
               onPressed: widget.onNuevaConvocatoria,
             ),
+          ],
         ],
       ),
       body: _isLoading
@@ -498,7 +514,73 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
           ? Padding(
               padding: const EdgeInsets.only(bottom: 85.0),
               child: FloatingActionButton.extended(
-                onPressed: widget.onNuevaConvocatoria,
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (ctx) {
+                      return Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Crear Nueva Convocatoria',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 14),
+                            ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.indigo.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.auto_awesome_rounded, color: Colors.indigo),
+                              ),
+                              title: const Text('Asistente IA Conversacional', style: TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: const Text('Conversa con el agente para auto-completar el formulario'),
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => AgenteConvocatoriaScreen(
+                                      onBack: () => Navigator.of(context).pop(),
+                                    ),
+                                  ),
+                                ).then((v) {
+                                  if (v == true) _loadData();
+                                });
+                              },
+                            ),
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.edit_note_rounded, color: Color(0xFF10B981)),
+                              ),
+                              title: const Text('Formulario Manual', style: TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: const Text('Ingresa título, requisitos y fechas directamente'),
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                widget.onNuevaConvocatoria();
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
                 backgroundColor: const Color(0xFF10B981),
                 foregroundColor: Colors.white,
                 elevation: 4,

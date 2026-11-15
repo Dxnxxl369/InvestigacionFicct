@@ -114,4 +114,13 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
         }
     }
+
+    /**
+     * Vaciado y reseteo de base de datos a estado inicial limpio con un Administrador garantizado.
+     * Accesible via GET o POST en /api/auth/reset-database
+     */
+    @RequestMapping(value = "/reset-database", method = {RequestMethod.GET, RequestMethod.POST})
+    public ResponseEntity<?> resetDatabase() {
+        return ResponseEntity.ok(authService.vaciarBaseDeDatosYDejarAdmin());
+    }
 }

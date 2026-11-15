@@ -16,6 +16,7 @@ import com.ficct.investigacion.repository.ConvocatoriaParticipanteRepository;
 import com.ficct.investigacion.repository.ConvocatoriaRepository;
 import com.ficct.investigacion.repository.UserRepository;
 import com.ficct.investigacion.util.CorreoPermitido;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -41,6 +42,7 @@ public class AuthService {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final FeriaMembresiaService feriaMembresiaService;
+    private final JdbcTemplate jdbcTemplate;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
@@ -48,7 +50,8 @@ public class AuthService {
                        AuthenticationManager authenticationManager,
                        ConvocatoriaParticipanteRepository participanteRepository,
                        ConvocatoriaRepository convocatoriaRepository,
-                       FeriaMembresiaService feriaMembresiaService) {
+                       FeriaMembresiaService feriaMembresiaService,
+                       JdbcTemplate jdbcTemplate) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -56,6 +59,7 @@ public class AuthService {
         this.participanteRepository = participanteRepository;
         this.convocatoriaRepository = convocatoriaRepository;
         this.feriaMembresiaService = feriaMembresiaService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
@@ -286,5 +290,48 @@ public class AuthService {
         }
 
         return perfil;
+    }
+
+    /**
+     * Vacia todas las tablas de datos y asegura que exista únicamente el Administrador activo.
+     */
+    @Transactional
+    public Map<String, Object> vaciarBaseDeDatosYDejarAdmin() {
+        try {
+            jdbcTemplate.execute("TRUNCATE TABLE users, convocatorias, convocatoria_participantes, feria_postulaciones, tareas, modulos, entregas_tareas, biblioteca_documentos, notificaciones RESTART IDENTITY CASCADE");
+        } catch (Exception e) {
+            try {
+                participanteRepository.deleteAll();
+                convocatoriaRepository.deleteAll();
+                userRepository.deleteAll();
+            } catch (Exception ignored) {}
+        }
+
+        // Crear Admin Principal
+        User admin = new User("Admin Principal", "", "admin.investigacion@gmail.com",
+                passwordEncoder.encode("admin369"), Rol.ADMIN, EstadoUsuario.ACTIVO);
+        userRepository.save(admin);
+
+        // Crear Admin UAGRM (alias)
+        User adminUagrm = new User("Administrador", "", "admin@uagrm.edu.bo",
+                passwordEncoder.encode("admin369"), Rol.ADMIN, EstadoUsuario.ACTIVO);
+        userRepository.save(adminUagrm);
+
+        // Crear Docente
+        User docente = new User("Docente Investigador", "", "docente.ficct@gmail.com",
+                passwordEncoder.encode("docente123"), Rol.DOCENTE, EstadoUsuario.ACTIVO);
+        userRepository.save(docente);
+
+        // Crear Estudiante
+        User alumno = new User("Alumno Prueba", "", "alumno.ficct@gmail.com",
+                passwordEncoder.encode("estudiante123"), Rol.ESTUDIANTE, EstadoUsuario.ACTIVO);
+        userRepository.save(alumno);
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("exito", true);
+        resp.put("mensaje", "Base de datos vaciada con éxito. Administrador activo con credenciales.");
+        resp.put("adminEmail", "admin.investigacion@gmail.com");
+        resp.put("adminPassword", "admin369");
+        return resp;
     }
 }

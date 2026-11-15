@@ -1707,4 +1707,112 @@ class ApiService {
       return false;
     }
   }
+
+  // ==========================================
+  // INTELIGENCIA ARTIFICIAL & REPORTES GENERATIVOS
+  // ==========================================
+
+  /// Consulta el motor de reportes generativos con IA (Groq LPU)
+  static Future<Map<String, dynamic>> consultarReporteIA({
+    required String prompt,
+    String? tablaFiltro,
+  }) async {
+    try {
+      final headers = await _headers();
+      final body = {
+        'prompt': prompt.trim(),
+        if (tablaFiltro != null && tablaFiltro.isNotEmpty) 'tablaFiltro': tablaFiltro,
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/reportes-ia/consultar'),
+        headers: headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 40));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      } else {
+        String errMsg = 'Error ${res.statusCode} al generar reporte';
+        try {
+          final errBody = jsonDecode(utf8.decode(res.bodyBytes));
+          if (errBody is Map && errBody['error'] != null) {
+            errMsg = errBody['error'].toString();
+          }
+        } catch (_) {}
+        return {
+          'exito': false,
+          'error': errMsg,
+          'titulo': 'Error',
+          'explicacion': errMsg,
+          'columnas': <String>[],
+          'filas': <Map<String, dynamic>>[],
+          'kpis': <Map<String, dynamic>>[],
+          'tiempoEjecucionMs': 0,
+        };
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error en consultarReporteIA: $e');
+      return {
+        'exito': false,
+        'error': 'No se pudo conectar con el motor de IA: $e',
+        'titulo': 'Error de Conexión',
+        'explicacion': e.toString(),
+        'columnas': <String>[],
+        'filas': <Map<String, dynamic>>[],
+        'kpis': <Map<String, dynamic>>[],
+        'tiempoEjecucionMs': 0,
+      };
+    }
+  }
+
+  /// Conversa con el Agente IA de Convocatorias para auto-completar el formulario
+  static Future<Map<String, dynamic>> chatAgenteConvocatoria({
+    required String mensaje,
+    Map<String, dynamic>? estadoActual,
+    List<Map<String, String>>? historial,
+  }) async {
+    try {
+      final headers = await _headers();
+      final body = {
+        'mensaje': mensaje.trim(),
+        'estadoActual': estadoActual ?? {},
+        'historial': historial ?? [],
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/agente/convocatorias/chat'),
+        headers: headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 45));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      } else {
+        String errMsg = 'Error ${res.statusCode} en el Agente IA';
+        try {
+          final errBody = jsonDecode(utf8.decode(res.bodyBytes));
+          if (errBody is Map && errBody['message'] != null) {
+            errMsg = errBody['message'].toString();
+          }
+        } catch (_) {}
+        return {
+          'mensajeAgente': 'Ocurrió un error al procesar tu solicitud: $errMsg',
+          'borradorActualizado': estadoActual ?? {},
+          'camposFaltantes': <String>[],
+          'docentesDisponibles': <dynamic>[],
+          'porcentajeProgreso': 0,
+        };
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error en chatAgenteConvocatoria: $e');
+      return {
+        'mensajeAgente': 'No se pudo conectar con el servicio de IA: $e',
+        'borradorActualizado': estadoActual ?? {},
+        'camposFaltantes': <String>[],
+        'docentesDisponibles': <dynamic>[],
+        'porcentajeProgreso': 0,
+      };
+    }
+  }
 }

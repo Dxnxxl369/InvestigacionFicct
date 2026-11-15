@@ -6,6 +6,8 @@ import '../../services/api_service.dart';
 import '../../widgets/moodle_widgets.dart';
 import '../usuarios/usuarios_screen.dart';
 import '../moodle/mis_pendientes_screen.dart';
+import '../reportes/reportes_ia_screen.dart';
+import '../convocatorias/agente_convocatoria_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final AuthService authService;
@@ -542,6 +544,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                 ),
               ),
+              const SizedBox(height: 8),
+              Card(
+                child: ListTile(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (ctx) => AgenteConvocatoriaScreen(onBack: () => Navigator.pop(ctx)),
+                      ),
+                    );
+                  },
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentSoft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.accent),
+                  ),
+                  title: const Text(
+                    'Agente IA de Convocatorias',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Asistente conversacional para redactar y estructurar convocatorias',
+                    style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                ),
+              ),
             ] else
               Card(
                 child: ListTile(
@@ -569,6 +604,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                 ),
               ),
+            if (user != null && (user.rol == 'ADMIN' || user.rol == 'DOCENTE')) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: ListTile(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (ctx) => ReportesIAScreen(onBack: () => Navigator.pop(ctx)),
+                      ),
+                    );
+                  },
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.analytics_rounded, color: Colors.indigo),
+                  ),
+                  title: Row(
+                    children: [
+                      const Text(
+                        'Reportes con IA',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text('LPU', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                      ),
+                    ],
+                  ),
+                  subtitle: Text(
+                    'Consultas ejecutivas en lenguaje natural, KPIs y gráficos',
+                    style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                ),
+              ),
+            ],
             if (user != null && user.rol == 'ESTUDIANTE') ...[
               const SizedBox(height: 8),
               Card(child: ListTile(
