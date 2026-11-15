@@ -36,7 +36,7 @@ class CrearEditarModuloModal {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                initialValue: plantilla ?? '',
+                value: plantilla ?? '',
                 decoration: const InputDecoration(labelText: 'Plantilla de módulo'),
                 items: const [
                   DropdownMenuItem(value: '', child: Text('Módulo en blanco')),

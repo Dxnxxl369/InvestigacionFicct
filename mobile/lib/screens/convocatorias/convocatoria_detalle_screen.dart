@@ -497,7 +497,7 @@ class _ConvocatoriaDetalleScreenState extends State<ConvocatoriaDetalleScreen> {
                   )
                 else ...[
                   DropdownButtonFormField<int>(
-                    initialValue: usuarioSeleccionadoId,
+                    value: usuarioSeleccionadoId,
                     isExpanded: true,
                     decoration: InputDecoration(
                       labelText: rolSeleccionado == 'DOCENTE' ? 'Seleccionar Docente' : 'Seleccionar Jurado',

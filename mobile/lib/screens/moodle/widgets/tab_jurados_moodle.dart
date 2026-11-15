@@ -186,7 +186,7 @@ class _TabJuradosMoodleState extends State<TabJuradosMoodle> {
           const Text('Cada jurado comienza sin proyectos. «Todos» incluye los proyectos que se admitan después.'),
           const SizedBox(height: 12),
           DropdownButtonFormField<int>(
-            initialValue: usuarioId,
+            value: usuarioId,
             decoration: const InputDecoration(labelText: 'Seleccionar jurado'),
             items: candidatos.map((u) => DropdownMenuItem<int>(value: u['id'] as int,
               child: Text('${u['nombre']} ${u['apellidos'] ?? ''} (${u['email']})', overflow: TextOverflow.ellipsis))).toList(),
