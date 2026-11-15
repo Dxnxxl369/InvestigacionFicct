@@ -6,6 +6,7 @@ import com.ficct.investigacion.dto.AuthResponse;
 import com.ficct.investigacion.dto.PerfilUpdateRequest;
 import com.ficct.investigacion.dto.RegisterRequest;
 import com.ficct.investigacion.dto.UserDTO;
+import com.ficct.investigacion.init.DataSeeder;
 import com.ficct.investigacion.model.Convocatoria;
 import com.ficct.investigacion.model.ConvocatoriaParticipante;
 import com.ficct.investigacion.model.EstadoInscripcion;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class AuthService {
@@ -43,6 +45,7 @@ public class AuthService {
     private final ConvocatoriaRepository convocatoriaRepository;
     private final FeriaMembresiaService feriaMembresiaService;
     private final JdbcTemplate jdbcTemplate;
+    private final DataSeeder dataSeeder;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
@@ -51,7 +54,8 @@ public class AuthService {
                        ConvocatoriaParticipanteRepository participanteRepository,
                        ConvocatoriaRepository convocatoriaRepository,
                        FeriaMembresiaService feriaMembresiaService,
-                       JdbcTemplate jdbcTemplate) {
+                       JdbcTemplate jdbcTemplate,
+                       DataSeeder dataSeeder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -60,6 +64,7 @@ public class AuthService {
         this.convocatoriaRepository = convocatoriaRepository;
         this.feriaMembresiaService = feriaMembresiaService;
         this.jdbcTemplate = jdbcTemplate;
+        this.dataSeeder = dataSeeder;
     }
 
     @Transactional
@@ -293,12 +298,18 @@ public class AuthService {
     }
 
     /**
-     * Vacia todas las tablas de datos y asegura que exista únicamente el Administrador activo.
+     * Vacia todas las tablas de datos y asegura que existan únicamente las cuentas y permisos iniciales activos.
      */
-    @Transactional
     public Map<String, Object> vaciarBaseDeDatosYDejarAdmin() {
         try {
-            jdbcTemplate.execute("TRUNCATE TABLE users, convocatorias, convocatoria_participantes, feria_postulaciones, tareas, modulos, entregas_tareas, biblioteca_documentos, notificaciones RESTART IDENTITY CASCADE");
+            List<String> tables = jdbcTemplate.queryForList(
+                    "SELECT tablename FROM pg_tables WHERE schemaname = 'public'", String.class);
+            if (tables != null && !tables.isEmpty()) {
+                String tablesList = tables.stream()
+                        .map(t -> "\"" + t + "\"")
+                        .collect(Collectors.joining(", "));
+                jdbcTemplate.execute("TRUNCATE TABLE " + tablesList + " RESTART IDENTITY CASCADE");
+            }
         } catch (Exception e) {
             try {
                 participanteRepository.deleteAll();
@@ -307,29 +318,12 @@ public class AuthService {
             } catch (Exception ignored) {}
         }
 
-        // Crear Admin Principal
-        User admin = new User("Admin Principal", "", "admin.investigacion@gmail.com",
-                passwordEncoder.encode("admin369"), Rol.ADMIN, EstadoUsuario.ACTIVO);
-        userRepository.save(admin);
-
-        // Crear Admin UAGRM (alias)
-        User adminUagrm = new User("Administrador", "", "admin@uagrm.edu.bo",
-                passwordEncoder.encode("admin369"), Rol.ADMIN, EstadoUsuario.ACTIVO);
-        userRepository.save(adminUagrm);
-
-        // Crear Docente
-        User docente = new User("Docente Investigador", "", "docente.ficct@gmail.com",
-                passwordEncoder.encode("docente123"), Rol.DOCENTE, EstadoUsuario.ACTIVO);
-        userRepository.save(docente);
-
-        // Crear Estudiante
-        User alumno = new User("Alumno Prueba", "", "alumno.ficct@gmail.com",
-                passwordEncoder.encode("estudiante123"), Rol.ESTUDIANTE, EstadoUsuario.ACTIVO);
-        userRepository.save(alumno);
+        // Ejecutar DataSeeder para repoblar permisos y crear los usuarios base
+        dataSeeder.run();
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("exito", true);
-        resp.put("mensaje", "Base de datos vaciada con éxito. Administrador activo con credenciales.");
+        resp.put("mensaje", "Base de datos vaciada con exito. Administrador y cuentas base configuradas correctamente.");
         resp.put("adminEmail", "admin.investigacion@gmail.com");
         resp.put("adminPassword", "admin369");
         return resp;
