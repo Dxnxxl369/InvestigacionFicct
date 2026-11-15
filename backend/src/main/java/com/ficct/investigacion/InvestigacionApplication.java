@@ -1,8 +1,9 @@
 package com.ficct.investigacion;
 
+import com.ficct.investigacion.config.DatabaseUrlEnvironmentInitializer;
 import jakarta.annotation.PostConstruct;
-import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 
 import java.util.TimeZone;
 
@@ -15,6 +16,8 @@ public class InvestigacionApplication {
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(InvestigacionApplication.class, args);
+        new SpringApplicationBuilder(InvestigacionApplication.class)
+                .initializers(new DatabaseUrlEnvironmentInitializer())
+                .run(args);
     }
 }
