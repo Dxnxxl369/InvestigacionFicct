@@ -31,9 +31,11 @@ public class DatabaseUrlEnvironmentInitializer implements ApplicationContextInit
             Map<String, Object> props = new HashMap<>();
 
             try {
-                if (fixedUrl.startsWith("postgres://") || fixedUrl.startsWith("postgresql://")) {
+                if (fixedUrl.contains("@")) {
                     String clean = fixedUrl;
-                    if (clean.startsWith("postgres://")) {
+                    if (clean.startsWith("jdbc:postgresql://")) {
+                        clean = clean.substring("jdbc:postgresql://".length());
+                    } else if (clean.startsWith("postgres://")) {
                         clean = clean.substring("postgres://".length());
                     } else if (clean.startsWith("postgresql://")) {
                         clean = clean.substring("postgresql://".length());
@@ -52,12 +54,16 @@ public class DatabaseUrlEnvironmentInitializer implements ApplicationContextInit
                     String host = uri.getHost();
 
                     fixedUrl = "jdbc:postgresql://" + host + ":" + port + path;
-                    log.info(">>> [DatabaseUrlEnvironmentInitializer] URL adaptada con exito a JDBC: {}", fixedUrl);
+                    log.info(">>> [DatabaseUrlEnvironmentInitializer] URL adaptada con exito a JDBC limpia: {}", fixedUrl);
+                } else if (!fixedUrl.startsWith("jdbc:postgresql://")) {
+                    if (fixedUrl.startsWith("postgres://")) {
+                        fixedUrl = "jdbc:postgresql://" + fixedUrl.substring("postgres://".length());
+                    } else if (fixedUrl.startsWith("postgresql://")) {
+                        fixedUrl = "jdbc:" + fixedUrl;
+                    }
                 }
             } catch (Exception e) {
-                if (!fixedUrl.startsWith("jdbc:")) {
-                    fixedUrl = "jdbc:" + fixedUrl;
-                }
+                log.warn(">>> [DatabaseUrlEnvironmentInitializer] Error adaptando URL: {}", e.getMessage());
             }
 
             props.put("spring.datasource.url", fixedUrl);
