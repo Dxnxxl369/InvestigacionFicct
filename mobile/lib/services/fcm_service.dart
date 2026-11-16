@@ -15,6 +15,9 @@ class FcmService {
   static String? currentToken;
   static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
+  /// Señal reactiva para que las campanitas de la app se refresquen en tiempo real al llegar un push
+  static final ValueNotifier<int> notificationRefreshSignal = ValueNotifier<int>(0);
+
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'ficct_notificaciones_channel',
     'Notificaciones FICCT',
@@ -99,11 +102,13 @@ class FcmService {
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint('[FCM Foreground] Mensaje recibido: ${message.notification?.title} - ${message.notification?.body}');
 
-        final notification = message.notification;
-        if (notification != null) {
-          final title = notification.title ?? 'Notificación FICCT';
-          final body = notification.body ?? '';
+        // Notificar a las campanitas de la interfaz para actualizar contador en vivo
+        notificationRefreshSignal.value++;
 
+        final title = message.notification?.title ?? message.data['title'] ?? 'Notificación FICCT';
+        final body = message.notification?.body ?? message.data['body'] ?? message.data['mensaje'] ?? '';
+
+        if (title.isNotEmpty || body.isNotEmpty) {
           _localNotifications.show(
             id: message.hashCode,
             title: title,

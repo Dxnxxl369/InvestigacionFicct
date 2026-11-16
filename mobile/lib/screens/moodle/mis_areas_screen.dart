@@ -148,7 +148,7 @@ class _MisAreasScreenState extends State<MisAreasScreen> {
                               ))
                           .toList(),
                     ),
-                  const SizedBox(height: 95),
+                  const SizedBox(height: 130), // Margen para la barra flotante LiquidNavbar
                 ],
               ),
             ),

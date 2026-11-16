@@ -80,7 +80,6 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
       _loadActividadesYGrupos(),
       _loadParticipantes(),
     ]);
-    _loadGradebookData();
     if (mounted) {
       setState(() => _isLoading = false);
     }
@@ -89,14 +88,14 @@ class _AulaVirtualScreenState extends State<AulaVirtualScreen> {
   Future<void> _loadGradebookData() async {
     if (!mounted) return;
     setState(() => _isLoadingGradebook = true);
-    final allTareas = _modulos.expand((m) => m.tareas).toList();
+    final allTareas = _modulos.expand((m) => m.tareas).where((t) => t.id > 0).toList();
     final Map<int, List<Map<String, dynamic>>> entregasMap = {};
-    for (final tarea in allTareas) {
-      if (tarea.id > 0) {
+    await Future.wait(allTareas.map((tarea) async {
+      try {
         final res = await ApiService.getEntregasPorTarea(tarea.id);
         entregasMap[tarea.id] = res;
-      }
-    }
+      } catch (_) {}
+    }));
     if (mounted) {
       setState(() {
         _entregasGradebook = entregasMap;

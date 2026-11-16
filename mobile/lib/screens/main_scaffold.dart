@@ -46,7 +46,9 @@ class _MainScaffoldState extends State<MainScaffold> {
   void _handleNotificationTapped(Map<String, dynamic> data) {
     if (!mounted) return;
     final tareaIdStr = data['tareaId']?.toString();
+    final convocatoriaIdStr = data['convocatoriaId']?.toString();
     final tipo = data['tipo']?.toString();
+
     if (tareaIdStr != null && tareaIdStr.isNotEmpty) {
       final tid = int.tryParse(tareaIdStr);
       if (tid != null) {
@@ -57,6 +59,26 @@ class _MainScaffoldState extends State<MainScaffold> {
         }
         return;
       }
+    }
+
+    if (convocatoriaIdStr != null && convocatoriaIdStr.isNotEmpty) {
+      final cid = int.tryParse(convocatoriaIdStr);
+      if (cid != null) {
+        // Redirigir a la pestaña de Cursos o Convocatorias
+        if (tipo == 'SOLICITUD_ADMITIDA' || tipo == 'INSCRIPCION_ACEPTADA') {
+          _onTabTapped(1); // Cursos
+        } else {
+          _onTabTapped(2); // Convocatorias
+        }
+        return;
+      }
+    }
+
+    // Fallback general al recibir aviso
+    if (tipo == 'CONVOCATORIA_PUBLICADA' || tipo == 'NUEVA_CONVOCATORIA') {
+      _onTabTapped(2);
+    } else {
+      _onTabTapped(1);
     }
   }
 

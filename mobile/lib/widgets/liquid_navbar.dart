@@ -28,13 +28,13 @@ class LiquidNavbar extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(26),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
             height: 66,
             decoration: BoxDecoration(
               color: isDark
-                  ? const Color(0xC4131B2E)
-                  : const Color(0xB8FFFFFF),
+                  ? const Color(0xEB131B2E)
+                  : const Color(0xF0FFFFFF),
               borderRadius: BorderRadius.circular(26),
               border: Border.all(
                 color: isDark

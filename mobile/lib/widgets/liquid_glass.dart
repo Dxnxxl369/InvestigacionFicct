@@ -20,7 +20,7 @@ class LiquidGlassContainer extends StatelessWidget {
   const LiquidGlassContainer({
     super.key,
     required this.child,
-    this.blur = 20.0,
+    this.blur = 10.0,
     this.borderRadius = 20.0,
     this.padding,
     this.margin,
@@ -113,7 +113,7 @@ Future<T?> showLiquidGlassModalBottomSheet<T>({
       return ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
             constraints: BoxConstraints(
               maxHeight: size.height * maxHeightFactor,
@@ -185,7 +185,7 @@ Future<T?> showLiquidGlassDialog<T>({
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: LiquidGlassContainer(
           borderRadius: 24,
-          blur: 24,
+          blur: 12,
           padding: const EdgeInsets.all(20),
           child: builder(ctx),
         ),

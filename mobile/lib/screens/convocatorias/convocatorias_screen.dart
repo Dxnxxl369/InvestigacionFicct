@@ -177,10 +177,12 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isAdmin = _currentUser != null && _currentUser!.rol == 'ADMIN';
+    final isDocenteOAdmin = _currentUser != null &&
+        (_currentUser!.rol == 'ADMIN' || _currentUser!.rol == 'DOCENTE');
 
     final filtered = _convocatorias.where((c) {
       // Estudiantes y público general solo deben ver convocatorias PUBLICADAS
-      if (!isAdmin && c.estado != 'PUBLICADA') return false;
+      if (!isDocenteOAdmin && c.estado != 'PUBLICADA') return false;
       if (_searchQuery.trim().isEmpty) return true;
       final q = _searchQuery.toLowerCase();
       return c.titulo.toLowerCase().contains(q) ||
@@ -198,7 +200,7 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
             tooltip: 'Actualizar catálogo',
             onPressed: _loadData,
           ),
-          if (isAdmin) ...[
+          if (isDocenteOAdmin) ...[
             IconButton(
               icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.accent),
               tooltip: 'Agente IA Convocatorias',
@@ -504,15 +506,15 @@ class _ConvocatoriasScreenState extends State<ConvocatoriasScreen> {
                           ),
                         );
                       }),
-                    const SizedBox(height: 95),
+                    const SizedBox(height: 130),
                   ],
                 ),
               ),
             ),
-      // Botón flotante verde con padding inferior (85.0) para flotar limpiamente SOBRE el LiquidNavbar
-      floatingActionButton: isAdmin
+      // Botón flotante verde con padding inferior (95.0) para flotar limpiamente SOBRE el LiquidNavbar
+      floatingActionButton: isDocenteOAdmin
           ? Padding(
-              padding: const EdgeInsets.only(bottom: 85.0),
+              padding: const EdgeInsets.only(bottom: 95.0),
               child: FloatingActionButton.extended(
                 onPressed: () {
                   showModalBottomSheet(

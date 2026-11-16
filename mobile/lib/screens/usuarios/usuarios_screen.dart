@@ -439,7 +439,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> with SingleTickerProvid
                   ),
                 );
               }),
-            const SizedBox(height: 40),
+            const SizedBox(height: 60),
           ],
         ),
       ),
@@ -600,7 +600,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> with SingleTickerProvid
                   ),
                 ),
               ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 60),
           ],
         ),
       ),

@@ -484,7 +484,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               ),
               onPressed: widget.onLogout,
             ),
-            const SizedBox(height: 100),
+            const SizedBox(height: 130), // Margen para la barra flotante LiquidNavbar
           ],
         ),
       ),

@@ -544,39 +544,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                 ),
               ),
-              const SizedBox(height: 8),
-              Card(
-                child: ListTile(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (ctx) => AgenteConvocatoriaScreen(onBack: () => Navigator.pop(ctx)),
-                      ),
-                    );
-                  },
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentSoft,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.accent),
-                  ),
-                  title: const Text(
-                    'Agente IA de Convocatorias',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Asistente conversacional para redactar y estructurar convocatorias',
-                    style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                ),
-              ),
             ] else
               Card(
                 child: ListTile(
@@ -605,6 +572,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             if (user != null && (user.rol == 'ADMIN' || user.rol == 'DOCENTE')) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: ListTile(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (ctx) => AgenteConvocatoriaScreen(onBack: () => Navigator.pop(ctx)),
+                      ),
+                    );
+                  },
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentSoft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.accent),
+                  ),
+                  title: Row(
+                    children: [
+                      const Text(
+                        'Agente IA de Convocatorias',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text('Llama 3', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.accentDark)),
+                      ),
+                    ],
+                  ),
+                  subtitle: Text(
+                    'Asistente conversacional para redactar y estructurar convocatorias',
+                    style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkInkSoft : AppTheme.inkFaint),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                ),
+              ),
               const SizedBox(height: 8),
               Card(
                 child: ListTile(
@@ -662,7 +675,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 trailing: const Icon(Icons.chevron_right_rounded),
               )),
             ],
-            const SizedBox(height: 95), // Margen para la barra flotante
+            const SizedBox(height: 130), // Margen para la barra flotante LiquidNavbar
           ],
         ),
       ),

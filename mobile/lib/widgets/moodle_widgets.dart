@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../screens/moodle/tarea_entrega_screen.dart';
 import '../screens/moodle/speedgrader_screen.dart';
+import '../services/fcm_service.dart';
 import 'liquid_glass.dart';
 
 class RoleBadge extends StatelessWidget {
@@ -577,13 +578,19 @@ class _NotificacionBadgeState extends State<NotificacionBadge> {
   void initState() {
     super.initState();
     _fetchCount();
+    FcmService.notificationRefreshSignal.addListener(_onFcmRefresh);
     _timer = Timer.periodic(const Duration(seconds: 45), (_) {
       if (mounted) _fetchCount();
     });
   }
 
+  void _onFcmRefresh() {
+    if (mounted) _fetchCount();
+  }
+
   @override
   void dispose() {
+    FcmService.notificationRefreshSignal.removeListener(_onFcmRefresh);
     _timer?.cancel();
     super.dispose();
   }
