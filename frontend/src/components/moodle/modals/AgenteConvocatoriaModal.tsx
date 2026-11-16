@@ -16,6 +16,8 @@ import {
   FileText,
   Calendar,
   Users,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -69,6 +71,81 @@ export default function AgenteConvocatoriaModal({
   const [progreso, setProgreso] = useState<number>(30);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Reconocimiento de voz (Web Speech API)
+  const [escuchandoVoz, setEscuchandoVoz] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const enviarMensajeRef = useRef<((texto?: string) => Promise<void>) | null>(null);
+
+  // Inicializar Web Speech API si el navegador lo soporta
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition();
+        rec.continuous = false;
+        rec.interimResults = false;
+        rec.lang = "es-ES";
+
+        rec.onresult = (event: any) => {
+          const texto = event.results[0][0].transcript;
+          setInputTexto(texto);
+          setEscuchandoVoz(false);
+          if (enviarMensajeRef.current) {
+            enviarMensajeRef.current(texto);
+          }
+        };
+
+        rec.onerror = () => {
+          setEscuchandoVoz(false);
+        };
+
+        rec.onend = () => {
+          setEscuchandoVoz(false);
+        };
+
+        recognitionRef.current = rec;
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
+    };
+  }, []);
+
+  // Cancelar escucha si el modal se cierra
+  useEffect(() => {
+    if (!isOpen && escuchandoVoz && recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {}
+      setEscuchandoVoz(false);
+    }
+  }, [isOpen, escuchandoVoz]);
+
+  const toggleVoz = () => {
+    if (!recognitionRef.current) {
+      alert("Tu navegador no soporta entrada de voz por Web Speech API. Usa Google Chrome o Microsoft Edge.");
+      return;
+    }
+
+    if (escuchandoVoz) {
+      recognitionRef.current.stop();
+      setEscuchandoVoz(false);
+    } else {
+      setEscuchandoVoz(true);
+      try {
+        recognitionRef.current.start();
+      } catch {
+        setEscuchandoVoz(false);
+      }
+    }
+  };
+
   // Cargar docentes activos inmediatamente al abrir el modal (sin esperar al primer mensaje)
   useEffect(() => {
     if (!isOpen) return;
@@ -97,11 +174,16 @@ export default function AgenteConvocatoriaModal({
     }
   }, [mensajes, cargando]);
 
-  if (!isOpen) return null;
-
   const enviarMensaje = async (textoAEnviar?: string) => {
     const texto = (textoAEnviar || inputTexto).trim();
     if (!texto || cargando) return;
+
+    if (escuchandoVoz && recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      setEscuchandoVoz(false);
+    }
 
     const ahora = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const nuevoMsgUser: MensajeChat = {
@@ -199,6 +281,12 @@ export default function AgenteConvocatoriaModal({
     onClose();
     window.location.href = "/dashboard/convocatorias/nueva";
   };
+
+  useEffect(() => {
+    enviarMensajeRef.current = enviarMensaje;
+  });
+
+  if (!isOpen) return null;
 
   const borradorVisible = ultimoBorrador || estadoFormulario;
   const docenteIds = borradorVisible?.selectedDocenteIds || [];
@@ -364,24 +452,68 @@ export default function AgenteConvocatoriaModal({
                   e.preventDefault();
                   enviarMensaje();
                 }}
-                className="relative flex items-center"
+                className="flex items-center gap-2"
               >
-                <input
-                  type="text"
-                  value={inputTexto}
-                  onChange={(e) => setInputTexto(e.target.value)}
-                  placeholder="Escribe aquí (ej. 'agrega el requisito de ser de 6to semestre' o 'cambia la fecha al 20 de noviembre')..."
-                  className="w-full bg-paper-sunken border border-line rounded-xl pl-4 pr-12 py-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:bg-paper transition"
+                <div className="relative flex-1 flex items-center">
+                  <input
+                    type="text"
+                    value={inputTexto}
+                    onChange={(e) => setInputTexto(e.target.value)}
+                    placeholder={
+                      escuchandoVoz
+                        ? "Escuchando tu voz... habla ahora..."
+                        : "Escribe o dicta aquí (ej. 'agrega requisito de 6to semestre')..."
+                    }
+                    className={`w-full bg-paper-sunken border rounded-xl pl-4 pr-10 py-2.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:bg-paper transition ${
+                      escuchandoVoz
+                        ? "border-rose-500 ring-2 ring-rose-500/20 placeholder-rose-500 font-medium"
+                        : "border-line"
+                    }`}
+                    disabled={cargando}
+                  />
+                  {inputTexto && !cargando && (
+                    <button
+                      type="button"
+                      onClick={() => setInputTexto("")}
+                      className="absolute right-3 text-ink-faint hover:text-ink text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Botón de Micrófono (Speech-to-Text) */}
+                <button
+                  type="button"
+                  onClick={toggleVoz}
                   disabled={cargando}
-                />
+                  className={`px-3 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition flex-shrink-0 ${
+                    escuchandoVoz
+                      ? "bg-rose-500 text-white border-rose-600 animate-pulse ring-4 ring-rose-500/20"
+                      : "bg-paper border-line text-ink hover:border-accent hover:text-accent shadow-2xs"
+                  }`}
+                  title={escuchandoVoz ? "Escuchando... haz clic para detener" : "Dictar por voz"}
+                >
+                  {escuchandoVoz ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-accent" />}
+                  <span className="hidden sm:inline text-xs">{escuchandoVoz ? "Escuchando..." : "Dictar"}</span>
+                </button>
+
+                {/* Botón de Enviar */}
                 <button
                   type="submit"
                   disabled={cargando || !inputTexto.trim()}
-                  className="absolute right-1.5 w-8 h-8 rounded-lg bg-accent text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition shadow-xs"
+                  className="w-10 h-10 rounded-xl bg-accent text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition shadow-xs flex-shrink-0"
+                  title="Enviar al agente"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-4 h-4" />
                 </button>
               </form>
+              {escuchandoVoz && (
+                <div className="flex items-center gap-1.5 mt-2 px-1 text-[11px] font-medium text-rose-500 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                  <span>Escuchando... Di en voz alta los detalles de la convocatoria y se enviarán al terminar.</span>
+                </div>
+              )}
             </div>
 
           </div>
