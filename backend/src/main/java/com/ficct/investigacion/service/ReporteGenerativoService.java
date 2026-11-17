@@ -27,7 +27,7 @@ public class ReporteGenerativoService {
     @Value("${app.groq.api-key:}")
     private String groqApiKey;
 
-    @Value("${app.groq.model:qwen/qwen3.8-27b}")
+    @Value("${app.groq.model:llama-3.3-70b-versatile}")
     private String groqModel;
 
     public ReporteGenerativoService(JdbcTemplate jdbcTemplate) {
