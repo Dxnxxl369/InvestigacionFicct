@@ -30,14 +30,14 @@ class _AgenteConvocatoriaScreenState extends State<AgenteConvocatoriaScreen> {
     'modalidadInscripcion': 'GRUPAL',
     'titulo': '',
     'descripcion': '',
-    'fechaFinInscripcion': '2026-11-15',
+    'fechaFinInscripcion': '',
     'cuposMinEquipo': 2,
     'cuposMaxEquipo': 5,
     'requisitos': <String>[],
     'selectedDocenteIds': <int>[],
   };
 
-  List<String> _camposFaltantes = ['titulo', 'descripcion', 'docenteEncargado'];
+  List<String> _camposFaltantes = ['titulo', 'descripcion', 'fechaFinInscripcion', 'requisitos', 'docenteEncargado'];
   List<Map<String, dynamic>> _docentesDisponibles = [];
   int _progreso = 10;
   bool _enviando = false;

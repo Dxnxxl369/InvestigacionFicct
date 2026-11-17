@@ -14,13 +14,31 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDate;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
 public class AgenteConvocatoriaService {
 
     private static final Logger log = LoggerFactory.getLogger(AgenteConvocatoriaService.class);
+
+    private static final Map<String, Integer> MESES_ES = Map.ofEntries(
+            Map.entry("enero", 1), Map.entry("ene", 1),
+            Map.entry("febrero", 2), Map.entry("feb", 2),
+            Map.entry("marzo", 3), Map.entry("mar", 3),
+            Map.entry("abril", 4), Map.entry("abr", 4),
+            Map.entry("mayo", 5), Map.entry("may", 5),
+            Map.entry("junio", 6), Map.entry("jun", 6),
+            Map.entry("julio", 7), Map.entry("jul", 7),
+            Map.entry("agosto", 8), Map.entry("ago", 8),
+            Map.entry("septiembre", 9), Map.entry("setiembre", 9), Map.entry("sep", 9),
+            Map.entry("octubre", 10), Map.entry("oct", 10),
+            Map.entry("noviembre", 11), Map.entry("nov", 11),
+            Map.entry("diciembre", 12), Map.entry("dic", 12)
+    );
 
     private final UserRepository userRepository;
     private final RestTemplate restTemplate;
@@ -39,7 +57,6 @@ public class AgenteConvocatoriaService {
     }
 
     public ChatResponse procesarMensajeAgente(ChatRequest request) {
-        // 1. Obtener lista segura de docentes activos desde BD (sin exponer contraseñas ni roles ajenos)
         List<User> docentesActivos = userRepository.findAll().stream()
                 .filter(u -> u.getRol() == Rol.DOCENTE && u.getEstado() == EstadoUsuario.ACTIVO)
                 .toList();
@@ -54,72 +71,88 @@ public class AgenteConvocatoriaService {
                     .append(" (").append(d.getEmail()).append(")\n");
         }
 
-        // 2. Construir el prompt de sistema con reglas de negocio del software
         ConvocatoriaBorradorDTO actual = request.getEstadoActual() != null
                 ? request.getEstadoActual()
                 : new ConvocatoriaBorradorDTO();
 
+        LocalDate hoy = LocalDate.now();
+        String reqActuales = (actual.getRequisitos() != null && !actual.getRequisitos().isEmpty())
+                ? actual.getRequisitos().toString()
+                : "ninguno (vacío)";
+
         String systemPrompt = """
-                Eres el Asistente Inteligente de la FICCT (Facultad Integral del Chaco y Computación / Tecnología) de la UAGRM.
-                Tu propósito es ayudar a crear o completar una convocatoria académica (Hackathon, Feria, Concurso o Investigación).
+                Eres el Asistente Inteligente de la FICCT (UAGRM) para crear o completar convocatorias académicas (Hackathon, Feria, Concurso o Investigación).
+                Fecha actual del sistema: """ + hoy + """
                 
                 REGLAS ESTRICTAS DE NEGOCIO:
-                - Tipo válidos: HACKATHON, FERIA, CONCURSO, INVESTIGACION.
-                - Modalidad: GRUPAL o INDIVIDUAL. Si el usuario menciona equipos o personas por grupo, es GRUPAL.
-                - Cupos de equipo por defecto para GRUPAL: min 2, max 5 (o lo que pida el usuario).
-                - Fecha de cierre en formato ISO: YYYY-MM-DD. Debe ser coherente con el año en curso (2026).
-                - Si no hay docentes registrados en la facultad, avisa claramente que no hay docentes disponibles para asignar.
-                - Si hay docentes en el catálogo, NUNCA los autoasignes a menos que el usuario mencione explícitamente su nombre o apellido. Deja "selectedDocenteIds": [] y sugiere los nombres en el mensaje para que el usuario elija.
-                - Si el usuario dice "Asignar como docente a X" o menciona el nombre de un docente del catálogo, pon su ID en selectedDocenteIds.
-                - Requisitos: genera siempre entre 2 y 4 requisitos concretos acordes al evento.
+                1. Tipos válidos: HACKATHON, FERIA, CONCURSO, INVESTIGACION.
+                2. Modalidad: GRUPAL o INDIVIDUAL. Si el usuario menciona equipos, grupos o integrantes, es GRUPAL.
+                3. Cupos de equipo por defecto para GRUPAL: min 2, max 5 (o los que indique el usuario).
+                4. FECHAS (MUY IMPORTANTE):
+                   - Formato obligatorio: "YYYY-MM-DD" o "" si aún no se ha indicado fecha.
+                   - Si el usuario indica una fecha (ej. "20 de noviembre", "para el 20/11", "cierra el 5 de diciembre"), debes calcular y poner EXACTAMENTE ese día y mes en "fechaFinInscripcion" (ej. "20 de noviembre" -> \"""" + hoy.getYear() + """
+                -11-20\"), sobrescribiendo cualquier fecha previa.
+                   - Si el usuario NO ha dicho ninguna fecha y el estado actual no tiene fecha, deja "fechaFinInscripcion": "" y pregúntale cuál será la fecha límite de inscripción.
+                5. REQUISITOS (MUY IMPORTANTE):
+                   - NUNCA inventes ni agregues requisitos de más por tu cuenta si el usuario NO pidió requisitos.
+                   - Si el usuario no mencionó requisitos en su mensaje y el estado actual tiene requisitos vacíos [], DEJA "requisitos": [] y en tu "mensaje" pregúntale explícitamente: "¿Quisieras agregar algunos requisitos para la inscripción?".
+                   - Solo agrega, modifica o quita requisitos cuando el usuario los mencione explícitamente (o pida expresamente que le sugieras requisitos).
+                   - Conserva los requisitos previos del estado actual salvo que el usuario pida cambiarlos o eliminarlos.
+                6. DOCENTES:
+                   - NUNCA autoasignes docentes en "selectedDocenteIds" a menos que el usuario mencione explícitamente el nombre o apellido de un docente del catálogo.
+                   - Si no hay docentes asignados aún, pregunta qué docente del catálogo desea asignar como encargado.
+                7. DETECCIÓN DE CAMPOS FALTANTES:
+                   - Revisa el ESTADO ACTUAL del JSON resultante y verifica qué campos siguen vacíos o sin definir: título, descripción, fechaFinInscripcion, requisitos, selectedDocenteIds.
+                   - En el campo "mensaje" (máximo 2 a 3 líneas claras), confirma brevemente lo que actualizaste y pregunta puntualmente por los datos que faltan para completar la convocatoria.
                 
                 DOCENTES DISPONIBLES EN LA FACULTAD:
-                """ + (docCatalogo.length() > 0 ? docCatalogo.toString() : "NINGUNO. Informa al usuario que debe registrar o invitar docentes primero.") + """
+                """ + (docCatalogo.length() > 0 ? docCatalogo.toString() : "NINGUNO. Informa al usuario que no hay docentes activos registrados.") + """
                 
                 ESTADO ACTUAL DEL FORMULARIO:
-                - Tipo: """ + (actual.getTipo() != null ? actual.getTipo() : "sin definir") + """
-                - Modalidad: """ + (actual.getModalidadInscripcion() != null ? actual.getModalidadInscripcion() : "sin definir") + """
-                - Título: """ + (actual.getTitulo() != null ? actual.getTitulo() : "sin definir") + """
-                - Descripción: """ + (actual.getDescripcion() != null ? actual.getDescripcion() : "sin definir") + """
-                - Fecha Cierre: """ + (actual.getFechaFinInscripcion() != null ? actual.getFechaFinInscripcion() : "sin definir") + """
+                - Tipo: """ + (actual.getTipo() != null && !actual.getTipo().isBlank() ? actual.getTipo() : "sin definir") + """
+                - Modalidad: """ + (actual.getModalidadInscripcion() != null && !actual.getModalidadInscripcion().isBlank() ? actual.getModalidadInscripcion() : "sin definir") + """
+                - Título: """ + (actual.getTitulo() != null && !actual.getTitulo().isBlank() ? actual.getTitulo() : "sin definir") + """
+                - Descripción: """ + (actual.getDescripcion() != null && !actual.getDescripcion().isBlank() ? actual.getDescripcion() : "sin definir") + """
+                - Fecha Cierre: """ + (actual.getFechaFinInscripcion() != null && !actual.getFechaFinInscripcion().isBlank() ? actual.getFechaFinInscripcion() : "sin definir") + """
                 - Min Miembros: """ + (actual.getCuposMinEquipo() != null ? actual.getCuposMinEquipo() : 2) + """
-                - Max Miembros: """ + (actual.getCuposMaxEquipo() != null ? actual.getCuposMaxEquipo() : 4) + """
-                - Docentes Asignados IDs: """ + (actual.getSelectedDocenteIds() != null ? actual.getSelectedDocenteIds().toString() : "ninguno") + """
+                - Max Miembros: """ + (actual.getCuposMaxEquipo() != null ? actual.getCuposMaxEquipo() : 5) + """
+                - Requisitos actuales: """ + reqActuales + """
+                - Docentes Asignados IDs: """ + (actual.getSelectedDocenteIds() != null && !actual.getSelectedDocenteIds().isEmpty() ? actual.getSelectedDocenteIds().toString() : "ninguno") + """
                 
                 INSTRUCCIÓN DE RESPUESTA:
-                Debes responder ÚNICAMENTE con un objeto JSON válido (sin bloques ```json, sin introducciones).
-                El esquema obligatorio del JSON es:
+                Responde ÚNICAMENTE con un objeto JSON válido (sin markdown ```json, sin texto antes ni después).
+                Esquema obligatorio:
                 {
                   "tipo": "HACKATHON" | "FERIA" | "CONCURSO" | "INVESTIGACION",
                   "modalidadInscripcion": "GRUPAL" | "INDIVIDUAL",
-                  "titulo": "Título atractivo y formal",
-                  "descripcion": "Descripción detallada del objetivo y alcance",
-                  "fechaFinInscripcion": "YYYY-MM-DD",
+                  "titulo": "Título formal",
+                  "descripcion": "Descripción clara del objetivo y alcance",
+                  "fechaFinInscripcion": "YYYY-MM-DD o vacío",
                   "cuposMinEquipo": 2,
                   "cuposMaxEquipo": 5,
-                  "requisitos": ["requisito 1", "requisito 2"],
+                  "requisitos": [],
                   "selectedDocenteIds": [],
-                  "mensaje": "Mensaje MUY BREVE (máximo 2 a 3 líneas): confirma lo que configuraste y pregunta solo el dato que falte (docente o requisitos)."
+                  "mensaje": "Confirmación breve + pregunta concreta sobre los campos que faltan (ej. requisitos, fecha o docente)."
                 }
                 """;
 
-        // 3. Invocar la API de Groq
-        ConvocatoriaBorradorDTO actualizado = new ConvocatoriaBorradorDTO();
-        String mensajeAgente = "He recibido tu solicitud y configurado el borrador inicial.";
+        ConvocatoriaBorradorDTO actualizado;
+        String mensajeAgente;
 
         try {
-            actualizado = llamarGroq(systemPrompt, request.getMensaje(), actual);
+            actualizado = llamarGroq(systemPrompt, request.getMensaje(), request.getHistorial(), actual);
             mensajeAgente = actualizado.getDocenteSugeridoNombre() != null
                     ? actualizado.getDocenteSugeridoNombre()
                     : "He actualizado los campos de la convocatoria según tus indicaciones.";
         } catch (Exception e) {
             log.error("Error al procesar solicitud con Groq: {}", e.getMessage(), e);
-            // Fallback determinístico en caso de timeout o indisponibilidad
             actualizado = aplicarFallbackHeuristico(request.getMensaje(), actual, docentesActivos);
-            mensajeAgente = "He procesado tu solicitud localmente y actualizado el borrador de la convocatoria.";
+            mensajeAgente = actualizado.getDocenteSugeridoNombre() != null
+                    ? actualizado.getDocenteSugeridoNombre()
+                    : "He actualizado el borrador de la convocatoria.";
         }
 
-        // 4. Calcular campos faltantes y porcentaje de avance
+        // Calcular campos faltantes reales y progreso
         List<String> faltantes = new ArrayList<>();
         int puntos = 0;
 
@@ -129,7 +162,7 @@ public class AgenteConvocatoriaService {
         if (actualizado.getDescripcion() != null && !actualizado.getDescripcion().isBlank()) puntos += 20;
         else faltantes.add("Descripción de objetivos");
 
-        if (actualizado.getTipo() != null) puntos += 15;
+        if (actualizado.getTipo() != null && !actualizado.getTipo().isBlank()) puntos += 15;
         if (actualizado.getFechaFinInscripcion() != null && !actualizado.getFechaFinInscripcion().isBlank()) puntos += 20;
         else faltantes.add("Fecha límite de inscripción");
 
@@ -149,7 +182,8 @@ public class AgenteConvocatoriaService {
         return response;
     }
 
-    private ConvocatoriaBorradorDTO llamarGroq(String systemPrompt, String mensajeUsuario, ConvocatoriaBorradorDTO actual) {
+    private ConvocatoriaBorradorDTO llamarGroq(String systemPrompt, String mensajeUsuario,
+                                               List<ChatMessage> historial, ConvocatoriaBorradorDTO actual) {
         String url = "https://api.groq.com/openai/v1/chat/completions";
 
         HttpHeaders headers = new HttpHeaders();
@@ -158,11 +192,20 @@ public class AgenteConvocatoriaService {
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", groqModel);
-        body.put("max_tokens", 800);
+        body.put("max_tokens", 900);
         body.put("temperature", 0.1);
 
         List<Map<String, String>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt));
+        if (historial != null && !historial.isEmpty()) {
+            int start = Math.max(0, historial.size() - 6);
+            for (int i = start; i < historial.size(); i++) {
+                ChatMessage hm = historial.get(i);
+                if (hm.getTexto() == null || hm.getTexto().isBlank()) continue;
+                String role = "AGENTE".equalsIgnoreCase(hm.getRemitente()) ? "assistant" : "user";
+                messages.add(Map.of("role", role, "content", hm.getTexto()));
+            }
+        }
         messages.add(Map.of("role", "user", "content", mensajeUsuario));
         body.put("messages", messages);
 
@@ -178,22 +221,18 @@ public class AgenteConvocatoriaService {
                 log.warn("No se pudo parsear el JSON retornado por Groq: {}", e.getMessage());
             }
         }
-        return actual;
+        throw new IllegalStateException("Respuesta vacía o inválida de Groq");
     }
 
     private ConvocatoriaBorradorDTO parsearRespuestaJson(String raw, ConvocatoriaBorradorDTO base) {
         try {
-            String cleaned = raw.trim();
-            if (cleaned.startsWith("```json")) {
-                cleaned = cleaned.substring(7);
+            // Eliminar bloques de pensamiento (<think>...</think>) o markdown antes de extraer JSON
+            String cleaned = raw.replaceAll("(?s)<think>.*?</think>", "").trim();
+            int firstBrace = cleaned.indexOf('{');
+            int lastBrace = cleaned.lastIndexOf('}');
+            if (firstBrace >= 0 && lastBrace > firstBrace) {
+                cleaned = cleaned.substring(firstBrace, lastBrace + 1);
             }
-            if (cleaned.startsWith("```")) {
-                cleaned = cleaned.substring(3);
-            }
-            if (cleaned.endsWith("```")) {
-                cleaned = cleaned.substring(0, cleaned.length() - 3);
-            }
-            cleaned = cleaned.trim();
 
             JsonNode node = objectMapper.readTree(cleaned);
             ConvocatoriaBorradorDTO dto = new ConvocatoriaBorradorDTO();
@@ -205,7 +244,7 @@ public class AgenteConvocatoriaService {
             dto.setTitulo(node.hasNonNull("titulo") ? node.get("titulo").asText() : base.getTitulo());
             dto.setDescripcion(node.hasNonNull("descripcion") ? node.get("descripcion").asText() : base.getDescripcion());
             dto.setFechaFinInscripcion(node.hasNonNull("fechaFinInscripcion")
-                    ? node.get("fechaFinInscripcion").asText()
+                    ? node.get("fechaFinInscripcion").asText().trim()
                     : base.getFechaFinInscripcion());
             dto.setCuposMinEquipo(node.hasNonNull("cuposMinEquipo")
                     ? node.get("cuposMinEquipo").asInt()
@@ -216,10 +255,13 @@ public class AgenteConvocatoriaService {
 
             if (node.hasNonNull("requisitos") && node.get("requisitos").isArray()) {
                 List<String> reqs = new ArrayList<>();
-                node.get("requisitos").forEach(r -> reqs.add(r.asText()));
+                node.get("requisitos").forEach(r -> {
+                    String val = r.asText().trim();
+                    if (!val.isEmpty()) reqs.add(val);
+                });
                 dto.setRequisitos(reqs);
             } else {
-                dto.setRequisitos(base.getRequisitos());
+                dto.setRequisitos(base.getRequisitos() != null ? base.getRequisitos() : new ArrayList<>());
             }
 
             if (node.hasNonNull("selectedDocenteIds") && node.get("selectedDocenteIds").isArray()) {
@@ -237,55 +279,101 @@ public class AgenteConvocatoriaService {
             return dto;
         } catch (Exception e) {
             log.error("Fallo al decodificar JSON del modelo: {}", e.getMessage());
-            return base;
+            throw new IllegalStateException("JSON inválido del modelo", e);
         }
     }
 
+    private String extraerFechaEnTexto(String mensaje) {
+        String lower = mensaje.toLowerCase(Locale.ROOT);
+        int anioActual = LocalDate.now().getYear();
+
+        // Formato ISO YYYY-MM-DD
+        Matcher iso = Pattern.compile("(\\d{4})-(\\d{1,2})-(\\d{1,2})").matcher(lower);
+        if (iso.find()) {
+            return String.format("%04d-%02d-%02d",
+                    Integer.parseInt(iso.group(1)),
+                    Integer.parseInt(iso.group(2)),
+                    Integer.parseInt(iso.group(3)));
+        }
+
+        // Formato "20 de noviembre" o "20 nov"
+        Matcher textoMes = Pattern.compile("(\\d{1,2})\\s*(?:de\\s+)?([a-záéíóú]+)(?:\\s*(?:de|del)\\s*(\\d{4}))?").matcher(lower);
+        while (textoMes.find()) {
+            Integer mes = MESES_ES.get(textoMes.group(2));
+            if (mes != null) {
+                int dia = Integer.parseInt(textoMes.group(1));
+                int anio = textoMes.group(3) != null ? Integer.parseInt(textoMes.group(3)) : anioActual;
+                if (dia >= 1 && dia <= 31) {
+                    return String.format("%04d-%02d-%02d", anio, mes, dia);
+                }
+            }
+        }
+
+        // Formato dd/MM o dd/MM/yyyy
+        Matcher slash = Pattern.compile("\\b(\\d{1,2})/(\\d{1,2})(?:/(\\d{2,4}))?\\b").matcher(lower);
+        if (slash.find()) {
+            int dia = Integer.parseInt(slash.group(1));
+            int mes = Integer.parseInt(slash.group(2));
+            int anio = slash.group(3) != null ? Integer.parseInt(slash.group(3)) : anioActual;
+            if (anio < 100) anio += 2000;
+            if (mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+                return String.format("%04d-%02d-%02d", anio, mes, dia);
+            }
+        }
+        return null;
+    }
+
     private ConvocatoriaBorradorDTO aplicarFallbackHeuristico(String mensaje, ConvocatoriaBorradorDTO base, List<User> docentes) {
-        String m = mensaje.toLowerCase();
+        String m = mensaje.toLowerCase(Locale.ROOT);
         ConvocatoriaBorradorDTO d = new ConvocatoriaBorradorDTO();
 
-        // Tipo
         if (m.contains("hackathon") || m.contains("hackaton")) d.setTipo("HACKATHON");
         else if (m.contains("feria")) d.setTipo("FERIA");
         else if (m.contains("concurso")) d.setTipo("CONCURSO");
         else if (m.contains("investigacion") || m.contains("investigación")) d.setTipo("INVESTIGACION");
         else d.setTipo(base.getTipo() != null ? base.getTipo() : "HACKATHON");
 
-        // Modalidad y Cupos
         if (m.contains("individual")) {
             d.setModalidadInscripcion("INDIVIDUAL");
         } else {
             d.setModalidadInscripcion("GRUPAL");
-            d.setCuposMinEquipo(2);
-            d.setCuposMaxEquipo(m.contains("5") ? 5 : (m.contains("4") ? 4 : (m.contains("3") ? 3 : 5)));
+            d.setCuposMinEquipo(base.getCuposMinEquipo() != null ? base.getCuposMinEquipo() : 2);
+            d.setCuposMaxEquipo(m.contains("5") ? 5 : (m.contains("4") ? 4 : (m.contains("3") ? 3 : (base.getCuposMaxEquipo() != null ? base.getCuposMaxEquipo() : 5))));
         }
 
         d.setTitulo(base.getTitulo() != null && !base.getTitulo().isBlank()
                 ? base.getTitulo()
-                : (d.getTipo().equals("HACKATHON") ? "Hackathon FICCT Innovación y Software 2026" : "Convocatoria Académica 2026"));
+                : (d.getTipo().equals("HACKATHON") ? "Hackathon FICCT Innovación y Software " + LocalDate.now().getYear() : "Convocatoria Académica " + LocalDate.now().getYear()));
 
         d.setDescripcion(base.getDescripcion() != null && !base.getDescripcion().isBlank()
                 ? base.getDescripcion()
                 : "Convocatoria orientada a estudiantes de la FICCT para el desarrollo de proyectos y competencias técnicas.");
 
-        if (m.contains("15 de noviembre") || m.contains("15 nov")) {
-            d.setFechaFinInscripcion("2026-11-15");
+        String fechaDetectada = extraerFechaEnTexto(mensaje);
+        if (fechaDetectada != null) {
+            d.setFechaFinInscripcion(fechaDetectada);
         } else {
-            d.setFechaFinInscripcion(base.getFechaFinInscripcion() != null ? base.getFechaFinInscripcion() : "2026-11-30");
+            d.setFechaFinInscripcion(base.getFechaFinInscripcion() != null ? base.getFechaFinInscripcion() : "");
         }
 
-        d.setRequisitos(List.of(
-                "Ser estudiante activo y regular de la FICCT - UAGRM",
-                "Contar con equipo conformado según los cupos establecidos",
-                "Presentar aval del docente o avance del proyecto"
-        ));
+        // No inventar requisitos si el usuario no los pidió
+        List<String> reqs = base.getRequisitos() != null ? new ArrayList<>(base.getRequisitos()) : new ArrayList<>();
+        if (m.contains("requisito")) {
+            // Si el usuario escribió requisitos explícitamente, agregar la línea como requisito si no pidió sugerencias
+            if (m.contains("sugier") || m.contains("defecto") || m.contains("pon unos")) {
+                reqs = List.of(
+                        "Ser estudiante activo y regular de la FICCT - UAGRM",
+                        "Contar con equipo conformado según los cupos establecidos"
+                );
+            } else {
+                reqs.add(mensaje.trim());
+            }
+        }
+        d.setRequisitos(reqs);
 
-        // Docente coincidente
         List<Long> docenteIds = new ArrayList<>();
         for (User u : docentes) {
-            String nom = u.getNombreCompleto().toLowerCase();
-            if (m.contains(u.getNombre().toLowerCase()) || m.contains(u.getApellido().toLowerCase())) {
+            if (m.contains(u.getNombre().toLowerCase(Locale.ROOT)) || m.contains(u.getApellido().toLowerCase(Locale.ROOT))) {
                 docenteIds.add(u.getId());
                 break;
             }
@@ -294,7 +382,22 @@ public class AgenteConvocatoriaService {
             docenteIds.addAll(base.getSelectedDocenteIds());
         }
         d.setSelectedDocenteIds(docenteIds);
-        d.setDocenteSugeridoNombre("He configurado el borrador con los datos provistos. Revisa las fechas y docentes asignados.");
+
+        List<String> preguntas = new ArrayList<>();
+        if (d.getFechaFinInscripcion() == null || d.getFechaFinInscripcion().isBlank()) {
+            preguntas.add("¿cuál será la fecha límite de inscripción?");
+        }
+        if (d.getRequisitos() == null || d.getRequisitos().isEmpty()) {
+            preguntas.add("¿quisieras agregar algunos requisitos para la inscripción?");
+        }
+        if (d.getSelectedDocenteIds() == null || d.getSelectedDocenteIds().isEmpty()) {
+            preguntas.add("¿qué docente encargado deseas asignar?");
+        }
+
+        String msg = preguntas.isEmpty()
+                ? "He actualizado el borrador completo con tus indicaciones."
+                : "He actualizado los datos indicados. Para completar el borrador, " + String.join(" Y ", preguntas);
+        d.setDocenteSugeridoNombre(msg);
 
         return d;
     }
