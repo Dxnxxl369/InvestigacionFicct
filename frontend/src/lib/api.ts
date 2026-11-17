@@ -1437,6 +1437,15 @@ export interface CalificacionGrupoJurado {
   tipo: "FERIA" | "GRUPO"; proyectoId: number; codigo: string; nombre: string;
   cantidadEvaluaciones: number; promedio: number | null; evaluaciones: EvaluacionJuradoDTO[];
 }
+export interface GrupoRankingJurado extends CalificacionGrupoJurado {
+  puesto: number;
+}
+export interface ResumenEvaluacionJurado {
+  evaluacionCerrada: boolean;
+  fechaCierre: string | null;
+  convocatoriaTitulo: string;
+  ranking: GrupoRankingJurado[];
+}
 export const juradoAPI = {
   grupos: async () => handleResponse<GrupoAsignadoJurado[]>(await fetch(`${API_BASE_URL}/jurado/grupos`, { headers: getAuthHeader() })),
   detalle: async (convocatoriaId: number, tipo: string, proyectoId: number) =>
@@ -1456,6 +1465,12 @@ export const juradoAPI = {
     })),
   calificaciones: async (convocatoriaId: number) => handleResponse<CalificacionGrupoJurado[]>(
     await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/jurados/calificaciones`, { headers: getAuthHeader() })),
+  resumen: async (convocatoriaId: number) => handleResponse<ResumenEvaluacionJurado>(
+    await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/jurados/resumen`, { headers: getAuthHeader() })),
+  cerrarEvaluacion: async (convocatoriaId: number) => handleResponse<ResumenEvaluacionJurado>(
+    await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/jurados/cerrar`, { method: "POST", headers: getAuthHeader() })),
+  reabrirEvaluacion: async (convocatoriaId: number) => handleResponse<ResumenEvaluacionJurado>(
+    await fetch(`${API_BASE_URL}/convocatorias/${convocatoriaId}/jurados/reabrir`, { method: "POST", headers: getAuthHeader() })),
 };
 
 export const uploadsAPI = {

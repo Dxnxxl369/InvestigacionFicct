@@ -35,6 +35,21 @@ public class EvaluacionJuradoController {
         return service.calificaciones(convocatoriaId, usuario.getUsername());
     }
 
+    @GetMapping("/convocatorias/{convocatoriaId}/jurados/resumen")
+    public Object resumen(@PathVariable Long convocatoriaId, @AuthenticationPrincipal UserDetails usuario) {
+        return service.resumenEvaluacion(convocatoriaId, usuario.getUsername());
+    }
+
+    @PostMapping("/convocatorias/{convocatoriaId}/jurados/cerrar")
+    public Object cerrarEvaluacion(@PathVariable Long convocatoriaId, @AuthenticationPrincipal UserDetails usuario) {
+        return service.cerrarEvaluacion(convocatoriaId, usuario.getUsername());
+    }
+
+    @PostMapping("/convocatorias/{convocatoriaId}/jurados/reabrir")
+    public Object reabrirEvaluacion(@PathVariable Long convocatoriaId, @AuthenticationPrincipal UserDetails usuario) {
+        return service.reabrirEvaluacion(convocatoriaId, usuario.getUsername());
+    }
+
     @GetMapping("/jurado/grupos")
     public Object misGrupos(@AuthenticationPrincipal UserDetails usuario) {
         return service.misGrupos(usuario.getUsername());

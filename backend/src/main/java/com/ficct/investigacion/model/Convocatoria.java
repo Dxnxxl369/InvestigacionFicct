@@ -69,6 +69,12 @@ public class Convocatoria {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "evaluacion_jurados_cerrada")
+    private Boolean evaluacionJuradosCerrada = false;
+
+    @Column(name = "fecha_cierre_evaluacion")
+    private LocalDateTime fechaCierreEvaluacion;
+
     public Convocatoria() {
     }
 
@@ -261,5 +267,21 @@ public class Convocatoria {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public boolean isEvaluacionJuradosCerrada() {
+        return Boolean.TRUE.equals(evaluacionJuradosCerrada);
+    }
+
+    public void setEvaluacionJuradosCerrada(boolean evaluacionJuradosCerrada) {
+        this.evaluacionJuradosCerrada = evaluacionJuradosCerrada;
+    }
+
+    public LocalDateTime getFechaCierreEvaluacion() {
+        return fechaCierreEvaluacion;
+    }
+
+    public void setFechaCierreEvaluacion(LocalDateTime fechaCierreEvaluacion) {
+        this.fechaCierreEvaluacion = fechaCierreEvaluacion;
     }
 }

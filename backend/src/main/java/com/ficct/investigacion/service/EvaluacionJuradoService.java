@@ -30,6 +30,10 @@ public class EvaluacionJuradoService {
                                EvaluacionDatos evaluacion) {}
     public record CalificacionGrupo(String tipo, Long proyectoId, String codigo, String nombre,
                                     int cantidadEvaluaciones, Double promedio, List<EvaluacionDatos> evaluaciones) {}
+    public record GrupoRanking(int puesto, String tipo, Long proyectoId, String codigo, String nombre,
+                               int cantidadEvaluaciones, Double promedio, List<EvaluacionDatos> evaluaciones) {}
+    public record ResumenEvaluacion(boolean evaluacionCerrada, LocalDateTime fechaCierre,
+                                    String convocatoriaTitulo, List<GrupoRanking> ranking) {}
 
     private final UserRepository usuarios;
     private final ConvocatoriaRepository convocatorias;
@@ -330,6 +334,9 @@ public class EvaluacionJuradoService {
     public EvaluacionDatos enviar(Long convocatoriaId, String tipo, Long proyectoId,
                                    Respuestas respuestas, String correo) {
         Convocatoria conv = convocatoria(convocatoriaId);
+        if (conv.isEvaluacionJuradosCerrada()) {
+            throw new IllegalArgumentException("Las evaluaciones de jurados para esta convocatoria ya fueron cerradas oficialmente.");
+        }
         User user = usuario(correo);
         ConvocatoriaParticipante jurado = verificarJurado(conv, user);
         verificarProyecto(conv, jurado, tipo, proyectoId);
@@ -366,5 +373,55 @@ public class EvaluacionJuradoService {
                 serializar(form), serializar(respuestas.valores()), comentarios,
                 Math.round(nota * 100.0) / 100.0));
         return datosEvaluacion(guardada);
+    }
+
+    @Transactional(readOnly = true)
+    public ResumenEvaluacion resumenEvaluacion(Long convocatoriaId, String correo) {
+        Convocatoria conv = convocatoria(convocatoriaId);
+        List<CalificacionGrupo> lista = new ArrayList<>(calificaciones(convocatoriaId, correo));
+        // Ordenar por promedio descendente (pendientes al final), desempate por cantidad de evaluaciones y código
+        lista.sort((a, b) -> {
+            if (a.promedio() == null && b.promedio() == null) return 0;
+            if (a.promedio() == null) return 1;
+            if (b.promedio() == null) return -1;
+            int cmp = Double.compare(b.promedio(), a.promedio());
+            if (cmp != 0) return cmp;
+            int cmpEval = Integer.compare(b.cantidadEvaluaciones(), a.cantidadEvaluaciones());
+            if (cmpEval != 0) return cmpEval;
+            return String.valueOf(a.codigo()).compareToIgnoreCase(String.valueOf(b.codigo()));
+        });
+
+        List<GrupoRanking> ranking = new ArrayList<>();
+        int puestoActual = 1;
+        for (CalificacionGrupo g : lista) {
+            int puesto = g.promedio() != null ? puestoActual++ : 0;
+            ranking.add(new GrupoRanking(puesto, g.tipo(), g.proyectoId(), g.codigo(), g.nombre(),
+                    g.cantidadEvaluaciones(), g.promedio(), g.evaluaciones()));
+        }
+        return new ResumenEvaluacion(conv.isEvaluacionJuradosCerrada(), conv.getFechaCierreEvaluacion(),
+                conv.getTitulo(), ranking);
+    }
+
+    @Transactional
+    public ResumenEvaluacion cerrarEvaluacion(Long convocatoriaId, String correo) {
+        Convocatoria conv = convocatoria(convocatoriaId);
+        gestor(conv, usuario(correo));
+        conv.setEvaluacionJuradosCerrada(true);
+        conv.setFechaCierreEvaluacion(LocalDateTime.now());
+        convocatorias.save(conv);
+        return resumenEvaluacion(convocatoriaId, correo);
+    }
+
+    @Transactional
+    public ResumenEvaluacion reabrirEvaluacion(Long convocatoriaId, String correo) {
+        Convocatoria conv = convocatoria(convocatoriaId);
+        User user = usuario(correo);
+        if (user.getRol() != Rol.ADMIN) {
+            throw new AccessDeniedException("Solo un administrador puede reabrir una evaluación cerrada.");
+        }
+        conv.setEvaluacionJuradosCerrada(false);
+        conv.setFechaCierreEvaluacion(null);
+        convocatorias.save(conv);
+        return resumenEvaluacion(convocatoriaId, correo);
     }
 }
