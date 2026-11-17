@@ -25,6 +25,7 @@ public class AgenteConvocatoriaService {
 
     private static final Logger log = LoggerFactory.getLogger(AgenteConvocatoriaService.class);
     private static final String GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+    private static final String GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
 
     private final UserRepository userRepository;
     private final RestTemplate restTemplate;
@@ -33,7 +34,7 @@ public class AgenteConvocatoriaService {
     @Value("${app.groq.api-key:}")
     private String groqApiKey;
 
-    @Value("${app.groq.model:llama-3.3-70b-versatile}")
+    @Value("${app.groq.model:llama-3.1-8b-instant}")
     private String groqModel;
 
     public AgenteConvocatoriaService(UserRepository userRepository) {
@@ -66,6 +67,20 @@ public class AgenteConvocatoriaService {
         } catch (HttpStatusCodeException httpEx) {
             String respBody = httpEx.getResponseBodyAsString();
             log.error("Error HTTP de Groq ({}): {}", httpEx.getStatusCode(), respBody);
+            if (httpEx.getStatusCode().value() == 404) {
+                // Auto-descubrir un modelo habilitado en la cuenta Groq del usuario y reintentar
+                String descubierto = descubrirModeloDisponibleEnGroq();
+                if (descubierto != null && !descubierto.equals(groqModel)) {
+                    log.info(">>> [AgenteConvocatoriaService] Cambiando automáticamente a modelo habilitado en Groq: {}", descubierto);
+                    this.groqModel = descubierto;
+                    try {
+                        mensajeAgente = ejecutarHarnessConTools(request, borrador, docentesActivos);
+                        return construirRespuesta(mensajeAgente, borrador, opcionesDocentes);
+                    } catch (Exception retryEx) {
+                        log.error("Fallo tras auto-descubrir modelo {}: {}", descubierto, retryEx.getMessage());
+                    }
+                }
+            }
             if (httpEx.getStatusCode().value() == 400 && respBody.contains("tool")) {
                 // Reintento automático con JSON Object mode si Groq rechaza tool_calls
                 try {
@@ -92,6 +107,41 @@ public class AgenteConvocatoriaService {
             if (!msg.isBlank()) return msg;
         } catch (Exception ignored) {}
         return body != null && body.length() > 160 ? body.substring(0, 160) : String.valueOf(body);
+    }
+
+    private String descubrirModeloDisponibleEnGroq() {
+        try {
+            HttpEntity<Void> req = new HttpEntity<>(crearHeadersGroq());
+            ResponseEntity<String> res = restTemplate.exchange(GROQ_MODELS_URL, HttpMethod.GET, req, String.class);
+            if (!res.getStatusCode().is2xxSuccessful() || res.getBody() == null) return null;
+            JsonNode data = objectMapper.readTree(res.getBody()).path("data");
+            if (!data.isArray()) return null;
+
+            List<String> disponibles = new ArrayList<>();
+            for (JsonNode m : data) {
+                String id = m.path("id").asText("");
+                String lower = id.toLowerCase(Locale.ROOT);
+                // Excluir modelos de audio (whisper) y moderacion (guard)
+                if (!id.isBlank() && !lower.contains("whisper") && !lower.contains("guard") && !lower.contains("tts")) {
+                    disponibles.add(id);
+                }
+            }
+            List<String> prioridad = List.of(
+                    "llama-3.1-8b-instant",
+                    "llama-3.3-70b-versatile",
+                    "openai/gpt-oss-120b",
+                    "openai/gpt-oss-20b",
+                    "qwen/qwen3-32b",
+                    "meta-llama/llama-4-scout-17b-16e-instruct"
+            );
+            for (String p : prioridad) {
+                if (disponibles.contains(p)) return p;
+            }
+            return disponibles.isEmpty() ? null : disponibles.get(0);
+        } catch (Exception e) {
+            log.warn("No se pudo consultar la lista de modelos de Groq: {}", e.getMessage());
+            return null;
+        }
     }
 
     private HttpHeaders crearHeadersGroq() {
