@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
@@ -62,18 +63,64 @@ public class AgenteConvocatoriaService {
         String mensajeAgente;
         try {
             mensajeAgente = ejecutarHarnessConTools(request, borrador, docentesActivos);
+        } catch (HttpStatusCodeException httpEx) {
+            String respBody = httpEx.getResponseBodyAsString();
+            log.error("Error HTTP de Groq ({}): {}", httpEx.getStatusCode(), respBody);
+            if (httpEx.getStatusCode().value() == 400 && respBody.contains("tool")) {
+                // Reintento automático con JSON Object mode si Groq rechaza tool_calls
+                try {
+                    mensajeAgente = ejecutarModoJsonDirecto(request, borrador, docentesActivos);
+                } catch (Exception retryEx) {
+                    log.error("Fallo en reintento JSON directo de Groq: {}", retryEx.getMessage(), retryEx);
+                    mensajeAgente = "Error al consultar Groq (" + httpEx.getStatusCode().value() + "): " + extraerMensajeErrorGroq(respBody);
+                }
+            } else {
+                mensajeAgente = "Error al consultar Groq (" + httpEx.getStatusCode().value() + "): " + extraerMensajeErrorGroq(respBody);
+            }
         } catch (Exception e) {
             log.error("Error ejecutando Harness de Agente IA con Groq (modelo {}): {}", groqModel, e.getMessage(), e);
-            mensajeAgente = "Ocurrió un inconveniente al comunicarme con el modelo de IA (" + groqModel + "). " +
-                    "Verifica que la clave GROQ_API_KEY en el servidor sea válida e inténtalo nuevamente.";
+            mensajeAgente = "Ocurrió un inconveniente al comunicarme con el modelo de IA (" + groqModel + "): " + e.getMessage();
         }
 
         return construirRespuesta(mensajeAgente, borrador, opcionesDocentes);
     }
 
-    private String ejecutarHarnessConTools(ChatRequest request, ConvocatoriaBorradorDTO borrador, List<User> docentesActivos)
-            throws JsonProcessingException {
+    private String extraerMensajeErrorGroq(String body) {
+        try {
+            JsonNode n = objectMapper.readTree(body);
+            String msg = n.path("error").path("message").asText("");
+            if (!msg.isBlank()) return msg;
+        } catch (Exception ignored) {}
+        return body != null && body.length() > 160 ? body.substring(0, 160) : String.valueOf(body);
+    }
 
+    private HttpHeaders crearHeadersGroq() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(groqApiKey.trim());
+        headers.set("User-Agent", "FICCT-Backend/1.0");
+        return headers;
+    }
+
+    private List<Map<String, Object>> construirHistorialMensajes(String systemPrompt, ChatRequest request) {
+        List<Map<String, Object>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", systemPrompt));
+
+        if (request.getHistorial() != null && !request.getHistorial().isEmpty()) {
+            int start = Math.max(0, request.getHistorial().size() - 10);
+            for (int i = start; i < request.getHistorial().size(); i++) {
+                ChatMessage hm = request.getHistorial().get(i);
+                if (hm.getTexto() == null || hm.getTexto().isBlank()) continue;
+                String role = "AGENTE".equalsIgnoreCase(hm.getRemitente()) ? "assistant" : "user";
+                messages.add(Map.of("role", role, "content", hm.getTexto()));
+            }
+        }
+        messages.add(Map.of("role", "user", "content", request.getMensaje()));
+        return messages;
+    }
+
+    private String construirSystemPrompt(ConvocatoriaBorradorDTO borrador, List<User> docentesActivos)
+            throws JsonProcessingException {
         StringBuilder docCatalogo = new StringBuilder();
         for (User d : docentesActivos) {
             docCatalogo.append("- ID ").append(d.getId()).append(": ").append(d.getNombreCompleto())
@@ -83,7 +130,7 @@ public class AgenteConvocatoriaService {
         LocalDate hoy = LocalDate.now();
         String estadoJson = objectMapper.writeValueAsString(borrador);
 
-        String systemPrompt = """
+        return """
                 Eres el Agente Inteligente de la FICCT (UAGRM) que ayuda a administradores y docentes a diseñar convocatorias académicas (Hackathon, Feria, Concurso o Investigación).
                 Fecha actual del sistema: """ + hoy + """
                 
@@ -102,7 +149,6 @@ public class AgenteConvocatoriaService {
                 ) o cupos de equipo.
                    - Usa `gestionar_requisitos` cuando el usuario mencione requisitos a agregar, reemplazar o quitar.
                    - Usa `asignar_docente` únicamente cuando el usuario mencione explícitamente a un docente del catálogo.
-                   - Puedes llamar una o varias herramientas en el mismo turno si el usuario dio varios datos a la vez.
                 3. REGLAS ESTRICTAS:
                    - NUNCA inventes ni agregues requisitos por tu cuenta si el usuario no los dio ni pidió sugerencias.
                    - Si el borrador no tiene requisitos (`requisitos` está vacío), pregunta explícitamente al usuario: "¿Quisieras agregar algunos requisitos para la inscripción?".
@@ -112,28 +158,16 @@ public class AgenteConvocatoriaService {
                 4. RESPUESTA FINAL:
                    - Después de ejecutar las herramientas, confirma brevemente lo que actualizaste y pregunta de forma amable solo por los campos que todavía falten en el borrador (fecha límite, requisitos o docente encargado). Responde en máximo 3 líneas claras, sin mostrar JSON ni nombres técnicos internos.
                 """;
+    }
 
-        List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", systemPrompt));
+    private String ejecutarHarnessConTools(ChatRequest request, ConvocatoriaBorradorDTO borrador, List<User> docentesActivos)
+            throws JsonProcessingException {
 
-        if (request.getHistorial() != null && !request.getHistorial().isEmpty()) {
-            int start = Math.max(0, request.getHistorial().size() - 10);
-            for (int i = start; i < request.getHistorial().size(); i++) {
-                ChatMessage hm = request.getHistorial().get(i);
-                if (hm.getTexto() == null || hm.getTexto().isBlank()) continue;
-                String role = "AGENTE".equalsIgnoreCase(hm.getRemitente()) ? "assistant" : "user";
-                messages.add(Map.of("role", role, "content", hm.getTexto()));
-            }
-        }
-        messages.add(Map.of("role", "user", "content", request.getMensaje()));
-
+        String systemPrompt = construirSystemPrompt(borrador, docentesActivos);
+        List<Map<String, Object>> messages = construirHistorialMensajes(systemPrompt, request);
         List<Map<String, Object>> tools = construirDefinicionTools();
+        HttpHeaders headers = crearHeadersGroq();
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(groqApiKey.trim());
-
-        // Loop agéntico: máximo 3 rondas de Tool Calling -> Respuesta final
         for (int iter = 0; iter < 3; iter++) {
             Map<String, Object> body = new HashMap<>();
             body.put("model", groqModel);
@@ -155,14 +189,11 @@ public class AgenteConvocatoriaService {
             JsonNode toolCalls = choiceMsg.path("tool_calls");
 
             if (toolCalls.isArray() && !toolCalls.isEmpty()) {
-                // Agregar el mensaje del asistente con sus tool_calls al historial de la ronda
                 Map<String, Object> assistantMsg = new HashMap<>();
                 assistantMsg.put("role", "assistant");
-                assistantMsg.put("content", choiceMsg.path("content").isNull() ? "" : choiceMsg.path("content").asText(""));
                 assistantMsg.put("tool_calls", objectMapper.convertValue(toolCalls, List.class));
                 messages.add(assistantMsg);
 
-                // Ejecutar cada tool determinísticamente sobre el borrador
                 for (JsonNode tc : toolCalls) {
                     String callId = tc.path("id").asText();
                     String fnName = tc.path("function").path("name").asText();
@@ -173,7 +204,6 @@ public class AgenteConvocatoriaService {
                     Map<String, Object> toolResultMsg = new HashMap<>();
                     toolResultMsg.put("role", "tool");
                     toolResultMsg.put("tool_call_id", callId);
-                    toolResultMsg.put("name", fnName);
                     toolResultMsg.put("content", toolOutput);
                     messages.add(toolResultMsg);
                 }
@@ -187,6 +217,65 @@ public class AgenteConvocatoriaService {
         }
 
         return "He actualizado el borrador según tus indicaciones. Revisa el panel lateral para verificar los cambios.";
+    }
+
+    private String ejecutarModoJsonDirecto(ChatRequest request, ConvocatoriaBorradorDTO borrador, List<User> docentesActivos)
+            throws JsonProcessingException {
+        String systemPrompt = construirSystemPrompt(borrador, docentesActivos) + """
+                
+                FORMATO DE SALIDA OBLIGATORIO (JSON):
+                Responde ÚNICAMENTE con un JSON válido con esta estructura:
+                {
+                  "tipo": "HACKATHON" | "FERIA" | "CONCURSO" | "INVESTIGACION" | null,
+                  "modalidadInscripcion": "GRUPAL" | "INDIVIDUAL" | null,
+                  "titulo": "string o null",
+                  "descripcion": "string o null",
+                  "fechaFinInscripcion": "YYYY-MM-DD o null",
+                  "cuposMinEquipo": integer o null,
+                  "cuposMaxEquipo": integer o null,
+                  "requisitos": ["solo si el usuario dio requisitos o pidió cambios, sino null"],
+                  "selectedDocenteIds": [solo si el usuario nombró docente, sino null],
+                  "mensaje": "tu respuesta conversacional amable en español"
+                }
+                """;
+
+        List<Map<String, Object>> messages = construirHistorialMensajes(systemPrompt, request);
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", groqModel);
+        body.put("messages", messages);
+        body.put("response_format", Map.of("type", "json_object"));
+        body.put("temperature", 0.2);
+        body.put("max_tokens", 900);
+
+        ResponseEntity<String> res = restTemplate.postForEntity(GROQ_URL, new HttpEntity<>(body, crearHeadersGroq()), String.class);
+        JsonNode root = objectMapper.readTree(res.getBody());
+        String rawContent = root.path("choices").get(0).path("message").path("content").asText();
+        JsonNode node = objectMapper.readTree(rawContent);
+
+        if (node.hasNonNull("tipo")) borrador.setTipo(node.get("tipo").asText().toUpperCase(Locale.ROOT));
+        if (node.hasNonNull("modalidadInscripcion")) borrador.setModalidadInscripcion(node.get("modalidadInscripcion").asText().toUpperCase(Locale.ROOT));
+        if (node.hasNonNull("titulo")) borrador.setTitulo(node.get("titulo").asText());
+        if (node.hasNonNull("descripcion")) borrador.setDescripcion(node.get("descripcion").asText());
+        if (node.hasNonNull("fechaFinInscripcion")) borrador.setFechaFinInscripcion(node.get("fechaFinInscripcion").asText());
+        if (node.hasNonNull("cuposMinEquipo")) borrador.setCuposMinEquipo(node.get("cuposMinEquipo").asInt());
+        if (node.hasNonNull("cuposMaxEquipo")) borrador.setCuposMaxEquipo(node.get("cuposMaxEquipo").asInt());
+        if (node.hasNonNull("requisitos") && node.get("requisitos").isArray()) {
+            List<String> reqs = new ArrayList<>();
+            node.get("requisitos").forEach(r -> {
+                String t = r.asText().trim();
+                if (!t.isEmpty()) reqs.add(t);
+            });
+            borrador.setRequisitos(reqs);
+        }
+        if (node.hasNonNull("selectedDocenteIds") && node.get("selectedDocenteIds").isArray()) {
+            Set<Long> validIds = docentesActivos.stream().map(User::getId).collect(Collectors.toSet());
+            List<Long> ids = new ArrayList<>();
+            node.get("selectedDocenteIds").forEach(n -> {
+                if (validIds.contains(n.asLong())) ids.add(n.asLong());
+            });
+            borrador.setSelectedDocenteIds(ids);
+        }
+        return node.path("mensaje").asText("He actualizado el borrador según tus indicaciones.");
     }
 
     private String ejecutarHerramienta(String fnName, String argsRaw,
@@ -284,6 +373,7 @@ public class AgenteConvocatoriaService {
                         "description", "Actualiza uno o más campos generales de la convocatoria en borrador. Envía únicamente los campos que el usuario pidió establecer o cambiar.",
                         "parameters", Map.of(
                                 "type", "object",
+                                "required", List.of(),
                                 "properties", Map.of(
                                         "tipo", Map.of("type", "string", "enum", List.of("HACKATHON", "FERIA", "CONCURSO", "INVESTIGACION")),
                                         "modalidadInscripcion", Map.of("type", "string", "enum", List.of("GRUPAL", "INDIVIDUAL")),
