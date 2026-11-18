@@ -943,6 +943,24 @@ export default function ConvocatoriaDetallePage() {
           />
         )}
 
+        <CrearEditarTareaModal
+          isOpen={showCreateTareaModal}
+          onClose={() => {
+            setShowCreateTareaModal(false);
+            setTareaEditing(null);
+            setTareaModuloIdDefault(null);
+          }}
+          convocatoriaId={convocatoriaId}
+          tareaEditing={tareaEditing}
+          moduloIdDefault={tareaModuloIdDefault}
+          modulos={modulos}
+          onSuccess={(updatedTareas, updatedTareaDetalle) => {
+            setTareas(updatedTareas);
+            if (updatedTareaDetalle) setActiveTareaDetalle(updatedTareaDetalle);
+          }}
+          toast={toast}
+        />
+
         {/* Modal de Confirmación de Eliminación */}
         {itemAEliminar && (
           <ConfirmarEliminacionModal

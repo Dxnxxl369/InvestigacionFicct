@@ -1,6 +1,7 @@
 package com.ficct.investigacion.model;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,6 +34,18 @@ public class PlantillaActividad {
     @Column(name = "entrega_grupal")
     private Boolean entregaGrupal;
 
+    @Column(name = "fecha_habilitacion")
+    private LocalDateTime fechaHabilitacion;
+
+    @Column(name = "fecha_entrega")
+    private LocalDateTime fechaEntrega;
+
+    @Column(name = "fecha_limite")
+    private LocalDateTime fechaLimite;
+
+    @Column(name = "habilitada")
+    private Boolean habilitada;
+
     @ElementCollection
     @CollectionTable(name = "plantilla_actividad_adjuntos", joinColumns = @JoinColumn(name = "actividad_id"))
     @OrderColumn(name = "orden")
@@ -62,6 +75,14 @@ public class PlantillaActividad {
     public void setVisibleJurados(boolean visibleJurados) { this.visibleJurados = visibleJurados; }
     public Boolean getEntregaGrupal() { return entregaGrupal; }
     public void setEntregaGrupal(Boolean entregaGrupal) { this.entregaGrupal = entregaGrupal; }
+    public LocalDateTime getFechaHabilitacion() { return fechaHabilitacion; }
+    public void setFechaHabilitacion(LocalDateTime fechaHabilitacion) { this.fechaHabilitacion = fechaHabilitacion; }
+    public LocalDateTime getFechaEntrega() { return fechaEntrega; }
+    public void setFechaEntrega(LocalDateTime fechaEntrega) { this.fechaEntrega = fechaEntrega; }
+    public LocalDateTime getFechaLimite() { return fechaLimite; }
+    public void setFechaLimite(LocalDateTime fechaLimite) { this.fechaLimite = fechaLimite; }
+    public Boolean getHabilitada() { return habilitada; }
+    public void setHabilitada(Boolean habilitada) { this.habilitada = habilitada; }
     public List<AdjuntoTarea> getAdjuntos() { return adjuntos; }
     public List<PlantillaCriterio> getRubrica() { return rubrica; }
 }

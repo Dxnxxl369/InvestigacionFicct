@@ -94,6 +94,9 @@ public class Tarea {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "fechas_personalizadas")
+    private Boolean fechasPersonalizadas = false;
+
     public Tarea() {
     }
 
@@ -321,5 +324,13 @@ public class Tarea {
 
     public void setActividadGrupo(ActividadGrupo actividadGrupo) {
         this.actividadGrupo = actividadGrupo;
+    }
+
+    public boolean isFechasPersonalizadas() {
+        return Boolean.TRUE.equals(fechasPersonalizadas);
+    }
+
+    public void setFechasPersonalizadas(boolean fechasPersonalizadas) {
+        this.fechasPersonalizadas = fechasPersonalizadas;
     }
 }

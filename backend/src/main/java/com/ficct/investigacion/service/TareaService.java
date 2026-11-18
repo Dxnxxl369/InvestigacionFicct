@@ -208,6 +208,8 @@ public class TareaService {
         if (request.getDescripcion() != null) {
             tarea.setDescripcion(request.getDescripcion());
         }
+        boolean editoFechas = request.getFechaHabilitacion() != null || request.getFechaEntrega() != null
+                || request.getFechaLimite() != null || request.getFechaCorte() != null;
         if (request.getFechaHabilitacion() != null) {
             tarea.setFechaHabilitacion(request.getFechaHabilitacion());
         }
@@ -217,6 +219,9 @@ public class TareaService {
             tarea.setFechaEntrega(request.getFechaLimite());
         }
         tarea.setFechaCorte(request.getFechaCorte());
+        if (editoFechas) {
+            tarea.setFechasPersonalizadas(true);
+        }
         tarea.setHabilitada(request.isHabilitada());
         if (tarea.isPlantillaFeria() || tarea.isPlantillaModulo()) {
             if (tarea.getFechaHabilitacion() != null && tarea.getFechaEntrega() != null &&

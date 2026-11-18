@@ -228,9 +228,28 @@ export default function PlantillasPage() {
                   <label className="text-xs font-semibold">Tamaño máximo (MB)<input type="number" min={1} className={`${campo} mt-1`} value={a.tamanoMaximoMb ?? 15} onChange={e => actualizarActividad(i, { tamanoMaximoMb: Number(e.target.value) })} /></label>
                   <label className="text-xs font-semibold">Puntaje máximo<input type="number" min={0} step="0.1" className={`${campo} mt-1`} value={a.puntajeMaximo ?? 100} onChange={e => actualizarActividad(i, { puntajeMaximo: Number(e.target.value) })} /></label>
                 </div>
+                <div className="mt-3 grid gap-3 rounded-xl border border-line bg-paper p-3 md:grid-cols-3">
+                  <div className="md:col-span-3 text-xs font-bold text-ink">
+                    Fechas globales precargadas (opcional)
+                    <span className="ml-2 font-normal text-ink-soft">Se aplican a aulas nuevas y aulas activas cuya tarea no haya sido editada individualmente.</span>
+                  </div>
+                  <label className="text-xs font-semibold">
+                    Apertura / Habilitación
+                    <input type="datetime-local" className={`${campo} mt-1`} value={a.fechaHabilitacion ? a.fechaHabilitacion.slice(0, 16) : ""} onChange={e => actualizarActividad(i, { fechaHabilitacion: e.target.value || null })} />
+                  </label>
+                  <label className="text-xs font-semibold">
+                    Fecha de entrega regular
+                    <input type="datetime-local" className={`${campo} mt-1`} value={a.fechaEntrega ? a.fechaEntrega.slice(0, 16) : ""} onChange={e => actualizarActividad(i, { fechaEntrega: e.target.value || null })} />
+                  </label>
+                  <label className="text-xs font-semibold">
+                    Fecha límite / corte
+                    <input type="datetime-local" className={`${campo} mt-1`} value={a.fechaLimite ? a.fechaLimite.slice(0, 16) : ""} onChange={e => actualizarActividad(i, { fechaLimite: e.target.value || null })} />
+                  </label>
+                </div>
                 <div className="mt-3 flex flex-wrap items-center gap-4">
                   <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={a.visibleJurados} onChange={e => actualizarActividad(i, { visibleJurados: e.target.checked })} /> Visible para jurados</label>
                   <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={a.entregaGrupal} onChange={e => actualizarActividad(i, { entregaGrupal: e.target.checked })} /> Entrega grupal</label>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(a.habilitada)} onChange={e => actualizarActividad(i, { habilitada: e.target.checked })} /> Habilitar recepción por defecto</label>
                 </div>
                 <div className="mt-4 border-t border-line pt-3">
                   <label className="text-xs font-bold">Archivos de indicaciones</label>

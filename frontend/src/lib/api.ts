@@ -1367,6 +1367,10 @@ export interface PlantillaActividadDTO {
   puntajeMaximo?: number;
   visibleJurados: boolean;
   entregaGrupal: boolean;
+  fechaHabilitacion?: string | null;
+  fechaEntrega?: string | null;
+  fechaLimite?: string | null;
+  habilitada?: boolean;
   adjuntos?: { nombre: string; ruta: string; tamanoBytes?: number }[];
   rubrica?: { nombre: string; descripcion?: string; puntajeMaximo: number }[];
 }

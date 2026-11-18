@@ -7,6 +7,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -36,6 +37,8 @@ public class PlantillaService {
     public record ActividadDatos(Long id, String titulo, String descripcion,
                                  String tiposArchivosPermitidos, Integer tamanoMaximoMb,
                                  Double puntajeMaximo, boolean visibleJurados, boolean entregaGrupal,
+                                 LocalDateTime fechaHabilitacion, LocalDateTime fechaEntrega,
+                                 LocalDateTime fechaLimite, Boolean habilitada,
                                  List<AdjuntoDatos> adjuntos, List<CriterioDatos> rubrica) {}
     public record PlantillaDatos(Long id, String titulo, String descripcion,
                                  List<ActividadDatos> actividades) {}
@@ -253,6 +256,15 @@ public class PlantillaService {
                 t.setPuntajeMaximo(actividad.getPuntajeMaximo());
                 t.setVisibleJurados(actividad.isVisibleJurados());
                 t.setEsGrupal(Boolean.TRUE.equals(actividad.getEntregaGrupal()));
+                // Solo propagar fechas globales si la tarea no fue personalizada individualmente en esta aula
+                if (!t.isFechasPersonalizadas()) {
+                    t.setFechaHabilitacion(actividad.getFechaHabilitacion());
+                    t.setFechaEntrega(actividad.getFechaEntrega());
+                    t.setFechaCorte(actividad.getFechaLimite());
+                    if (actividad.getHabilitada() != null) {
+                        t.setHabilitada(Boolean.TRUE.equals(actividad.getHabilitada()));
+                    }
+                }
                 tareas.save(t);
             } else {
                 crearTareaDeActividad(conv, modulo, conv.getCreador(), actividad);
@@ -284,10 +296,12 @@ public class PlantillaService {
 
     private void crearTareaDeActividad(Convocatoria convocatoria, Modulo modulo, User creador, PlantillaActividad actividad) {
         Tarea tarea = new Tarea(convocatoria, actividad.getTitulo(), actividad.getDescripcion(),
-                null, null, null, false, actividad.getTiposArchivosPermitidos(),
+                actividad.getFechaHabilitacion(), actividad.getFechaEntrega(), actividad.getFechaLimite(),
+                Boolean.TRUE.equals(actividad.getHabilitada()), actividad.getTiposArchivosPermitidos(),
                 actividad.getTamanoMaximoMb(), actividad.getPuntajeMaximo(), creador);
         tarea.setModulo(modulo);
         tarea.setPlantillaModulo(true);
+        tarea.setFechasPersonalizadas(false);
         tarea.setVisibleJurados(actividad.isVisibleJurados());
         for (AdjuntoTarea adjunto : actividad.getAdjuntos()) {
             tarea.getAdjuntos().add(new AdjuntoTarea(adjunto.getNombre(), adjunto.getRuta(), adjunto.getTamanoBytes()));
@@ -344,6 +358,10 @@ public class PlantillaService {
             actividad.setPuntajeMaximo(datosActividad.puntajeMaximo() == null ? 100.0 : datosActividad.puntajeMaximo());
             actividad.setVisibleJurados(datosActividad.visibleJurados());
             actividad.setEntregaGrupal(datosActividad.entregaGrupal());
+            actividad.setFechaHabilitacion(datosActividad.fechaHabilitacion());
+            actividad.setFechaEntrega(datosActividad.fechaEntrega());
+            actividad.setFechaLimite(datosActividad.fechaLimite());
+            actividad.setHabilitada(datosActividad.habilitada());
             for (AdjuntoDatos adjunto : datosActividad.adjuntos() == null
                     ? List.<AdjuntoDatos>of() : datosActividad.adjuntos()) {
                 if (adjunto == null || adjunto.nombre() == null || adjunto.nombre().isBlank()
@@ -373,6 +391,7 @@ public class PlantillaService {
                 plantilla.getActividades().stream().map(a -> new ActividadDatos(a.getId(), a.getTitulo(),
                         a.getDescripcion(), a.getTiposArchivosPermitidos(), a.getTamanoMaximoMb(),
                         a.getPuntajeMaximo(), a.isVisibleJurados(), Boolean.TRUE.equals(a.getEntregaGrupal()),
+                        a.getFechaHabilitacion(), a.getFechaEntrega(), a.getFechaLimite(), a.getHabilitada(),
                         a.getAdjuntos().stream().map(ad -> new AdjuntoDatos(ad.getNombre(), ad.getRuta(), ad.getTamanoBytes())).toList(),
                         a.getRubrica().stream().map(c -> new CriterioDatos(c.getNombre(), c.getDescripcion(), c.getPuntajeMaximo())).toList())).toList());
     }
