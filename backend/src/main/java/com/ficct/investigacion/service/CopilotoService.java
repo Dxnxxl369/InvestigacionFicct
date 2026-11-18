@@ -160,10 +160,17 @@ public class CopilotoService {
             switch (fnName) {
                 case "consultar_mis_aulas_y_pendientes" -> {
                     List<Map<String, Object>> resumenAulas = consultarAulasSeguras(user, response);
+                    long totalPendientes = resumenAulas.stream()
+                            .mapToLong(a -> {
+                                Object val = a.containsKey("pendientes") ? a.get("pendientes") : a.get("pendientesPorEvaluar");
+                                return val instanceof Number n ? n.longValue() : 0L;
+                            })
+                            .sum();
                     return objectMapper.writeValueAsString(Map.of(
                             "ok", true,
                             "rol", user.getRol().name(),
                             "totalAulas", resumenAulas.size(),
+                            "totalPendientes", totalPendientes,
                             "aulas", resumenAulas
                     ));
                 }
@@ -314,9 +321,11 @@ public class CopilotoService {
                 REGLAS DE ACCIÓN Y NAVEGACIÓN:
                 1. Si el usuario pregunta por **tareas pendientes, entregas por revisar o sus aulas/actividades**:
                    - Llama SIEMPRE a `consultar_mis_aulas_y_pendientes`.
-                   - El sistema devolverá las aulas con su número exacto de pendientes y mostrará botones clicables al usuario.
-                   - Si tiene varias aulas (>1), dile amablemente cuántas pendientes tiene y pídele que elija cuál desea abrir de las opciones mostradas.
+                   - El sistema devolverá las aulas con su número exacto de pendientes y mostrará tarjetas/pastillas clicables debajo de tu respuesta.
+                   - Si `totalPendientes` es 0 y tiene aulas (`totalAulas > 0`), responde con tono alegre y cercano (nada seco), por ejemplo: "¡No tienes tareas pendientes, estás totalmente al día! Aquí te muestro tus aulas por si quieres darles un vistazo:".
+                   - Si `totalPendientes > 0` y tiene varias aulas (>1), dile amablemente cuántas pendientes tiene y pídele que elija cuál desea abrir de las opciones mostradas.
                    - Si solo tiene 1 aula y pidió explícitamente "llévame / ir a", llama también a `navegar_a` con la ruta de esa aula.
+                   - Si `totalAulas` es 0, dile amablemente que aún no tiene aulas asignadas o inscripciones activas y pregúntale si desea ir a ver convocatorias.
                 2. Si el usuario pide ir a un módulo específico:
                    - Reportes IA -> `navegar_a("/dashboard/reportes")`
                    - Convocatorias / Ferias -> `navegar_a("/dashboard/convocatorias")`

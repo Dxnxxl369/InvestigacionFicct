@@ -1842,8 +1842,8 @@ export const api = {
 };
 
 export interface CopilotoChatMessage {
-  role: "user" | "assistant";
-  content: string;
+  remitente: "USER" | "COPILOTO";
+  texto: string;
 }
 
 export interface CopilotoRequest {
@@ -1853,19 +1853,18 @@ export interface CopilotoRequest {
 }
 
 export interface CopilotoOpcionNavegacion {
-  id: number | null;
   titulo: string;
   subtitulo: string;
   ruta: string;
-  pendientes: number;
-  tipo: string;
+  badge: string;
+  tipoAccion: string;
 }
 
 export interface CopilotoResponse {
-  respuesta: string;
-  accion: "NINGUNA" | "NAVEGAR" | "MOSTRAR_OPCIONES" | "ABRIR_AGENTE_CONVOCATORIA";
+  mensaje: string;
+  accion: "NONE" | "NAVEGAR" | "MOSTRAR_OPCIONES" | "ABRIR_AGENTE_CONVOCATORIA";
   rutaDestino: string | null;
-  promptInicialAgente: string | null;
+  mensajeInicialAgente: string | null;
   opciones: CopilotoOpcionNavegacion[];
 }
 

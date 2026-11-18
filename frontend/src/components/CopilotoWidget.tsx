@@ -131,8 +131,8 @@ export default function CopilotoWidget() {
         .filter((m) => m.id !== "welcome")
         .slice(-8)
         .map((m) => ({
-          role: m.role,
-          content: m.content,
+          remitente: m.role === "user" ? "USER" : "COPILOTO",
+          texto: m.content,
         }));
 
       setMensajes((prev) => [...prev, userMsg]);
@@ -150,7 +150,7 @@ export default function CopilotoWidget() {
         const botMsg: ChatItem = {
           id: `b-${Date.now()}`,
           role: "assistant",
-          content: resp.respuesta,
+          content: resp.mensaje,
           opciones: resp.opciones && resp.opciones.length > 0 ? resp.opciones : undefined,
         };
         setMensajes((prev) => [...prev, botMsg]);
@@ -364,10 +364,10 @@ export default function CopilotoWidget() {
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {op.pendientes > 0 ? (
+                          {op.badge && !op.badge.startsWith("0 ") ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
                               <Clock className="w-2.5 h-2.5" />
-                              {op.pendientes}
+                              {op.badge}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">

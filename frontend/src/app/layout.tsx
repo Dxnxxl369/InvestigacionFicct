@@ -3,7 +3,6 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ToastProvider } from "@/context/ToastContext";
-import { AssistantChat } from "@/components/AssistantChat";
 
 export const metadata: Metadata = {
   title: "FICCT · Sistema de Apoyo a la Investigación",
@@ -22,7 +21,6 @@ export default function RootLayout({
           <ToastProvider>
             <AuthProvider>
               {children}
-              <AssistantChat />
             </AuthProvider>
           </ToastProvider>
         </ThemeProvider>
