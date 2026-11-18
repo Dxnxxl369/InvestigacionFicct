@@ -12,13 +12,10 @@ import com.ficct.investigacion.model.User;
 import com.ficct.investigacion.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
 
@@ -26,31 +23,24 @@ import java.util.*;
 public class CopilotoService {
 
     private static final Logger log = LoggerFactory.getLogger(CopilotoService.class);
-    private static final String GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-    private static final String GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
 
     private final UserRepository userRepository;
     private final ConvocatoriaService convocatoriaService;
     private final TareaService tareaService;
     private final EvaluacionJuradoService evaluacionJuradoService;
-    private final RestTemplate restTemplate;
+    private final LlmGatewayService llmGatewayService;
     private final ObjectMapper objectMapper;
-
-    @Value("${app.groq.api-key:}")
-    private String groqApiKey;
-
-    @Value("${app.groq.model:llama-3.1-8b-instant}")
-    private String groqModel;
 
     public CopilotoService(UserRepository userRepository,
                            ConvocatoriaService convocatoriaService,
                            TareaService tareaService,
-                           EvaluacionJuradoService evaluacionJuradoService) {
+                           EvaluacionJuradoService evaluacionJuradoService,
+                           LlmGatewayService llmGatewayService) {
         this.userRepository = userRepository;
         this.convocatoriaService = convocatoriaService;
         this.tareaService = tareaService;
         this.evaluacionJuradoService = evaluacionJuradoService;
-        this.restTemplate = new RestTemplate();
+        this.llmGatewayService = llmGatewayService;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -61,8 +51,8 @@ public class CopilotoService {
 
         CopilotoResponse response = new CopilotoResponse();
 
-        if (groqApiKey == null || groqApiKey.isBlank()) {
-            response.setMensaje("El servidor no tiene configurada la clave GROQ_API_KEY para el Copiloto IA.");
+        if (!llmGatewayService.hasAnyProviderConfigured()) {
+            response.setMensaje("El servidor no tiene configurada ni LOCAL_AI_URL ni GROQ_API_KEY para el Copiloto IA.");
             return response;
         }
 
@@ -70,19 +60,7 @@ public class CopilotoService {
             String reply = ejecutarHarnessCopiloto(request, user, response);
             response.setMensaje(reply);
         } catch (HttpStatusCodeException httpEx) {
-            String respBody = httpEx.getResponseBodyAsString();
-            log.error("Error HTTP de Groq en Copiloto ({}): {}", httpEx.getStatusCode(), respBody);
-            if (httpEx.getStatusCode().value() == 404) {
-                String descubierto = descubrirModeloDisponible();
-                if (descubierto != null && !descubierto.equals(groqModel)) {
-                    this.groqModel = descubierto;
-                    try {
-                        String reply = ejecutarHarnessCopiloto(request, user, response);
-                        response.setMensaje(reply);
-                        return response;
-                    } catch (Exception ignored) {}
-                }
-            }
+            log.error("Error HTTP en Copiloto ({}): {}", httpEx.getStatusCode(), httpEx.getResponseBodyAsString());
             response.setMensaje("Tuve un problema temporal al consultar el motor de IA. Inténtalo nuevamente en unos segundos.");
         } catch (Exception e) {
             log.error("Error en CopilotoService: {}", e.getMessage(), e);
@@ -109,19 +87,16 @@ public class CopilotoService {
         messages.add(Map.of("role", "user", "content", request.getMensaje()));
 
         List<Map<String, Object>> tools = construirTools();
-        HttpHeaders headers = crearHeaders();
 
         for (int iter = 0; iter < 3; iter++) {
             Map<String, Object> body = new HashMap<>();
-            body.put("model", groqModel);
             body.put("messages", messages);
             body.put("tools", tools);
             body.put("tool_choice", "auto");
             body.put("temperature", 0.2);
             body.put("max_tokens", 700);
 
-            ResponseEntity<String> res = restTemplate.postForEntity(GROQ_URL, new HttpEntity<>(body, headers), String.class);
-            JsonNode root = objectMapper.readTree(res.getBody());
+            JsonNode root = llmGatewayService.chatCompletions(body);
             JsonNode choiceMsg = root.path("choices").get(0).path("message");
             JsonNode toolCalls = choiceMsg.path("tool_calls");
 
@@ -132,9 +107,10 @@ public class CopilotoService {
                 messages.add(assistantMsg);
 
                 for (JsonNode tc : toolCalls) {
-                    String callId = tc.path("id").asText();
+                    String callId = tc.path("id").asText("call_" + iter);
                     String fnName = tc.path("function").path("name").asText();
-                    String argsRaw = tc.path("function").path("arguments").asText("{}");
+                    JsonNode argsNode = tc.path("function").path("arguments");
+                    String argsRaw = argsNode.isTextual() ? argsNode.asText("{}") : argsNode.toString();
 
                     String output = ejecutarTool(fnName, argsRaw, user, response);
 
@@ -386,36 +362,5 @@ public class CopilotoService {
                         )
                 )
         );
-    }
-
-    private HttpHeaders crearHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(groqApiKey.trim());
-        headers.set("User-Agent", "FICCT-Backend/1.0");
-        return headers;
-    }
-
-    private String descubrirModeloDisponible() {
-        try {
-            ResponseEntity<String> res = restTemplate.exchange(
-                    GROQ_MODELS_URL, HttpMethod.GET, new HttpEntity<>(crearHeaders()), String.class);
-            if (!res.getStatusCode().is2xxSuccessful() || res.getBody() == null) return null;
-            JsonNode data = objectMapper.readTree(res.getBody()).path("data");
-            List<String> disponibles = new ArrayList<>();
-            for (JsonNode m : data) {
-                String id = m.path("id").asText("");
-                String lower = id.toLowerCase(Locale.ROOT);
-                if (!id.isBlank() && !lower.contains("whisper") && !lower.contains("guard") && !lower.contains("tts")) {
-                    disponibles.add(id);
-                }
-            }
-            for (String p : List.of("llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b")) {
-                if (disponibles.contains(p)) return p;
-            }
-            return disponibles.isEmpty() ? null : disponibles.get(0);
-        } catch (Exception e) {
-            return null;
-        }
     }
 }
