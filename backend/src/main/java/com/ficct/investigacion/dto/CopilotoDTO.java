@@ -63,8 +63,33 @@ public class CopilotoDTO {
         public void setTipoAccion(String tipoAccion) { this.tipoAccion = tipoAccion; }
     }
 
+    public static class ItemConfirmacion {
+        private Long id;
+        private String titulo;
+        private String subtitulo;
+        private boolean seleccionado = true;
+
+        public ItemConfirmacion() {}
+
+        public ItemConfirmacion(Long id, String titulo, String subtitulo, boolean seleccionado) {
+            this.id = id;
+            this.titulo = titulo;
+            this.subtitulo = subtitulo;
+            this.seleccionado = seleccionado;
+        }
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getTitulo() { return titulo; }
+        public void setTitulo(String titulo) { this.titulo = titulo; }
+        public String getSubtitulo() { return subtitulo; }
+        public void setSubtitulo(String subtitulo) { this.subtitulo = subtitulo; }
+        public boolean isSeleccionado() { return seleccionado; }
+        public void setSeleccionado(boolean seleccionado) { this.seleccionado = seleccionado; }
+    }
+
     public static class ConfirmacionPendiente {
-        private String tipoAccion; // GESTIONAR_TAREA, HABILITAR_TAREA, DESHABILITAR_TAREA, EDITAR_FECHA_TAREA, CAMBIAR_ESTADO_CONVOCATORIA
+        private String tipoAccion; // GESTIONAR_TAREA, GESTIONAR_PLANTILLA_TAREA, CAMBIAR_ESTADO_LOTE, CAMBIAR_ESTADO_CONVOCATORIA
         private String titulo;
         private String detalle;
         private Long targetId;
@@ -76,6 +101,7 @@ public class CopilotoDTO {
         private String fechaHabilitacion;
         private String fechaEntrega;
         private String fechaCorte;
+        private List<ItemConfirmacion> items = new ArrayList<>();
 
         public ConfirmacionPendiente() {}
 
@@ -112,11 +138,14 @@ public class CopilotoDTO {
         public void setFechaEntrega(String fechaEntrega) { this.fechaEntrega = fechaEntrega; }
         public String getFechaCorte() { return fechaCorte; }
         public void setFechaCorte(String fechaCorte) { this.fechaCorte = fechaCorte; }
+        public List<ItemConfirmacion> getItems() { return items; }
+        public void setItems(List<ItemConfirmacion> items) { this.items = items; }
     }
 
     public static class ConfirmarAccionRequest {
         private String tipoAccion;
         private Long targetId;
+        private List<Long> targetIds;
         private String valorTexto;
         private Boolean habilitada;
         private String fechaHabilitacion;
@@ -127,6 +156,8 @@ public class CopilotoDTO {
         public void setTipoAccion(String tipoAccion) { this.tipoAccion = tipoAccion; }
         public Long getTargetId() { return targetId; }
         public void setTargetId(Long targetId) { this.targetId = targetId; }
+        public List<Long> getTargetIds() { return targetIds; }
+        public void setTargetIds(List<Long> targetIds) { this.targetIds = targetIds; }
         public String getValorTexto() { return valorTexto; }
         public void setValorTexto(String valorTexto) { this.valorTexto = valorTexto; }
         public Boolean getHabilitada() { return habilitada; }

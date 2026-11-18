@@ -54,9 +54,9 @@ const SUGERENCIAS_POR_ROL: Record<string, string[]> = {
   ],
   ADMIN: [
     "Pendientes por revisar",
+    "Publicar todas las ferias en borrador",
     "Crear una convocatoria",
     "Ir a reportes",
-    "Gestionar usuarios",
   ],
   JURADO: [
     "Proyectos por evaluar",
@@ -64,6 +64,9 @@ const SUGERENCIAS_POR_ROL: Record<string, string[]> = {
     "Ir a mi perfil",
   ],
 };
+
+const BUBBLE_SIZE = 56;
+const EDGE_GAP = 16;
 
 export default function CopilotoWidget() {
   const { user } = useAuth();
@@ -81,32 +84,122 @@ export default function CopilotoWidget() {
 
   const rol = user?.rol || "ESTUDIANTE";
   const nombreCorto = user?.nombre ? user.nombre.split(" ")[0] : "Hola";
+  const cacheKey = `copiloto_chat_cache_${user?.id || "guest"}`;
+  const posKey = `copiloto_bubble_pos_${user?.id || "guest"}`;
 
-  const [mensajes, setMensajes] = useState<ChatItem[]>([
-    {
+  const crearBienvenida = useCallback(
+    (): ChatItem => ({
       id: "welcome",
       role: "assistant",
-      content: `Hola ${nombreCorto}, soy tu Copiloto FICCT. Pídeme ver tus pendientes, navegar a cualquier sección o crear una convocatoria.`,
-    },
-  ]);
+      content: `Hola ${nombreCorto}, soy tu Copiloto FICCT. Pídeme ver tus pendientes, activar tareas, publicar convocatorias o generar reportes PDF.`,
+    }),
+    [nombreCorto]
+  );
+
+  const [mensajes, setMensajes] = useState<ChatItem[]>(() => [crearBienvenida()]);
+  const [hidratado, setHidratado] = useState(false);
+
+  // Posicion de burbuja arrastrable con snap a izquierda o derecha
+  const [lado, setLado] = useState<"left" | "right">("right");
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [arrastrando, setArrastrando] = useState(false);
+
+  const dragRef = useRef<{
+    active: boolean;
+    moved: boolean;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  }>({
+    active: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    origX: 0,
+    origY: 0,
+  });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  // Hidratar posicion de la burbuja
   useEffect(() => {
-    setMensajes((prev) => {
-      if (prev.length === 1 && prev[0].id === "welcome") {
-        return [
-          {
-            id: "welcome",
-            role: "assistant",
-            content: `Hola ${nombreCorto}, soy tu Copiloto FICCT. Pídeme ver tus pendientes, navegar a cualquier sección o crear una convocatoria.`,
-          },
-        ];
+    if (typeof window === "undefined") return;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const defaultY = Math.max(EDGE_GAP, h - (w < 768 ? 140 : 84));
+    let savedSide: "left" | "right" = "right";
+    let savedY = defaultY;
+
+    try {
+      const raw = localStorage.getItem(posKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.side === "left" || parsed.side === "right") {
+          savedSide = parsed.side;
+        }
+        if (typeof parsed.y === "number") {
+          savedY = Math.min(Math.max(EDGE_GAP, parsed.y), h - BUBBLE_SIZE - EDGE_GAP);
+        }
       }
-      return prev;
+    } catch {}
+
+    setLado(savedSide);
+    setPos({
+      x: savedSide === "left" ? EDGE_GAP : w - BUBBLE_SIZE - EDGE_GAP,
+      y: savedY,
     });
-  }, [nombreCorto]);
+  }, [posKey]);
+
+  // Ajustar al redimensionar ventana
+  useEffect(() => {
+    const onResize = () => {
+      setPos((prev) => {
+        if (!prev) return prev;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        return {
+          x: lado === "left" ? EDGE_GAP : w - BUBBLE_SIZE - EDGE_GAP,
+          y: Math.min(Math.max(EDGE_GAP, prev.y), h - BUBBLE_SIZE - EDGE_GAP),
+        };
+      });
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [lado]);
+
+  // Hidratar conversacion + borradores desde sessionStorage al recargar (F5)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMensajes(parsed);
+          setHidratado(true);
+          return;
+        }
+      }
+    } catch {}
+    setMensajes([crearBienvenida()]);
+    setHidratado(true);
+  }, [cacheKey, crearBienvenida]);
+
+  // Guardar conversacion + borradores pendientes en sessionStorage
+  useEffect(() => {
+    if (!hidratado || typeof window === "undefined") return;
+    try {
+      // Evitar saturar sessionStorage con PDFs base64 muy grandes
+      const paraGuardar = mensajes.slice(-30).map((m) =>
+        m.reporte
+          ? { ...m, reporte: { ...m.reporte, pdfBase64: "" } }
+          : m
+      );
+      sessionStorage.setItem(cacheKey, JSON.stringify(paraGuardar));
+    } catch {}
+  }, [mensajes, cacheKey, hidratado]);
 
   useEffect(() => {
     if (abierto) {
@@ -123,6 +216,72 @@ export default function CopilotoWidget() {
       }
     };
   }, []);
+
+  // Logica de arrastre de la burbuja con snap izquierdo/derecho
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!pos) return;
+    dragRef.current = {
+      active: true,
+      moved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: pos.x,
+      origY: pos.y,
+    };
+  };
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current.active) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        dragRef.current.moved = true;
+        setArrastrando(true);
+      }
+      if (!dragRef.current.moved) return;
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const nextX = Math.min(Math.max(EDGE_GAP, dragRef.current.origX + dx), w - BUBBLE_SIZE - EDGE_GAP);
+      const nextY = Math.min(Math.max(EDGE_GAP, dragRef.current.origY + dy), h - BUBBLE_SIZE - EDGE_GAP);
+      setPos({ x: nextX, y: nextY });
+    };
+
+    const onUp = () => {
+      if (!dragRef.current.active) return;
+      const wasMoved = dragRef.current.moved;
+      dragRef.current.active = false;
+      setArrastrando(false);
+
+      if (!wasMoved) {
+        setAbierto((prev) => !prev);
+        return;
+      }
+
+      setPos((curr) => {
+        if (!curr) return curr;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const centerX = curr.x + BUBBLE_SIZE / 2;
+        const nuevoLado: "left" | "right" = centerX < w / 2 ? "left" : "right";
+        const snappedX = nuevoLado === "left" ? EDGE_GAP : w - BUBBLE_SIZE - EDGE_GAP;
+        const clampedY = Math.min(Math.max(EDGE_GAP, curr.y), h - BUBBLE_SIZE - EDGE_GAP);
+        setLado(nuevoLado);
+        try {
+          localStorage.setItem(posKey, JSON.stringify({ side: nuevoLado, y: clampedY }));
+        } catch {}
+        return { x: snappedX, y: clampedY };
+      });
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [posKey]);
 
   const enviarMensaje = useCallback(
     async (textoAEnviar?: string) => {
@@ -159,7 +318,8 @@ export default function CopilotoWidget() {
           id: `b-${Date.now()}`,
           role: "assistant",
           content: resp.mensaje,
-          opciones: resp.opciones && resp.opciones.length > 0 ? resp.opciones : undefined,
+          opciones:
+            resp.opciones && resp.opciones.length > 0 ? resp.opciones : undefined,
           confirmacion: resp.confirmacionPendiente || null,
           confirmacionResuelta: false,
           reporte: resp.reporteGenerado || null,
@@ -201,6 +361,11 @@ export default function CopilotoWidget() {
   );
 
   const descargarPdfBase64 = (rep: CopilotoReporteGenerado) => {
+    if (!rep.pdfBase64) {
+      router.push(rep.rutaReportes);
+      setAbierto(false);
+      return;
+    }
     try {
       const byteChars = atob(rep.pdfBase64);
       const byteNumbers = new Array(byteChars.length);
@@ -228,7 +393,17 @@ export default function CopilotoWidget() {
     conf: CopilotoConfirmacionPendiente
   ) => {
     if (cargando) return;
+    const idsSeleccionados = conf.items
+      ? conf.items.filter((i) => i.seleccionado).map((i) => i.id)
+      : undefined;
+
+    if (conf.items && conf.items.length > 0 && (!idsSeleccionados || idsSeleccionados.length === 0)) {
+      setErrorVoz("Selecciona al menos una actividad para aplicar el cambio.");
+      return;
+    }
+
     setCargando(true);
+    setErrorVoz(null);
     setMensajes((prev) =>
       prev.map((m) =>
         m.id === msgId ? { ...m, confirmacionResuelta: true } : m
@@ -238,6 +413,7 @@ export default function CopilotoWidget() {
       const resp = await copilotoAPI.confirmar({
         tipoAccion: conf.tipoAccion,
         targetId: conf.targetId,
+        targetIds: idsSeleccionados,
         valorTexto: conf.valorTexto,
         habilitada: conf.habilitada,
         fechaHabilitacion: conf.fechaHabilitacion || null,
@@ -276,6 +452,23 @@ export default function CopilotoWidget() {
           ? { ...m, confirmacion: { ...m.confirmacion, ...patch } }
           : m
       )
+    );
+  };
+
+  const toggleItemConfirmacion = (msgId: string, itemId: number) => {
+    setMensajes((prev) =>
+      prev.map((m) => {
+        if (m.id !== msgId || !m.confirmacion?.items) return m;
+        return {
+          ...m,
+          confirmacion: {
+            ...m.confirmacion,
+            items: m.confirmacion.items.map((it) =>
+              it.id === itemId ? { ...it, seleccionado: !it.seleccionado } : it
+            ),
+          },
+        };
+      })
     );
   };
 
@@ -349,14 +542,12 @@ export default function CopilotoWidget() {
   };
 
   const reiniciarChat = () => {
-    setMensajes([
-      {
-        id: "welcome",
-        role: "assistant",
-        content: `Hola ${nombreCorto}, soy tu Copiloto FICCT. Pídeme ver tus pendientes, navegar a cualquier sección o crear una convocatoria.`,
-      },
-    ]);
+    const welcome = [crearBienvenida()];
+    setMensajes(welcome);
     setErrorVoz(null);
+    try {
+      sessionStorage.removeItem(cacheKey);
+    } catch {}
   };
 
   const sugerencias =
@@ -364,32 +555,38 @@ export default function CopilotoWidget() {
 
   return (
     <>
-      {/* Boton Flotante Liquid Glass */}
-      {!abierto && (
+      {/* Burbuja Flotante Arrastrable (Solo icono de robot, snap izquierda/derecha, toggle abrir/cerrar) */}
+      {pos && (
         <button
           type="button"
-          onClick={() => setAbierto(true)}
-          aria-label="Abrir Copiloto FICCT"
-          className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 group flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br from-accent via-accent to-blue-600 text-white shadow-xl shadow-accent/30 hover:shadow-2xl hover:shadow-accent/40 hover:-translate-y-0.5 active:scale-95 transition-all duration-200 border border-white/25"
+          onPointerDown={handlePointerDown}
+          aria-label={abierto ? "Ocultar Copiloto" : "Abrir Copiloto"}
+          style={{
+            left: `${pos.x}px`,
+            top: `${pos.y}px`,
+            touchAction: "none",
+          }}
+          className={`fixed z-40 w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-br from-accent via-accent to-blue-600 text-white shadow-xl shadow-accent/35 hover:shadow-2xl hover:scale-105 active:scale-95 border border-white/25 select-none cursor-grab active:cursor-grabbing ${
+            arrastrando ? "" : "transition-all duration-300 ease-out"
+          }`}
         >
-          <span className="relative flex items-center justify-center w-7 h-7 rounded-xl bg-white/20 backdrop-blur-sm">
-            <Bot className="w-4 h-4 text-white" />
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-accent animate-pulse" />
-          </span>
-          <span className="text-xs font-bold tracking-wide pr-0.5 hidden sm:inline">
-            Copiloto IA
-          </span>
+          <Bot className="w-6 h-6 text-white pointer-events-none" />
+          <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-accent animate-pulse pointer-events-none" />
         </button>
       )}
 
-      {/* Ventana de Chat Copiloto */}
+      {/* Ventana de Chat alineada al lado donde se anclo la burbuja */}
       {abierto && (
-        <div className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 w-[calc(100vw-2rem)] sm:w-[400px] h-[530px] max-h-[calc(100vh-7rem)] flex flex-col rounded-3xl bg-surface/95 backdrop-blur-2xl border border-line/80 shadow-2xl shadow-black/25 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div
+          className={`fixed bottom-20 md:bottom-24 z-40 w-[calc(100vw-2rem)] sm:w-[400px] h-[520px] max-h-[calc(100vh-8rem)] flex flex-col rounded-3xl bg-surface/95 backdrop-blur-2xl border border-line/80 shadow-2xl shadow-black/25 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 ${
+            lado === "left" ? "left-4 md:left-6" : "right-4 md:right-6"
+          }`}
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-accent/15 via-blue-500/10 to-transparent border-b border-line/70">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-blue-600 flex items-center justify-center text-white shadow-md shadow-accent/25">
-                <Sparkles className="w-4 h-4" />
+                <Bot className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-ink leading-tight">
@@ -397,7 +594,7 @@ export default function CopilotoWidget() {
                 </h3>
                 <p className="text-[11px] text-ink-faint flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Navegación inteligente · {rol}
+                  {rol} · Borrador guardado en sesión
                 </p>
               </div>
             </div>
@@ -405,7 +602,7 @@ export default function CopilotoWidget() {
               <button
                 type="button"
                 onClick={reiniciarChat}
-                title="Reiniciar conversación"
+                title="Limpiar conversación"
                 className="p-2 rounded-xl text-ink-faint hover:text-ink hover:bg-surface-hover transition-colors"
               >
                 <RotateCcw className="w-4 h-4" />
@@ -413,7 +610,7 @@ export default function CopilotoWidget() {
               <button
                 type="button"
                 onClick={() => setAbierto(false)}
-                title="Cerrar"
+                title="Ocultar chat"
                 className="p-2 rounded-xl text-ink-faint hover:text-ink hover:bg-surface-hover transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -497,7 +694,11 @@ export default function CopilotoWidget() {
                         {msg.confirmacion.detalle}
                       </p>
                     )}
-                    {msg.confirmacion.tipoAccion === "GESTIONAR_TAREA" && (
+
+                    {/* Mini-formulario editable de 3 fechas (Tareas o Plantillas) */}
+                    {(msg.confirmacion.tipoAccion === "GESTIONAR_TAREA" ||
+                      msg.confirmacion.tipoAccion ===
+                        "GESTIONAR_PLANTILLA_TAREA") && (
                       <div className="space-y-2 pt-1 border-t border-amber-500/20">
                         <label className="flex items-center justify-between text-[11px] font-semibold text-ink">
                           <span>Estado de la tarea</span>
@@ -562,6 +763,37 @@ export default function CopilotoWidget() {
                         </div>
                       </div>
                     )}
+
+                    {/* Lista con checkboxes para acciones en lote */}
+                    {msg.confirmacion.items &&
+                      msg.confirmacion.items.length > 0 && (
+                        <div className="space-y-1.5 pt-1 border-t border-amber-500/20 max-h-40 overflow-y-auto">
+                          {msg.confirmacion.items.map((item) => (
+                            <label
+                              key={item.id}
+                              className="flex items-start gap-2 p-2 rounded-xl bg-surface/90 border border-line cursor-pointer hover:border-amber-500/40"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={item.seleccionado}
+                                onChange={() =>
+                                  toggleItemConfirmacion(msg.id, item.id)
+                                }
+                                className="mt-0.5 accent-amber-500"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[11.5px] font-bold text-ink truncate">
+                                  {item.titulo}
+                                </p>
+                                <p className="text-[10.5px] text-ink-faint truncate">
+                                  {item.subtitulo}
+                                </p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
                     <div className="flex items-center gap-2 pt-1">
                       <button
                         type="button"
@@ -608,7 +840,7 @@ export default function CopilotoWidget() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        Descargar PDF
+                        {msg.reporte.pdfBase64 ? "Descargar PDF" : "Abrir en Reportes"}
                       </button>
                       <button
                         type="button"
@@ -655,7 +887,7 @@ export default function CopilotoWidget() {
             </div>
           )}
 
-          {/* Error de voz */}
+          {/* Error de voz o validacion */}
           {errorVoz && (
             <div className="mx-4 mb-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-500 font-medium">
               {errorVoz}

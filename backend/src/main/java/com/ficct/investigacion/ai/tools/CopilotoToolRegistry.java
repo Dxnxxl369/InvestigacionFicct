@@ -39,11 +39,25 @@ public class CopilotoToolRegistry {
                         )),
 
                 tool("gestionar_convocatoria",
-                        "Prepara el cambio de estado de una convocatoria existente entre BORRADOR, PUBLICADA, FINALIZADA o ARCHIVADA (solo ADMIN o DOCENTE).",
-                        List.of("titulo", "nuevoEstado"),
+                        "Busca una o varias convocatorias (individual o en lote, ej. todas las FERIAS en borrador) y prepara una tarjeta de confirmación para cambiarles el estado.",
+                        List.of("nuevoEstado"),
                         Map.of(
-                                "titulo", Map.of("type", "string", "description", "Título o parte del título de la convocatoria"),
-                                "nuevoEstado", Map.of("type", "string", "enum", List.of("BORRADOR", "PUBLICADA", "FINALIZADA", "ARCHIVADA"))
+                                "nuevoEstado", Map.of("type", "string", "enum", List.of("BORRADOR", "PUBLICADA", "FINALIZADA", "ARCHIVADA")),
+                                "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION", "TODAS"), "description", "Filtro por tipo si pide varias o todas de un tipo"),
+                                "estadoActual", Map.of("type", "string", "enum", List.of("BORRADOR", "PUBLICADA", "FINALIZADA"), "description", "Filtro opcional por estado actual"),
+                                "titulo", Map.of("type", "string", "description", "Título o parte del título si se refiere a una específica")
+                        )),
+
+                tool("gestionar_plantilla_tarea",
+                        "Prepara la edición de fechas o habilitación de una actividad dentro de una plantilla global (solo ADMIN).",
+                        List.of("actividadTitulo"),
+                        Map.of(
+                                "plantillaNombre", Map.of("type", "string", "description", "Nombre de la plantilla si fue mencionado"),
+                                "actividadTitulo", Map.of("type", "string", "description", "Título de la actividad/tarea dentro de la plantilla"),
+                                "habilitada", Map.of("type", "boolean"),
+                                "fechaHabilitacion", Map.of("type", "string", "description", "YYYY-MM-DD o YYYY-MM-DDTHH:mm"),
+                                "fechaEntrega", Map.of("type", "string", "description", "YYYY-MM-DD o YYYY-MM-DDTHH:mm"),
+                                "fechaCorte", Map.of("type", "string", "description", "YYYY-MM-DD o YYYY-MM-DDTHH:mm")
                         )),
 
                 tool("generar_reporte_pdf",

@@ -2,6 +2,8 @@ package com.ficct.investigacion.ai.tools;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ficct.investigacion.ai.tools.handlers.ConvocatoriasLoteHandler;
+import com.ficct.investigacion.ai.tools.handlers.PlantillasFechasHandler;
 import com.ficct.investigacion.dto.ConvocatoriaDTO;
 import com.ficct.investigacion.dto.CopilotoDTO.*;
 import com.ficct.investigacion.dto.EntregaTareaDTO;
@@ -42,16 +44,22 @@ public class CopilotoToolExecutor {
     private final TareaService tareaService;
     private final EvaluacionJuradoService evaluacionJuradoService;
     private final ReporteGenerativoService reporteGenerativoService;
+    private final ConvocatoriasLoteHandler convocatoriasLoteHandler;
+    private final PlantillasFechasHandler plantillasFechasHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CopilotoToolExecutor(ConvocatoriaService convocatoriaService,
                                 TareaService tareaService,
                                 EvaluacionJuradoService evaluacionJuradoService,
-                                ReporteGenerativoService reporteGenerativoService) {
+                                ReporteGenerativoService reporteGenerativoService,
+                                ConvocatoriasLoteHandler convocatoriasLoteHandler,
+                                PlantillasFechasHandler plantillasFechasHandler) {
         this.convocatoriaService = convocatoriaService;
         this.tareaService = tareaService;
         this.evaluacionJuradoService = evaluacionJuradoService;
         this.reporteGenerativoService = reporteGenerativoService;
+        this.convocatoriasLoteHandler = convocatoriasLoteHandler;
+        this.plantillasFechasHandler = plantillasFechasHandler;
     }
 
     public String ejecutar(String fnName, String argsRaw, User user, CopilotoResponse response) {
@@ -61,7 +69,8 @@ public class CopilotoToolExecutor {
                 case "consultar_mis_aulas_y_pendientes" -> ejecutarConsultarAulas(user, response);
                 case "navegar_a" -> ejecutarNavegar(args, user, response);
                 case "gestionar_tarea_modulo" -> ejecutarGestionarTarea(args, user, response);
-                case "gestionar_convocatoria" -> ejecutarGestionarConvocatoria(args, user, response);
+                case "gestionar_convocatoria" -> convocatoriasLoteHandler.ejecutar(args, user, response);
+                case "gestionar_plantilla_tarea" -> plantillasFechasHandler.ejecutar(args, user, response);
                 case "generar_reporte_pdf" -> ejecutarGenerarReportePdf(args, user, response);
                 case "abrir_agente_convocatorias" -> ejecutarAbrirAgente(args, user, response);
                 default -> "{\"ok\":false,\"error\":\"Herramienta desconocida\"}";
@@ -330,57 +339,6 @@ public class CopilotoToolExecutor {
     private String formatearParaInput(LocalDateTime dt) {
         if (dt == null) return "";
         return dt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
-    }
-
-    private String ejecutarGestionarConvocatoria(JsonNode args, User user, CopilotoResponse response) throws Exception {
-        if (user.getRol() != Rol.ADMIN && user.getRol() != Rol.DOCENTE) {
-            return "{\"ok\":false,\"error\":\"Solo Docentes o Administradores pueden cambiar el estado de convocatorias.\"}";
-        }
-
-        String tituloQuery = normalizar(args.path("titulo").asText(""));
-        String nuevoEstado = args.path("nuevoEstado").asText("").trim().toUpperCase(Locale.ROOT);
-        if (tituloQuery.isBlank()) {
-            return "{\"ok\":false,\"error\":\"Indica el título de la convocatoria.\"}";
-        }
-        if ("ARCHIVADA".equals(nuevoEstado) && user.getRol() != Rol.ADMIN) {
-            return "{\"ok\":false,\"error\":\"Solo un Administrador puede archivar convocatorias.\"}";
-        }
-
-        List<ConvocatoriaDTO> areas = obtenerAreasAutorizadas(user);
-        List<ConvocatoriaDTO> matches = areas.stream()
-                .filter(a -> normalizar(a.getTitulo()).contains(tituloQuery))
-                .toList();
-
-        if (matches.isEmpty()) {
-            return "{\"ok\":false,\"error\":\"No encontré ninguna convocatoria con ese nombre.\"}";
-        }
-        if (matches.size() > 1) {
-            List<OpcionNavegacion> opciones = matches.stream()
-                    .map(a -> new OpcionNavegacion(a.getTitulo(), a.getTipo().name(), "/dashboard/convocatorias/" + a.getId(), a.getEstado().name(), "NAVEGAR"))
-                    .toList();
-            response.setOpciones(opciones);
-            response.setAccion("MOSTRAR_OPCIONES");
-            return "{\"ok\":false,\"error\":\"Encontré varias convocatorias con ese nombre. Pide al usuario especificar cuál.\"}";
-        }
-
-        ConvocatoriaDTO c = matches.get(0);
-        response.setAccion("CONFIRMAR_ACCION");
-        response.setConfirmacionPendiente(new ConfirmacionPendiente(
-                "CAMBIAR_ESTADO_CONVOCATORIA",
-                "Cambiar estado de \"" + c.getTitulo() + "\" a " + nuevoEstado,
-                "Estado actual: " + c.getEstado().name() + " -> " + nuevoEstado,
-                c.getId(),
-                nuevoEstado,
-                null
-        ));
-
-        return objectMapper.writeValueAsString(Map.of(
-                "ok", true,
-                "requiereConfirmacion", true,
-                "convocatoria", c.getTitulo(),
-                "estadoActual", c.getEstado().name(),
-                "estadoDestino", nuevoEstado
-        ));
     }
 
     private String ejecutarGenerarReportePdf(JsonNode args, User user, CopilotoResponse response) throws Exception {

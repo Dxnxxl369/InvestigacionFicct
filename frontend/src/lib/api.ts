@@ -1860,6 +1860,13 @@ export interface CopilotoOpcionNavegacion {
   tipoAccion: string;
 }
 
+export interface CopilotoItemConfirmacion {
+  id: number;
+  titulo: string;
+  subtitulo: string;
+  seleccionado: boolean;
+}
+
 export interface CopilotoConfirmacionPendiente {
   tipoAccion: string;
   titulo: string;
@@ -1873,11 +1880,13 @@ export interface CopilotoConfirmacionPendiente {
   fechaHabilitacion?: string | null;
   fechaEntrega?: string | null;
   fechaCorte?: string | null;
+  items?: CopilotoItemConfirmacion[];
 }
 
 export interface CopilotoConfirmarAccionRequest {
   tipoAccion: string;
   targetId: number;
+  targetIds?: number[];
   valorTexto: string | null;
   habilitada: boolean | null;
   fechaHabilitacion?: string | null;

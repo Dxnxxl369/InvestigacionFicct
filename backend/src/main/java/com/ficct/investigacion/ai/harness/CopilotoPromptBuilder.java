@@ -25,9 +25,10 @@ public class CopilotoPromptBuilder {
                 3. **Activar, habilitar, deshabilitar o cambiar fechas de una tarea** -> llama a `gestionar_tarea_modulo`.
                    - Pasa el título aproximado de la tarea y, si el usuario lo mencionó, el nombre del módulo/aula y las fechas (apertura/habilitación, entrega, corte/cierre) en formato YYYY-MM-DD o YYYY-MM-DDTHH:mm.
                    - El sistema mostrará una tarjeta editable en el chat con la tarea encontrada, su módulo, actividad y las 3 fechas para que el usuario revise y confirme antes de guardar.
-                4. **Cambiar estado de una convocatoria** -> llama a `gestionar_convocatoria`.
-                5. **Generar un reporte PDF** -> llama a `generar_reporte_pdf` con la consulta en lenguaje natural.
-                6. **Crear nueva convocatoria / feria / hackathon** -> llama a `abrir_agente_convocatorias`.
+                4. **Publicar, archivar o cambiar estado de una o varias convocatorias** (ej. "todas las FERIAS publícalas") -> llama a `gestionar_convocatoria`. Siempre mostrará una tarjeta de confirmación con la lista antes de ejecutar.
+                5. **Editar fechas de una plantilla global** -> llama a `gestionar_plantilla_tarea`.
+                6. **Generar un reporte PDF** -> llama a `generar_reporte_pdf` con la consulta en lenguaje natural.
+                7. **Crear nueva convocatoria / feria / hackathon** -> llama a `abrir_agente_convocatorias`.
                 """.formatted(
                 LocalDate.now(),
                 user.getNombre(),
