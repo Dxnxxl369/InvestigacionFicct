@@ -16,25 +16,30 @@ public class CopilotoToolRegistry {
                         Map.of()),
 
                 tool("navegar_a",
-                        "Navega inmediatamente a una ruta del dashboard autorizada para el rol del usuario.",
-                        List.of("ruta"),
+                        "Navega inmediatamente a una sección del dashboard autorizada para el rol del usuario.",
+                        List.of("destino"),
                         Map.of(
-                                "ruta", Map.of("type", "string", "description", "Ruta destino comenzando por /dashboard")
+                                "destino", Map.of(
+                                        "type", "string",
+                                        "enum", List.of("REPORTES", "CONVOCATORIAS", "AULAS", "PLANTILLAS", "USUARIOS", "BIBLIOTECA", "PERFIL", "JURADO", "MIS_PENDIENTES")
+                                )
                         )),
 
                 tool("gestionar_tarea_modulo",
-                        "Prepara la habilitación, deshabilitación o cambio de fecha límite de una tarea dentro de un aula o módulo (solo ADMIN o DOCENTE).",
+                        "Busca una tarea dentro de los módulos/aulas del usuario y prepara una tarjeta editable para habilitarla, deshabilitarla o configurar sus 3 fechas (apertura, entrega, corte) antes de confirmar.",
                         List.of("accion", "tareaTitulo"),
                         Map.of(
-                                "accion", Map.of("type", "string", "enum", List.of("HABILITAR", "DESHABILITAR", "EDITAR_FECHA")),
-                                "aulaNombre", Map.of("type", "string", "description", "Nombre o parte del nombre de la convocatoria/aula si el usuario lo mencionó"),
-                                "moduloNombre", Map.of("type", "string", "description", "Nombre del módulo si el usuario lo mencionó"),
-                                "tareaTitulo", Map.of("type", "string", "description", "Título o palabras clave de la tarea"),
-                                "nuevaFecha", Map.of("type", "string", "description", "Nueva fecha límite en formato YYYY-MM-DD o YYYY-MM-DDTHH:mm si la acción es EDITAR_FECHA")
+                                "accion", Map.of("type", "string", "enum", List.of("HABILITAR", "DESHABILITAR", "EDITAR_FECHAS")),
+                                "tareaTitulo", Map.of("type", "string", "description", "Título o palabras clave de la tarea (ej. Documentacion, Primer Avance)"),
+                                "moduloNombre", Map.of("type", "string", "description", "Nombre o número del módulo si fue mencionado"),
+                                "aulaNombre", Map.of("type", "string", "description", "Nombre de la feria, hackathon, concurso o aula si fue mencionado"),
+                                "fechaHabilitacion", Map.of("type", "string", "description", "Fecha de apertura opcional (YYYY-MM-DD o YYYY-MM-DDTHH:mm)"),
+                                "fechaEntrega", Map.of("type", "string", "description", "Fecha límite de entrega opcional (YYYY-MM-DD o YYYY-MM-DDTHH:mm)"),
+                                "fechaCorte", Map.of("type", "string", "description", "Fecha de cierre/corte opcional (YYYY-MM-DD o YYYY-MM-DDTHH:mm)")
                         )),
 
                 tool("gestionar_convocatoria",
-                        "Prepara el cambio de estado de una convocatoria existente entre BORRADOR, PUBLICADA o ARCHIVADA (solo ADMIN o DOCENTE).",
+                        "Prepara el cambio de estado de una convocatoria existente entre BORRADOR, PUBLICADA, FINALIZADA o ARCHIVADA (solo ADMIN o DOCENTE).",
                         List.of("titulo", "nuevoEstado"),
                         Map.of(
                                 "titulo", Map.of("type", "string", "description", "Título o parte del título de la convocatoria"),

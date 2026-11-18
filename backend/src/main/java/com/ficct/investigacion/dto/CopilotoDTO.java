@@ -64,12 +64,18 @@ public class CopilotoDTO {
     }
 
     public static class ConfirmacionPendiente {
-        private String tipoAccion; // HABILITAR_TAREA, DESHABILITAR_TAREA, EDITAR_FECHA_TAREA, CAMBIAR_ESTADO_CONVOCATORIA
+        private String tipoAccion; // GESTIONAR_TAREA, HABILITAR_TAREA, DESHABILITAR_TAREA, EDITAR_FECHA_TAREA, CAMBIAR_ESTADO_CONVOCATORIA
         private String titulo;
         private String detalle;
         private Long targetId;
         private String valorTexto;
         private Boolean habilitada;
+        private String aulaNombre;
+        private String moduloNombre;
+        private String tipoActividad;
+        private String fechaHabilitacion;
+        private String fechaEntrega;
+        private String fechaCorte;
 
         public ConfirmacionPendiente() {}
 
@@ -94,6 +100,18 @@ public class CopilotoDTO {
         public void setValorTexto(String valorTexto) { this.valorTexto = valorTexto; }
         public Boolean getHabilitada() { return habilitada; }
         public void setHabilitada(Boolean habilitada) { this.habilitada = habilitada; }
+        public String getAulaNombre() { return aulaNombre; }
+        public void setAulaNombre(String aulaNombre) { this.aulaNombre = aulaNombre; }
+        public String getModuloNombre() { return moduloNombre; }
+        public void setModuloNombre(String moduloNombre) { this.moduloNombre = moduloNombre; }
+        public String getTipoActividad() { return tipoActividad; }
+        public void setTipoActividad(String tipoActividad) { this.tipoActividad = tipoActividad; }
+        public String getFechaHabilitacion() { return fechaHabilitacion; }
+        public void setFechaHabilitacion(String fechaHabilitacion) { this.fechaHabilitacion = fechaHabilitacion; }
+        public String getFechaEntrega() { return fechaEntrega; }
+        public void setFechaEntrega(String fechaEntrega) { this.fechaEntrega = fechaEntrega; }
+        public String getFechaCorte() { return fechaCorte; }
+        public void setFechaCorte(String fechaCorte) { this.fechaCorte = fechaCorte; }
     }
 
     public static class ConfirmarAccionRequest {
@@ -101,6 +119,9 @@ public class CopilotoDTO {
         private Long targetId;
         private String valorTexto;
         private Boolean habilitada;
+        private String fechaHabilitacion;
+        private String fechaEntrega;
+        private String fechaCorte;
 
         public String getTipoAccion() { return tipoAccion; }
         public void setTipoAccion(String tipoAccion) { this.tipoAccion = tipoAccion; }
@@ -110,6 +131,12 @@ public class CopilotoDTO {
         public void setValorTexto(String valorTexto) { this.valorTexto = valorTexto; }
         public Boolean getHabilitada() { return habilitada; }
         public void setHabilitada(Boolean habilitada) { this.habilitada = habilitada; }
+        public String getFechaHabilitacion() { return fechaHabilitacion; }
+        public void setFechaHabilitacion(String fechaHabilitacion) { this.fechaHabilitacion = fechaHabilitacion; }
+        public String getFechaEntrega() { return fechaEntrega; }
+        public void setFechaEntrega(String fechaEntrega) { this.fechaEntrega = fechaEntrega; }
+        public String getFechaCorte() { return fechaCorte; }
+        public void setFechaCorte(String fechaCorte) { this.fechaCorte = fechaCorte; }
     }
 
     public static class ReporteGeneradoDTO {

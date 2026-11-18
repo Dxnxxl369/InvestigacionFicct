@@ -53,39 +53,49 @@ public class CopilotoConfirmacionService {
         CopilotoResponse resp = new CopilotoResponse();
 
         switch (req.getTipoAccion()) {
-            case "HABILITAR_TAREA", "DESHABILITAR_TAREA" -> {
-                boolean deseado = "HABILITAR_TAREA".equals(req.getTipoAccion());
+            case "GESTIONAR_TAREA", "HABILITAR_TAREA", "DESHABILITAR_TAREA", "EDITAR_FECHA_TAREA" -> {
                 Tarea tarea = tareaRepository.findById(req.getTargetId())
                         .orElseThrow(() -> new IllegalArgumentException("La tarea ya no existe."));
-                if (tarea.isHabilitada() != deseado) {
-                    tareaService.toggleHabilitada(tarea.getId(), userEmail);
-                }
-                resp.setMensaje("Listo, la tarea \"" + tarea.getTitulo() + "\" quedó "
-                        + (deseado ? "habilitada" : "deshabilitada") + ".");
-            }
-            case "EDITAR_FECHA_TAREA" -> {
-                Tarea tarea = tareaRepository.findById(req.getTargetId())
-                        .orElseThrow(() -> new IllegalArgumentException("La tarea ya no existe."));
-                LocalDateTime nuevaFecha = parsearFecha(req.getValorTexto());
+
+                boolean habilitadaFinal = req.getHabilitada() != null
+                        ? req.getHabilitada()
+                        : ("HABILITAR_TAREA".equals(req.getTipoAccion()) || (!"DESHABILITAR_TAREA".equals(req.getTipoAccion()) && tarea.isHabilitada()));
+
+                LocalDateTime fechaHab = req.getFechaHabilitacion() != null && !req.getFechaHabilitacion().isBlank()
+                        ? parsearFecha(req.getFechaHabilitacion(), LocalTime.of(0, 0))
+                        : tarea.getFechaHabilitacion();
+
+                LocalDateTime fechaEnt = req.getFechaEntrega() != null && !req.getFechaEntrega().isBlank()
+                        ? parsearFecha(req.getFechaEntrega(), LocalTime.of(23, 59))
+                        : (req.getValorTexto() != null && !req.getValorTexto().isBlank()
+                            ? parsearFecha(req.getValorTexto(), LocalTime.of(23, 59))
+                            : tarea.getFechaEntrega());
+
+                LocalDateTime fechaCor = req.getFechaCorte() != null && !req.getFechaCorte().isBlank()
+                        ? parsearFecha(req.getFechaCorte(), LocalTime.of(23, 59))
+                        : tarea.getFechaCorte();
+
                 TareaRequest tr = new TareaRequest();
                 tr.setConvocatoriaId(tarea.getConvocatoria().getId());
                 tr.setTitulo(tarea.getTitulo());
                 tr.setDescripcion(tarea.getDescripcion());
-                tr.setHabilitada(tarea.isHabilitada());
+                tr.setHabilitada(habilitadaFinal);
                 tr.setVisibleJurados(tarea.isVisibleJurados());
                 tr.setTiposArchivosPermitidos(tarea.getTiposArchivosPermitidos());
                 tr.setTamanoMaximoMb(tarea.getTamanoMaximoMb());
                 tr.setPuntajeMaximo(tarea.getPuntajeMaximo());
                 tr.setEsGrupal(tarea.isEsGrupal());
-                tr.setFechaHabilitacion(tarea.getFechaHabilitacion());
-                tr.setFechaCorte(tarea.getFechaCorte());
-                tr.setFechaEntrega(nuevaFecha);
-                tr.setFechaLimite(nuevaFecha);
+                tr.setFechaHabilitacion(fechaHab);
+                tr.setFechaEntrega(fechaEnt);
+                tr.setFechaCorte(fechaCor);
+                tr.setFechaLimite(fechaEnt != null ? fechaEnt : tarea.getFechaLimite());
                 if (tarea.getModulo() != null) {
                     tr.setModuloId(tarea.getModulo().getId());
                 }
                 tareaService.actualizarTarea(tarea.getId(), tr, userEmail);
-                resp.setMensaje("Fecha de entrega de \"" + tarea.getTitulo() + "\" actualizada a " + req.getValorTexto() + ".");
+
+                resp.setMensaje("Listo, la tarea \"" + tarea.getTitulo() + "\" quedó "
+                        + (habilitadaFinal ? "habilitada" : "deshabilitada") + " con sus fechas actualizadas.");
             }
             case "CAMBIAR_ESTADO_CONVOCATORIA" -> {
                 String val = req.getValorTexto() != null ? req.getValorTexto().trim().toUpperCase() : "";
@@ -108,13 +118,13 @@ public class CopilotoConfirmacionService {
         return resp;
     }
 
-    private LocalDateTime parsearFecha(String texto) {
-        if (texto == null || texto.isBlank()) {
-            throw new IllegalArgumentException("Fecha inválida.");
-        }
+    private LocalDateTime parsearFecha(String texto, LocalTime horaPorDefecto) {
         String clean = texto.trim();
         if (clean.length() == 10) {
-            return LocalDateTime.of(LocalDate.parse(clean), LocalTime.of(23, 59));
+            return LocalDateTime.of(LocalDate.parse(clean), horaPorDefecto);
+        }
+        if (clean.length() >= 16) {
+            return LocalDateTime.parse(clean.substring(0, 16));
         }
         return LocalDateTime.parse(clean);
     }

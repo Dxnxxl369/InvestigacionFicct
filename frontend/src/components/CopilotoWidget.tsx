@@ -240,6 +240,9 @@ export default function CopilotoWidget() {
         targetId: conf.targetId,
         valorTexto: conf.valorTexto,
         habilitada: conf.habilitada,
+        fechaHabilitacion: conf.fechaHabilitacion || null,
+        fechaEntrega: conf.fechaEntrega || null,
+        fechaCorte: conf.fechaCorte || null,
       });
       setMensajes((prev) => [
         ...prev,
@@ -261,6 +264,19 @@ export default function CopilotoWidget() {
     } finally {
       setCargando(false);
     }
+  };
+
+  const actualizarConfirmacion = (
+    msgId: string,
+    patch: Partial<CopilotoConfirmacionPendiente>
+  ) => {
+    setMensajes((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.confirmacion
+          ? { ...m, confirmacion: { ...m.confirmacion, ...patch } }
+          : m
+      )
+    );
   };
 
   const cancelarAccion = (msgId: string) => {
@@ -481,6 +497,71 @@ export default function CopilotoWidget() {
                         {msg.confirmacion.detalle}
                       </p>
                     )}
+                    {msg.confirmacion.tipoAccion === "GESTIONAR_TAREA" && (
+                      <div className="space-y-2 pt-1 border-t border-amber-500/20">
+                        <label className="flex items-center justify-between text-[11px] font-semibold text-ink">
+                          <span>Estado de la tarea</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              actualizarConfirmacion(msg.id, {
+                                habilitada: !msg.confirmacion?.habilitada,
+                              })
+                            }
+                            className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold transition-colors ${
+                              msg.confirmacion.habilitada
+                                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                            }`}
+                          >
+                            {msg.confirmacion.habilitada
+                              ? "Habilitada"
+                              : "Deshabilitada"}
+                          </button>
+                        </label>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          <label className="flex flex-col gap-0.5 text-[10.5px] text-ink-faint">
+                            <span>Fecha de apertura / habilitación</span>
+                            <input
+                              type="datetime-local"
+                              value={msg.confirmacion.fechaHabilitacion || ""}
+                              onChange={(e) =>
+                                actualizarConfirmacion(msg.id, {
+                                  fechaHabilitacion: e.target.value,
+                                })
+                              }
+                              className="bg-surface border border-line rounded-lg px-2 py-1 text-[11px] text-ink"
+                            />
+                          </label>
+                          <label className="flex flex-col gap-0.5 text-[10.5px] text-ink-faint">
+                            <span>Fecha límite de entrega</span>
+                            <input
+                              type="datetime-local"
+                              value={msg.confirmacion.fechaEntrega || ""}
+                              onChange={(e) =>
+                                actualizarConfirmacion(msg.id, {
+                                  fechaEntrega: e.target.value,
+                                })
+                              }
+                              className="bg-surface border border-line rounded-lg px-2 py-1 text-[11px] text-ink"
+                            />
+                          </label>
+                          <label className="flex flex-col gap-0.5 text-[10.5px] text-ink-faint">
+                            <span>Fecha de cierre / corte</span>
+                            <input
+                              type="datetime-local"
+                              value={msg.confirmacion.fechaCorte || ""}
+                              onChange={(e) =>
+                                actualizarConfirmacion(msg.id, {
+                                  fechaCorte: e.target.value,
+                                })
+                              }
+                              className="bg-surface border border-line rounded-lg px-2 py-1 text-[11px] text-ink"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 pt-1">
                       <button
                         type="button"
@@ -490,7 +571,7 @@ export default function CopilotoWidget() {
                         }
                         className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
                       >
-                        Confirmar
+                        Aceptar y Guardar
                       </button>
                       <button
                         type="button"

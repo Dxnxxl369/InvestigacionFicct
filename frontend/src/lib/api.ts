@@ -1867,6 +1867,12 @@ export interface CopilotoConfirmacionPendiente {
   targetId: number;
   valorTexto: string | null;
   habilitada: boolean | null;
+  aulaNombre?: string | null;
+  moduloNombre?: string | null;
+  tipoActividad?: string | null;
+  fechaHabilitacion?: string | null;
+  fechaEntrega?: string | null;
+  fechaCorte?: string | null;
 }
 
 export interface CopilotoConfirmarAccionRequest {
@@ -1874,6 +1880,9 @@ export interface CopilotoConfirmarAccionRequest {
   targetId: number;
   valorTexto: string | null;
   habilitada: boolean | null;
+  fechaHabilitacion?: string | null;
+  fechaEntrega?: string | null;
+  fechaCorte?: string | null;
 }
 
 export interface CopilotoReporteGenerado {
