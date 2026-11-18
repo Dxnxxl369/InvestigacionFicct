@@ -242,6 +242,10 @@ export default function NuevaConvocatoriaPage() {
       setError("El título de la convocatoria es obligatorio.");
       return;
     }
+    if (!descripcion.trim()) {
+      setError("La descripción de la convocatoria es obligatoria.");
+      return;
+    }
     if (modalidadInscripcion === "GRUPAL" && (cuposMinEquipo < 2 || cuposMaxEquipo < cuposMinEquipo || cuposMaxEquipo > 50)) {
       setError("La inscripción grupal requiere entre 2 y 50 integrantes y un máximo igual o mayor que el mínimo.");
       return;
@@ -263,12 +267,16 @@ export default function NuevaConvocatoriaPage() {
         }
       }
 
+      const fechaValida = /^\d{4}-\d{2}-\d{2}$/.test(fechaFinInscripcion.trim())
+        ? fechaFinInscripcion.trim()
+        : undefined;
+
       const payload: ConvocatoriaRequest = {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         tipo,
         modalidadInscripcion,
-        fechaCierre: fechaFinInscripcion || undefined,
+        fechaCierre: fechaValida,
         tamanoEquipo: modalidadInscripcion === "GRUPAL" ? (
           cuposMinEquipo === cuposMaxEquipo
             ? `Hasta ${cuposMaxEquipo} integrantes`

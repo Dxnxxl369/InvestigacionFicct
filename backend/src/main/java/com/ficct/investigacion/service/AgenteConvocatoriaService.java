@@ -173,8 +173,8 @@ public class AgenteConvocatoriaService {
             throws JsonProcessingException {
         StringBuilder docCatalogo = new StringBuilder();
         for (User d : docentesActivos) {
-            docCatalogo.append("- ID ").append(d.getId()).append(": ").append(d.getNombreCompleto())
-                    .append(" (").append(d.getEmail()).append(")\n");
+            docCatalogo.append("- ").append(d.getNombreCompleto())
+                    .append(" [ref_interna=").append(d.getId()).append("]\n");
         }
 
         LocalDate hoy = LocalDate.now();
@@ -198,15 +198,16 @@ public class AgenteConvocatoriaService {
                    - Usa `actualizar_convocatoria` para establecer o modificar tipo, modalidad, título, descripción, fechaFinInscripcion (formato YYYY-MM-DD exacto según el año actual """ + hoy.getYear() + """
                 ) o cupos de equipo.
                    - Usa `gestionar_requisitos` cuando el usuario mencione requisitos a agregar, reemplazar o quitar.
-                   - Usa `asignar_docente` únicamente cuando el usuario mencione explícitamente a un docente del catálogo.
+                   - Usa `asignar_docente` únicamente cuando el usuario mencione explícitamente a un docente del catálogo (usa el valor numérico de `ref_interna` en `docenteIds`).
                 3. REGLAS ESTRICTAS:
                    - NUNCA inventes ni agregues requisitos por tu cuenta si el usuario no los dio ni pidió sugerencias.
                    - Si el borrador no tiene requisitos (`requisitos` está vacío), pregunta explícitamente al usuario: "¿Quisieras agregar algunos requisitos para la inscripción?".
                    - NUNCA inventes ni autoasignes docentes que el usuario no haya pedido.
+                   - PROHIBIDO MOSTRAR IDs O DATOS INTERNOS: Nunca escribas "ID 3", "ref_interna", números de identificador ni correos electrónicos al usuario. Cuando menciones docentes disponibles o asignados, escribe ÚNICAMENTE su Nombre y Apellido (por ejemplo: "Docente Investigador").
                    - Si el usuario especifica una fecha (ej. "20 de noviembre"), conviértela a YYYY-MM-DD exacto (\"""" + hoy.getYear() + """
                 -11-20\") usando `actualizar_convocatoria`.
                 4. RESPUESTA FINAL:
-                   - Después de ejecutar las herramientas, confirma brevemente lo que actualizaste y pregunta de forma amable solo por los campos que todavía falten en el borrador (fecha límite, requisitos o docente encargado). Responde en máximo 3 líneas claras, sin mostrar JSON ni nombres técnicos internos.
+                   - Después de ejecutar las herramientas, confirma brevemente lo que actualizaste y pregunta de forma amable solo por los campos que todavía falten en el borrador (fecha límite, requisitos o docente encargado). Responde en máximo 3 líneas claras, sin mostrar JSON ni códigos internos.
                 """;
     }
 

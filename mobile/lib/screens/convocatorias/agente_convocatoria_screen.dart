@@ -176,17 +176,25 @@ class _AgenteConvocatoriaScreenState extends State<AgenteConvocatoriaScreen> {
       return;
     }
 
+    final rawDesc = _borrador['descripcion']?.toString().trim() ?? '';
+    final descripcion = rawDesc.isNotEmpty
+        ? rawDesc
+        : 'Convocatoria académica "$titulo" organizada por la FICCT - UAGRM.';
+    final rawFecha = _borrador['fechaFinInscripcion']?.toString().trim() ?? '';
+    final fechaValida = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(rawFecha) ? rawFecha : null;
+    final modalidad = _borrador['modalidadInscripcion']?.toString() ?? 'GRUPAL';
+    final minEq = (_borrador['cuposMinEquipo'] as num?)?.toInt() ?? 2;
+    final maxEq = (_borrador['cuposMaxEquipo'] as num?)?.toInt() ?? 5;
+
     final Map<String, dynamic> datos = {
       'titulo': titulo,
-      'descripcion': _borrador['descripcion'] ?? '',
+      'descripcion': descripcion,
       'tipo': _borrador['tipo'] ?? 'FERIA',
-      'modalidadInscripcion': _borrador['modalidadInscripcion'] ?? 'GRUPAL',
+      'modalidadInscripcion': modalidad,
       'estado': 'BORRADOR',
-      'cuposMinEquipo': _borrador['cuposMinEquipo'] ?? 2,
-      'cuposMaxEquipo': _borrador['cuposMaxEquipo'] ?? 5,
-      'fechaCierre': _borrador['fechaFinInscripcion'] != null
-          ? '${_borrador['fechaFinInscripcion']}T23:59:59'
-          : null,
+      if (modalidad == 'GRUPAL') 'tamanoEquipo': '$minEq a $maxEq integrantes',
+      if (modalidad == 'GRUPAL') 'maxIntegrantesFeria': maxEq,
+      if (fechaValida != null) 'fechaCierre': fechaValida,
       'requisitos': _borrador['requisitos'] ?? [],
       'docenteIds': _borrador['selectedDocenteIds'] ?? [],
     };
