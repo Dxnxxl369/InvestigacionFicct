@@ -102,8 +102,9 @@ class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay>
 
     Navigator.of(context).push(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 240),
+        opaque: false,
+        transitionDuration: const Duration(milliseconds: 280),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
         pageBuilder: (_, __, ___) => CopilotoFullscreenScreen(
           userRole: widget.userRole,
           userName: widget.userName,
@@ -120,7 +121,7 @@ class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay>
           return FadeTransition(
             opacity: curved,
             child: ScaleTransition(
-              scale: Tween<double>(begin: 0.12, end: 1.0).animate(curved),
+              scale: Tween<double>(begin: 0.22, end: 1.0).animate(curved),
               alignment: originAlignment,
               child: child,
             ),
