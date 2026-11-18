@@ -15,11 +15,16 @@ import {
   Clock,
   Loader2,
   Compass,
+  Download,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 import {
   copilotoAPI,
   CopilotoChatMessage,
+  CopilotoConfirmacionPendiente,
   CopilotoOpcionNavegacion,
+  CopilotoReporteGenerado,
 } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import AgenteConvocatoriaModal from "@/components/moodle/modals/AgenteConvocatoriaModal";
@@ -29,6 +34,9 @@ interface ChatItem {
   role: "user" | "assistant";
   content: string;
   opciones?: CopilotoOpcionNavegacion[];
+  confirmacion?: CopilotoConfirmacionPendiente | null;
+  confirmacionResuelta?: boolean;
+  reporte?: CopilotoReporteGenerado | null;
 }
 
 const SUGERENCIAS_POR_ROL: Record<string, string[]> = {
@@ -152,6 +160,9 @@ export default function CopilotoWidget() {
           role: "assistant",
           content: resp.mensaje,
           opciones: resp.opciones && resp.opciones.length > 0 ? resp.opciones : undefined,
+          confirmacion: resp.confirmacionPendiente || null,
+          confirmacionResuelta: false,
+          reporte: resp.reporteGenerado || null,
         };
         setMensajes((prev) => [...prev, botMsg]);
 
@@ -188,6 +199,82 @@ export default function CopilotoWidget() {
     },
     [input, cargando, mensajes, pathname, router]
   );
+
+  const descargarPdfBase64 = (rep: CopilotoReporteGenerado) => {
+    try {
+      const byteChars = atob(rep.pdfBase64);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNumbers[i] = byteChars.charCodeAt(i);
+      }
+      const blob = new Blob([new Uint8Array(byteNumbers)], {
+        type: "application/pdf",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = rep.nombreArchivo || "reporte_ficct.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setErrorVoz("No se pudo descargar el PDF generado.");
+    }
+  };
+
+  const confirmarAccion = async (
+    msgId: string,
+    conf: CopilotoConfirmacionPendiente
+  ) => {
+    if (cargando) return;
+    setCargando(true);
+    setMensajes((prev) =>
+      prev.map((m) =>
+        m.id === msgId ? { ...m, confirmacionResuelta: true } : m
+      )
+    );
+    try {
+      const resp = await copilotoAPI.confirmar({
+        tipoAccion: conf.tipoAccion,
+        targetId: conf.targetId,
+        valorTexto: conf.valorTexto,
+        habilitada: conf.habilitada,
+      });
+      setMensajes((prev) => [
+        ...prev,
+        {
+          id: `conf-${Date.now()}`,
+          role: "assistant",
+          content: resp.mensaje,
+        },
+      ]);
+    } catch (err: any) {
+      setMensajes((prev) => [
+        ...prev,
+        {
+          id: `cerr-${Date.now()}`,
+          role: "assistant",
+          content: err?.message || "No se pudo ejecutar la confirmación.",
+        },
+      ]);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const cancelarAccion = (msgId: string) => {
+    setMensajes((prev) => [
+      ...prev.map((m) =>
+        m.id === msgId ? { ...m, confirmacionResuelta: true } : m
+      ),
+      {
+        id: `canc-${Date.now()}`,
+        role: "assistant",
+        content: "Acción cancelada. No se realizó ningún cambio.",
+      },
+    ]);
+  };
 
   const toggleMicrofono = () => {
     setErrorVoz(null);
@@ -379,6 +466,81 @@ export default function CopilotoWidget() {
                         </div>
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {/* Tarjeta de Confirmacion Human-in-the-Loop */}
+                {msg.confirmacion && !msg.confirmacionResuelta && (
+                  <div className="w-full mt-2 rounded-2xl bg-amber-500/10 border border-amber-500/30 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                      <ShieldCheck className="w-4 h-4 shrink-0" />
+                      <span>{msg.confirmacion.titulo}</span>
+                    </div>
+                    {msg.confirmacion.detalle && (
+                      <p className="text-[11px] text-ink-faint">
+                        {msg.confirmacion.detalle}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={cargando}
+                        onClick={() =>
+                          confirmarAccion(msg.id, msg.confirmacion!)
+                        }
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={cargando}
+                        onClick={() => cancelarAccion(msg.id)}
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-surface border border-line text-ink-soft hover:bg-surface-hover transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tarjeta de Reporte PDF generado directo en el chat */}
+                {msg.reporte && (
+                  <div className="w-full mt-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-3 space-y-2.5">
+                    <div className="flex items-start gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-ink truncate">
+                          {msg.reporte.titulo}
+                        </p>
+                        <p className="text-[11px] text-ink-faint">
+                          {msg.reporte.resumen}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => descargarPdfBase64(msg.reporte!)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Descargar PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          router.push(msg.reporte!.rutaReportes);
+                          setAbierto(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-surface border border-line text-ink hover:border-accent/40 transition-colors"
+                      >
+                        Ver tabla en Reportes
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

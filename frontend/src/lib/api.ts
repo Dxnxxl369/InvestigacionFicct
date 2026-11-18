@@ -1860,17 +1860,52 @@ export interface CopilotoOpcionNavegacion {
   tipoAccion: string;
 }
 
+export interface CopilotoConfirmacionPendiente {
+  tipoAccion: string;
+  titulo: string;
+  detalle: string;
+  targetId: number;
+  valorTexto: string | null;
+  habilitada: boolean | null;
+}
+
+export interface CopilotoConfirmarAccionRequest {
+  tipoAccion: string;
+  targetId: number;
+  valorTexto: string | null;
+  habilitada: boolean | null;
+}
+
+export interface CopilotoReporteGenerado {
+  titulo: string;
+  resumen: string;
+  nombreArchivo: string;
+  pdfBase64: string;
+  rutaReportes: string;
+}
+
 export interface CopilotoResponse {
   mensaje: string;
-  accion: "NONE" | "NAVEGAR" | "MOSTRAR_OPCIONES" | "ABRIR_AGENTE_CONVOCATORIA";
+  accion: "NONE" | "NAVEGAR" | "MOSTRAR_OPCIONES" | "ABRIR_AGENTE_CONVOCATORIA" | "CONFIRMAR_ACCION" | "REPORTE_PDF";
   rutaDestino: string | null;
   mensajeInicialAgente: string | null;
   opciones: CopilotoOpcionNavegacion[];
+  confirmacionPendiente?: CopilotoConfirmacionPendiente | null;
+  reporteGenerado?: CopilotoReporteGenerado | null;
 }
 
 export const copilotoAPI = {
   async chat(data: CopilotoRequest): Promise<CopilotoResponse> {
     const res = await fetch(`${API_BASE_URL}/copiloto/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<CopilotoResponse>(res);
+  },
+
+  async confirmar(data: CopilotoConfirmarAccionRequest): Promise<CopilotoResponse> {
+    const res = await fetch(`${API_BASE_URL}/copiloto/confirmar`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeader() },
       body: JSON.stringify(data),
