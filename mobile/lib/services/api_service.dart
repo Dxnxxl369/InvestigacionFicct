@@ -1815,4 +1815,69 @@ class ApiService {
       };
     }
   }
+
+  /// Conversa con el Copiloto IA global (navegacion, tareas, lotes, reportes PDF)
+  static Future<Map<String, dynamic>> chatCopiloto({
+    required String mensaje,
+    List<Map<String, String>>? historial,
+    String? rutaActual,
+  }) async {
+    try {
+      final headers = await _headers();
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/copiloto/chat'),
+            headers: headers,
+            body: jsonEncode({
+              'mensaje': mensaje.trim(),
+              'historial': historial ?? [],
+              'rutaActual': rutaActual ?? '/dashboard',
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+      return {
+        'mensaje': 'No pude procesar tu solicitud (HTTP ${res.statusCode}). Intenta de nuevo.',
+        'accion': 'NONE',
+      };
+    } catch (e) {
+      debugPrint('[ApiService] Error en chatCopiloto: $e');
+      return {
+        'mensaje': 'Error de conexión con el Copiloto: $e',
+        'accion': 'NONE',
+      };
+    }
+  }
+
+  /// Confirma una accion pendiente Human-in-the-Loop del Copiloto
+  static Future<Map<String, dynamic>> confirmarCopiloto(Map<String, dynamic> payload) async {
+    try {
+      final headers = await _headers();
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/copiloto/confirmar'),
+            headers: headers,
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+      String errMsg = 'Error ${res.statusCode}';
+      try {
+        final parsed = jsonDecode(utf8.decode(res.bodyBytes));
+        if (parsed is Map && parsed['message'] != null) {
+          errMsg = parsed['message'].toString();
+        }
+      } catch (_) {}
+      return {'mensaje': 'No se pudo confirmar la acción: $errMsg'};
+    } catch (e) {
+      debugPrint('[ApiService] Error en confirmarCopiloto: $e');
+      return {'mensaje': 'Error de conexión al confirmar: $e'};
+    }
+  }
 }

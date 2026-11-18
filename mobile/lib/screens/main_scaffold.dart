@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import '../models/convocatoria_model.dart';
 import '../models/tarea_model.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/liquid_navbar.dart';
+import '../widgets/copiloto_bubble_overlay.dart';
 import 'dashboard/dashboard_screen.dart';
+import 'reportes/reportes_ia_screen.dart';
+import 'usuarios/usuarios_screen.dart';
 import 'moodle/mis_areas_screen.dart';
 import 'moodle/aula_virtual_screen.dart';
 import 'moodle/tarea_entrega_screen.dart';
@@ -171,6 +175,77 @@ class _MainScaffoldState extends State<MainScaffold> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _navegarDesdeCopiloto(String ruta) async {
+    if (!mounted) return;
+    final clean = ruta.trim();
+
+    if (clean.startsWith('/dashboard/convocatorias/')) {
+      final rest = clean.substring('/dashboard/convocatorias/'.length);
+      final idStr = rest.split('?').first.split('/').first;
+      final convId = int.tryParse(idStr);
+      if (convId != null) {
+        final conv = await ApiService.getConvocatoriaDetalle(convId);
+        if (conv != null && mounted) {
+          _abrirAula(conv);
+          return;
+        }
+      }
+      _onTabTapped(1);
+      return;
+    }
+
+    if (clean.startsWith('/dashboard/reportes')) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => ReportesIAScreen(onBack: () => Navigator.of(ctx).pop()),
+        ),
+      );
+      return;
+    }
+    if (clean.startsWith('/dashboard/usuarios')) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => UsuariosScreen(onBack: () => Navigator.of(ctx).pop()),
+        ),
+      );
+      return;
+    }
+    if (clean.startsWith('/dashboard/biblioteca')) {
+      _abrirBiblioteca();
+      return;
+    }
+    if (clean.startsWith('/dashboard/mis-pendientes')) {
+      _abrirMisPendientes();
+      return;
+    }
+    if (clean.startsWith('/dashboard/mis-areas')) {
+      _onTabTapped(1);
+      return;
+    }
+    if (clean.startsWith('/dashboard/convocatorias')) {
+      _onTabTapped(2);
+      return;
+    }
+    if (clean.startsWith('/dashboard/perfil')) {
+      _onTabTapped(3);
+      return;
+    }
+    _onTabTapped(0);
+  }
+
+  String _rutaActualCopiloto() {
+    switch (_currentTab) {
+      case 1:
+        return '/dashboard/mis-areas';
+      case 2:
+        return '/dashboard/convocatorias';
+      case 3:
+        return '/dashboard/perfil';
+      default:
+        return '/dashboard';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget currentBody;
@@ -228,6 +303,13 @@ class _MainScaffoldState extends State<MainScaffold> {
                 currentIndex: _currentTab,
                 onTap: _onTabTapped,
               ),
+            ),
+            CopilotoBubbleOverlay(
+              userRole: widget.authService.currentUser?.rol ?? 'ESTUDIANTE',
+              userName: widget.authService.currentUser?.nombre ?? 'Usuario',
+              userId: widget.authService.currentUser?.id,
+              rutaActual: _rutaActualCopiloto(),
+              onNavigateRoute: _navegarDesdeCopiloto,
             ),
           ],
         ),
