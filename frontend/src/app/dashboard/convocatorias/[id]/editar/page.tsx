@@ -153,26 +153,10 @@ export default function EditarConvocatoriaPage() {
           setRequisitos(data.requisitos.map((r) => r.descripcion));
         }
 
-        // Revisar si había un borrador local no guardado para esta convocatoria
+        // Siempre priorizar la información oficial almacenada en la base de datos al abrir Editar
         try {
-          const draftStr = localStorage.getItem(draftKey);
-          if (draftStr) {
-            const d = JSON.parse(draftStr);
-            if (d.titulo) setTitulo(d.titulo);
-            if (d.descripcion !== undefined) setDescripcion(d.descripcion);
-            if (d.tipo) setTipo(d.tipo);
-            if (d.modalidadInscripcion) setModalidadInscripcion(d.modalidadInscripcion);
-            if (d.fechaCierre) setFechaCierre(d.fechaCierre);
-            if (d.cuposMinEquipo) setCuposMinEquipo(d.cuposMinEquipo);
-            if (d.cuposMaxEquipo) setCuposMaxEquipo(d.cuposMaxEquipo);
-            if (d.requisitos) setRequisitos(d.requisitos);
-            if (d.selectedDocenteIds) setSelectedDocenteIds(d.selectedDocenteIds);
-            if (d.imagenPortada) setImagenPortada(d.imagenPortada);
-            if (d.imagenNombre) setImagenNombre(d.imagenNombre);
-            if (d.imageMode) setImageMode(d.imageMode);
-            if (d.savedAt) setLastSavedLocal(d.savedAt);
-            setHasRestoredDraft(true);
-          }
+          localStorage.removeItem(draftKey);
+          setHasRestoredDraft(false);
         } catch {
           // ignorar error lectura
         }

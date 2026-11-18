@@ -285,6 +285,7 @@ export default function ConvocatoriasListPage() {
               <option value="PUBLICADA">Publicadas</option>
               <option value="BORRADOR">Borradores</option>
               <option value="FINALIZADA">Finalizadas</option>
+              <option value="ARCHIVADA">Archivadas</option>
             </select>
           </div>
         </div>
