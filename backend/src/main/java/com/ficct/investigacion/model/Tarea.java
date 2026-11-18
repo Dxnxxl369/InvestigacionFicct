@@ -54,6 +54,9 @@ public class Tarea {
     @Column(name = "visible_jurados")
     private Boolean visibleJurados = false;
 
+    @Column(name = "visible_estudiantes")
+    private Boolean visibleEstudiantes;
+
     @Column(name = "tipos_archivos_permitidos", length = 150)
     private String tiposArchivosPermitidos = ".pdf, .docx, .zip";
 
@@ -221,9 +224,13 @@ public class Tarea {
     public boolean isVisibleJurados() { return Boolean.TRUE.equals(visibleJurados); }
     public void setVisibleJurados(boolean visibleJurados) { this.visibleJurados = visibleJurados; }
 
+    public Boolean getVisibleEstudiantes() { return visibleEstudiantes; }
+    public void setVisibleEstudiantes(Boolean visibleEstudiantes) { this.visibleEstudiantes = visibleEstudiantes; }
+
     public boolean isVisibleParaEstudiantes() {
-        return habilitada && (!(plantillaFeria || plantillaModulo) ||
-                (fechaHabilitacion != null && fechaEntrega != null));
+        if (habilitada) return true;
+        if (Boolean.TRUE.equals(visibleEstudiantes)) return true;
+        return !(plantillaFeria || plantillaModulo);
     }
 
     public String getTiposArchivosPermitidos() {

@@ -231,9 +231,9 @@ public class TareaService {
             if (fechasPendientes && tarea.getFechaHabilitacion() != null && tarea.getFechaEntrega() != null) {
                 tarea.setHabilitada(true);
             }
-            if (tarea.getFechaHabilitacion() == null || tarea.getFechaEntrega() == null) {
-                tarea.setHabilitada(false);
-            }
+        }
+        if (tarea.isHabilitada()) {
+            tarea.setVisibleEstudiantes(true);
         }
         if (request.getTiposArchivosPermitidos() != null) {
             tarea.setTiposArchivosPermitidos(request.getTiposArchivosPermitidos());
@@ -341,12 +341,10 @@ public class TareaService {
             throw new AccessDeniedException("Solo un docente a cargo del área puede habilitar o deshabilitar la tarea.");
         }
 
-        if ((tarea.isPlantillaFeria() || tarea.isPlantillaModulo()) && !tarea.isHabilitada() &&
-                (tarea.getFechaHabilitacion() == null || tarea.getFechaEntrega() == null)) {
-            throw new IllegalStateException("Define la fecha de inicio y la fecha de entrega antes de mostrar esta actividad.");
-        }
-
         tarea.setHabilitada(!tarea.isHabilitada());
+        if (tarea.isHabilitada()) {
+            tarea.setVisibleEstudiantes(true);
+        }
         Tarea saved = tareaRepository.save(tarea);
         return toDTO(saved, user);
     }
