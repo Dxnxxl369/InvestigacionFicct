@@ -166,16 +166,34 @@ public class LlmGatewayService {
                     GROQ_MODELS_URL, HttpMethod.GET, new HttpEntity<>(crearHeadersGroq()), String.class);
             JsonNode data = objectMapper.readTree(res.getBody()).path("data");
             if (data.isArray()) {
-                List<String> preferidos = List.of("llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b", "gemma2-9b-it");
-                for (String pref : preferidos) {
-                    for (JsonNode m : data) {
-                        if (pref.equals(m.path("id").asText(""))) return pref;
-                    }
-                }
+                List<String> disponibles = new java.util.ArrayList<>();
                 for (JsonNode m : data) {
                     String id = m.path("id").asText("");
-                    if (!id.isBlank() && !id.contains("whisper") && !id.contains("guard")) return id;
+                    String lower = id.toLowerCase(java.util.Locale.ROOT);
+                    if (!id.isBlank()
+                            && !lower.contains("whisper")
+                            && !lower.contains("guard")
+                            && !lower.contains("tts")
+                            && !lower.contains("orpheus")
+                            && !lower.contains("playai")
+                            && !lower.contains("speech")
+                            && !lower.contains("audio")) {
+                        disponibles.add(id);
+                    }
                 }
+                List<String> preferidos = List.of(
+                        "llama-3.1-8b-instant",
+                        "llama-3.3-70b-versatile",
+                        "openai/gpt-oss-120b",
+                        "openai/gpt-oss-20b",
+                        "qwen/qwen3-32b",
+                        "meta-llama/llama-4-scout-17b-16e-instruct",
+                        "gemma2-9b-it"
+                );
+                for (String pref : preferidos) {
+                    if (disponibles.contains(pref)) return pref;
+                }
+                return disponibles.isEmpty() ? null : disponibles.get(0);
             }
         } catch (Exception e) {
             log.warn("[LlmGateway] No se pudo listar modelos Groq: {}", e.getMessage());
