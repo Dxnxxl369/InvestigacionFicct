@@ -16,16 +16,19 @@ public class PlantillaService {
     private final PlantillaInicializacionRepository inicializacion;
     private final ModuloRepository modulos;
     private final TareaRepository tareas;
+    private final ConvocatoriaRepository convocatorias;
 
     public PlantillaService(PlantillaDefinicionRepository plantillas,
                            PlantillaAsignacionRepository asignaciones,
                            PlantillaInicializacionRepository inicializacion,
-                           ModuloRepository modulos, TareaRepository tareas) {
+                           ModuloRepository modulos, TareaRepository tareas,
+                           ConvocatoriaRepository convocatorias) {
         this.plantillas = plantillas;
         this.asignaciones = asignaciones;
         this.inicializacion = inicializacion;
         this.modulos = modulos;
         this.tareas = tareas;
+        this.convocatorias = convocatorias;
     }
 
     public record AdjuntoDatos(String nombre, String ruta, Long tamanoBytes) {}
@@ -113,8 +116,11 @@ public class PlantillaService {
     @Transactional
     public PlantillaDatos actualizar(Long id, PlantillaDatos datos) {
         PlantillaDefinicion plantilla = obtener(id);
+        String tituloAnterior = plantilla.getTitulo();
         aplicar(plantilla, datos);
-        return toDatos(plantillas.save(plantilla));
+        PlantillaDefinicion guardada = plantillas.save(plantilla);
+        sincronizarPlantillaActualizada(guardada, tituloAnterior);
+        return toDatos(guardada);
     }
 
     @Transactional
@@ -136,7 +142,122 @@ public class PlantillaService {
         for (int i = 0; i < seleccionadas.size(); i++) {
             asignaciones.save(new PlantillaAsignacion(tipo, seleccionadas.get(i), i + 1));
         }
+        sincronizarConvocatoriasDeTipo(tipo, seleccionadas);
         return new TipoDatos(tipo, ids);
+    }
+
+    private List<Convocatoria> convocatoriasActivasDeTipo(TipoConvocatoria tipo) {
+        if (convocatorias == null) return List.of();
+        List<Convocatoria> lista = new ArrayList<>();
+        lista.addAll(convocatorias.findByTipoAndEstado(tipo, EstadoConvocatoria.BORRADOR));
+        lista.addAll(convocatorias.findByTipoAndEstado(tipo, EstadoConvocatoria.PUBLICADA));
+        return lista;
+    }
+
+    private void sincronizarConvocatoriasDeTipo(TipoConvocatoria tipo, List<PlantillaDefinicion> seleccionadas) {
+        List<Convocatoria> activas = convocatoriasActivasDeTipo(tipo);
+        if (activas.isEmpty()) return;
+
+        Set<String> titulosCatalogo = plantillas.findAll().stream()
+                .map(p -> p.getTitulo().trim().toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toSet());
+        Set<String> titulosSeleccionados = seleccionadas.stream()
+                .map(p -> p.getTitulo().trim().toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toSet());
+
+        for (Convocatoria conv : activas) {
+            List<Modulo> existentes = modulos.findByConvocatoriaOrderByOrdenAscCreatedAtAsc(conv);
+
+            // 1. Quitar módulos de plantilla que ya no están asignados (solo si no tienen entregas de estudiantes)
+            for (Modulo m : existentes) {
+                String tLower = m.getTitulo() == null ? "" : m.getTitulo().trim().toLowerCase(Locale.ROOT);
+                if (titulosCatalogo.contains(tLower) && !titulosSeleccionados.contains(tLower)) {
+                    boolean sinEntregas = m.getTareas().stream().allMatch(t -> t.getEntregas().isEmpty());
+                    if (sinEntregas) {
+                        tareas.deleteAll(m.getTareas());
+                        modulos.delete(m);
+                    }
+                }
+            }
+
+            // 2. Agregar plantillas faltantes y actualizar orden de las ya existentes
+            List<Modulo> restantes = modulos.findByConvocatoriaOrderByOrdenAscCreatedAtAsc(conv);
+            for (int i = 0; i < seleccionadas.size(); i++) {
+                PlantillaDefinicion p = seleccionadas.get(i);
+                int ordenDeseado = i + 1;
+                Optional<Modulo> coincidente = restantes.stream()
+                        .filter(m -> m.getTitulo() != null && m.getTitulo().trim().equalsIgnoreCase(p.getTitulo().trim()))
+                        .findFirst();
+                if (coincidente.isPresent()) {
+                    Modulo m = coincidente.get();
+                    m.setOrden(ordenDeseado);
+                    m.setDescripcion(p.getDescripcion());
+                    modulos.save(m);
+                    sincronizarTareasDePlantillaEnModulo(conv, m, p);
+                } else {
+                    crearModulo(conv, conv.getCreador(), p, ordenDeseado);
+                }
+            }
+        }
+    }
+
+    private void sincronizarPlantillaActualizada(PlantillaDefinicion plantilla, String tituloAnterior) {
+        if (convocatorias == null) return;
+        for (TipoConvocatoria tipo : TipoConvocatoria.values()) {
+            boolean asignada = asignaciones.findByTipoOrderByOrdenAsc(tipo).stream()
+                    .anyMatch(a -> a.getPlantilla() != null && Objects.equals(a.getPlantilla().getId(), plantilla.getId()));
+            if (!asignada) continue;
+
+            for (Convocatoria conv : convocatoriasActivasDeTipo(tipo)) {
+                List<Modulo> existentes = modulos.findByConvocatoriaOrderByOrdenAscCreatedAtAsc(conv);
+                Optional<Modulo> moduloOpt = existentes.stream()
+                        .filter(m -> m.getTitulo() != null && (
+                                m.getTitulo().trim().equalsIgnoreCase(tituloAnterior.trim())
+                                || m.getTitulo().trim().equalsIgnoreCase(plantilla.getTitulo().trim())))
+                        .findFirst();
+                if (moduloOpt.isPresent()) {
+                    Modulo m = moduloOpt.get();
+                    m.setTitulo(plantilla.getTitulo());
+                    m.setDescripcion(plantilla.getDescripcion());
+                    modulos.save(m);
+                    sincronizarTareasDePlantillaEnModulo(conv, m, plantilla);
+                }
+            }
+        }
+    }
+
+    private void sincronizarTareasDePlantillaEnModulo(Convocatoria conv, Modulo modulo, PlantillaDefinicion plantilla) {
+        List<Tarea> tareasActuales = new ArrayList<>(modulo.getTareas());
+        Set<String> titulosActividades = plantilla.getActividades().stream()
+                .map(a -> a.getTitulo().trim().toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toSet());
+
+        // Eliminar tareas de plantilla retiradas (si no tienen entregas)
+        for (Tarea t : tareasActuales) {
+            String tLower = t.getTitulo() == null ? "" : t.getTitulo().trim().toLowerCase(Locale.ROOT);
+            if (t.isPlantillaModulo() && !titulosActividades.contains(tLower) && t.getEntregas().isEmpty()) {
+                tareas.delete(t);
+            }
+        }
+
+        // Agregar o actualizar actividades de la plantilla
+        for (PlantillaActividad actividad : plantilla.getActividades()) {
+            Optional<Tarea> existente = tareasActuales.stream()
+                    .filter(t -> t.getTitulo() != null && t.getTitulo().trim().equalsIgnoreCase(actividad.getTitulo().trim()))
+                    .findFirst();
+            if (existente.isPresent()) {
+                Tarea t = existente.get();
+                t.setDescripcion(actividad.getDescripcion());
+                t.setTiposArchivosPermitidos(actividad.getTiposArchivosPermitidos());
+                t.setTamanoMaximoMb(actividad.getTamanoMaximoMb());
+                t.setPuntajeMaximo(actividad.getPuntajeMaximo());
+                t.setVisibleJurados(actividad.isVisibleJurados());
+                t.setEsGrupal(Boolean.TRUE.equals(actividad.getEntregaGrupal()));
+                tareas.save(t);
+            } else {
+                crearTareaDeActividad(conv, modulo, conv.getCreador(), actividad);
+            }
+        }
     }
 
     @Transactional
@@ -156,27 +277,31 @@ public class PlantillaService {
         Modulo modulo = modulos.save(new Modulo(convocatoria, plantilla.getTitulo(),
                 plantilla.getDescripcion(), null, orden, true));
         for (PlantillaActividad actividad : plantilla.getActividades()) {
-            Tarea tarea = new Tarea(convocatoria, actividad.getTitulo(), actividad.getDescripcion(),
-                    null, null, null, false, actividad.getTiposArchivosPermitidos(),
-                    actividad.getTamanoMaximoMb(), actividad.getPuntajeMaximo(), creador);
-            tarea.setModulo(modulo);
-            tarea.setPlantillaModulo(true);
-            tarea.setVisibleJurados(actividad.isVisibleJurados());
-            for (AdjuntoTarea adjunto : actividad.getAdjuntos()) {
-                tarea.getAdjuntos().add(new AdjuntoTarea(adjunto.getNombre(), adjunto.getRuta(), adjunto.getTamanoBytes()));
-            }
-            for (int i = 0; i < actividad.getRubrica().size(); i++) {
-                PlantillaCriterio criterio = actividad.getRubrica().get(i);
-                tarea.getRubrica().add(new RubricaCriterio(tarea, criterio.getNombre(),
-                        criterio.getDescripcion(), criterio.getPuntajeMaximo(), i));
-            }
-            if (Boolean.TRUE.equals(actividad.getEntregaGrupal())) {
-                tarea.setPlantillaFeria(convocatoria.getTipo() == TipoConvocatoria.FERIA);
-                tarea.setEsGrupal(true);
-            }
-            tareas.save(tarea);
+            crearTareaDeActividad(convocatoria, modulo, creador, actividad);
         }
         return modulo;
+    }
+
+    private void crearTareaDeActividad(Convocatoria convocatoria, Modulo modulo, User creador, PlantillaActividad actividad) {
+        Tarea tarea = new Tarea(convocatoria, actividad.getTitulo(), actividad.getDescripcion(),
+                null, null, null, false, actividad.getTiposArchivosPermitidos(),
+                actividad.getTamanoMaximoMb(), actividad.getPuntajeMaximo(), creador);
+        tarea.setModulo(modulo);
+        tarea.setPlantillaModulo(true);
+        tarea.setVisibleJurados(actividad.isVisibleJurados());
+        for (AdjuntoTarea adjunto : actividad.getAdjuntos()) {
+            tarea.getAdjuntos().add(new AdjuntoTarea(adjunto.getNombre(), adjunto.getRuta(), adjunto.getTamanoBytes()));
+        }
+        for (int i = 0; i < actividad.getRubrica().size(); i++) {
+            PlantillaCriterio criterio = actividad.getRubrica().get(i);
+            tarea.getRubrica().add(new RubricaCriterio(tarea, criterio.getNombre(),
+                    criterio.getDescripcion(), criterio.getPuntajeMaximo(), i));
+        }
+        if (Boolean.TRUE.equals(actividad.getEntregaGrupal())) {
+            tarea.setPlantillaFeria(convocatoria.getTipo() == TipoConvocatoria.FERIA);
+            tarea.setEsGrupal(true);
+        }
+        tareas.save(tarea);
     }
 
     private PlantillaDefinicion obtener(Long id) {

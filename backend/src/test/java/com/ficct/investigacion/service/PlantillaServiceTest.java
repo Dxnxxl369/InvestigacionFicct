@@ -24,6 +24,7 @@ class PlantillaServiceTest {
     @Mock PlantillaInicializacionRepository inicializacion;
     @Mock ModuloRepository modulos;
     @Mock TareaRepository tareas;
+    @Mock ConvocatoriaRepository convocatorias;
     @InjectMocks PlantillaService service;
 
     @Test
