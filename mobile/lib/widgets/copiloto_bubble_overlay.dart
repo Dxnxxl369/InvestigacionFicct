@@ -88,8 +88,22 @@ class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay>
   }
 
   void _abrirCopilotoFullscreen() {
+    final size = MediaQuery.of(context).size;
+    final pos = _posNotifier.value ??
+        Offset(
+          size.width - _bubbleSize - _edgeGap,
+          size.height - _bubbleSize - 108.0,
+        );
+    final cx = pos.dx + (_bubbleSize / 2);
+    final cy = pos.dy + (_bubbleSize / 2);
+    final alignX = ((cx / size.width) * 2 - 1).clamp(-1.0, 1.0);
+    final alignY = ((cy / size.height) * 2 - 1).clamp(-1.0, 1.0);
+    final originAlignment = Alignment(alignX, alignY);
+
     Navigator.of(context).push(
       PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
         pageBuilder: (_, __, ___) => CopilotoFullscreenScreen(
           userRole: widget.userRole,
           userName: widget.userName,
@@ -98,12 +112,18 @@ class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay>
           onNavigateRoute: widget.onNavigateRoute,
         ),
         transitionsBuilder: (_, anim, __, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.12),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
-            child: FadeTransition(opacity: anim, child: child),
+          final curved = CurvedAnimation(
+            parent: anim,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.12, end: 1.0).animate(curved),
+              alignment: originAlignment,
+              child: child,
+            ),
           );
         },
       ),

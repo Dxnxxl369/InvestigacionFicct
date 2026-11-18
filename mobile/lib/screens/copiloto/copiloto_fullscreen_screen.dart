@@ -30,15 +30,18 @@ class CopilotoFullscreenScreen extends StatefulWidget {
       _CopilotoFullscreenScreenState();
 }
 
-class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
+class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _inputCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
   final SpeechToText _speech = SpeechToText();
 
+  late final AnimationController _micPulseCtrl;
   List<Map<String, dynamic>> _mensajes = [];
   bool _cargando = false;
   bool _escuchando = false;
   bool _vozDisponible = false;
+  String _textoBaseVoz = '';
 
   String get _cacheKey => 'copiloto_mobile_cache_${widget.userId ?? 0}';
 
@@ -76,12 +79,17 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
   @override
   void initState() {
     super.initState();
+    _micPulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
     _cargarCache();
   }
 
   @override
   void dispose() {
     _speech.stop();
+    _micPulseCtrl.dispose();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -91,7 +99,14 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
     if (_cargando) return;
     if (_escuchando) {
       await _speech.stop();
-      if (mounted) setState(() => _escuchando = false);
+      _micPulseCtrl.stop();
+      _micPulseCtrl.reset();
+      if (mounted) {
+        setState(() {
+          _escuchando = false;
+          _textoBaseVoz = _inputCtrl.text.trim();
+        });
+      }
       return;
     }
 
@@ -100,11 +115,29 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
         _vozDisponible = await _speech.initialize(
           onStatus: (status) {
             if ((status == 'done' || status == 'notListening') && mounted) {
-              setState(() => _escuchando = false);
+              _micPulseCtrl.stop();
+              _micPulseCtrl.reset();
+              setState(() {
+                _escuchando = false;
+                _textoBaseVoz = _inputCtrl.text.trim();
+              });
             }
           },
-          onError: (_) {
-            if (mounted) setState(() => _escuchando = false);
+          onError: (err) {
+            if (mounted) {
+              _micPulseCtrl.stop();
+              _micPulseCtrl.reset();
+              setState(() {
+                _escuchando = false;
+                _textoBaseVoz = _inputCtrl.text.trim();
+              });
+              if (err.errorMsg != 'error_speech_timeout' &&
+                  err.errorMsg != 'error_no_match') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error de voz: ${err.errorMsg}')),
+                );
+              }
+            }
           },
         );
       }
@@ -113,32 +146,48 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Dictado por voz o permiso de micrófono no disponible.')),
+              content: Text(
+                  'Activa el permiso de micrófono o el servicio de voz de Google.')),
         );
         return;
       }
 
+      _textoBaseVoz = _inputCtrl.text.trim();
       setState(() => _escuchando = true);
+      _micPulseCtrl.repeat(reverse: true);
+
       await _speech.listen(
-        localeId: 'es_ES',
+        listenFor: const Duration(seconds: 60),
+        pauseFor: const Duration(seconds: 10),
         listenOptions: SpeechListenOptions(
           partialResults: true,
-          cancelOnError: true,
+          cancelOnError: false,
+          listenMode: ListenMode.dictation,
         ),
         onResult: (result) {
           if (!mounted) return;
-          final txt = result.recognizedWords.trim();
-          if (txt.isNotEmpty) {
-            _inputCtrl.text = txt;
-          }
-          if (result.finalResult && txt.isNotEmpty) {
-            setState(() => _escuchando = false);
-            _enviarMensaje(txt);
+          final nuevo = result.recognizedWords.trim();
+          final combinado = _textoBaseVoz.isEmpty
+              ? nuevo
+              : (nuevo.isEmpty ? _textoBaseVoz : '$_textoBaseVoz $nuevo');
+          _inputCtrl.text = combinado;
+          _inputCtrl.selection = TextSelection.fromPosition(
+            TextPosition(offset: _inputCtrl.text.length),
+          );
+          if (result.finalResult) {
+            _textoBaseVoz = combinado;
           }
         },
       );
-    } catch (_) {
-      if (mounted) setState(() => _escuchando = false);
+    } catch (e) {
+      _micPulseCtrl.stop();
+      _micPulseCtrl.reset();
+      if (mounted) {
+        setState(() => _escuchando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo iniciar el micrófono: $e')),
+        );
+      }
     }
   }
 
@@ -221,6 +270,13 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
     final texto = (textoDirecto ?? _inputCtrl.text).trim();
     if (texto.isEmpty || _cargando) return;
 
+    if (_escuchando) {
+      await _speech.stop();
+      _micPulseCtrl.stop();
+      _micPulseCtrl.reset();
+      _escuchando = false;
+    }
+    _textoBaseVoz = '';
     if (textoDirecto == null) _inputCtrl.clear();
 
     final historial = _mensajes
@@ -846,6 +902,36 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
                 ),
               ),
 
+            // Indicador de grabacion activa
+            if (_escuchando)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                color: Colors.redAccent.withValues(alpha: 0.14),
+                child: Row(
+                  children: [
+                    FadeTransition(
+                      opacity: Tween<double>(begin: 0.35, end: 1.0)
+                          .animate(_micPulseCtrl),
+                      child: const Icon(Icons.fiber_manual_record_rounded,
+                          color: Colors.redAccent, size: 12),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Grabando voz... toca el micrófono para pausar o continuar',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // Barra inferior de entrada + Microfono
             Container(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
@@ -855,28 +941,44 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
               ),
               child: Row(
                 children: [
-                  Material(
-                    color: _escuchando
-                        ? Colors.redAccent
-                        : bgColor,
-                    borderRadius: BorderRadius.circular(14),
-                    child: InkWell(
+                  AnimatedBuilder(
+                    animation: _micPulseCtrl,
+                    builder: (_, child) {
+                      final scale =
+                          _escuchando ? 1.0 + (_micPulseCtrl.value * 0.12) : 1.0;
+                      return Transform.scale(scale: scale, child: child);
+                    },
+                    child: Material(
+                      color: _escuchando ? Colors.redAccent : bgColor,
                       borderRadius: BorderRadius.circular(14),
-                      onTap: _cargando ? null : _toggleMicrofono,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: _escuchando ? Colors.redAccent : borderColor,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: _cargando ? null : _toggleMicrofono,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color:
+                                  _escuchando ? Colors.redAccent : borderColor,
+                            ),
+                            boxShadow: _escuchando
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.redAccent
+                                          .withValues(alpha: 0.45),
+                                      blurRadius: 10,
+                                    )
+                                  ]
+                                : null,
                           ),
-                        ),
-                        child: Icon(
-                          _escuchando
-                              ? Icons.mic_off_rounded
-                              : Icons.mic_none_rounded,
-                          color: _escuchando ? Colors.white : faintColor,
-                          size: 20,
+                          child: Icon(
+                            _escuchando
+                                ? Icons.pause_rounded
+                                : Icons.mic_none_rounded,
+                            color: _escuchando ? Colors.white : faintColor,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),
