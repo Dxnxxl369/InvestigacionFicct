@@ -27,6 +27,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import NotificacionesCampana from "./NotificacionesCampana";
+import CopilotoWidget from "./CopilotoWidget";
 
 export default function DashboardLayout({
   children,
@@ -584,6 +585,7 @@ export default function DashboardLayout({
           <span>Perfil</span>
         </Link>
       </nav>
+      <CopilotoWidget />
     </div>
   );
 }

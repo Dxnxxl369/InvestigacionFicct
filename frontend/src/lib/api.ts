@@ -1836,6 +1836,48 @@ export const api = {
   contarNotificacionesNoLeidas: notificacionesAPI.contarNoLeidas,
   marcarNotificacionLeida: notificacionesAPI.marcarLeida,
   marcarTodasNotificacionesLeidas: notificacionesAPI.marcarTodasLeidas,
+
+  // Copiloto IA
+  chatCopiloto: (data: CopilotoRequest) => copilotoAPI.chat(data),
+};
+
+export interface CopilotoChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface CopilotoRequest {
+  mensaje: string;
+  historial?: CopilotoChatMessage[];
+  rutaActual?: string;
+}
+
+export interface CopilotoOpcionNavegacion {
+  id: number | null;
+  titulo: string;
+  subtitulo: string;
+  ruta: string;
+  pendientes: number;
+  tipo: string;
+}
+
+export interface CopilotoResponse {
+  respuesta: string;
+  accion: "NINGUNA" | "NAVEGAR" | "MOSTRAR_OPCIONES" | "ABRIR_AGENTE_CONVOCATORIA";
+  rutaDestino: string | null;
+  promptInicialAgente: string | null;
+  opciones: CopilotoOpcionNavegacion[];
+}
+
+export const copilotoAPI = {
+  async chat(data: CopilotoRequest): Promise<CopilotoResponse> {
+    const res = await fetch(`${API_BASE_URL}/copiloto/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<CopilotoResponse>(res);
+  },
 };
 
 export default api;
