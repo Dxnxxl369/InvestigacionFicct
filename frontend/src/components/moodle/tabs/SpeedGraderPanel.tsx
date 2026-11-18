@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Download,
   History,
   Award,
@@ -61,6 +62,7 @@ export default function SpeedGraderPanel({
   const [puntajesCriteriosInput, setPuntajesCriteriosInput] = useState<Record<number, number>>({});
   const [guardandoNota, setGuardandoNota] = useState(false);
   const [archivoAVisualizar, setArchivoAVisualizar] = useState<{ url: string; nombre?: string } | null>(null);
+  const [integrantesAbierto, setIntegrantesAbierto] = useState(false);
 
   // Cargar entregas y seguimiento
   useEffect(() => {
@@ -114,6 +116,7 @@ export default function SpeedGraderPanel({
   // Manejar selección de estudiante
   const handleSelectEstudiante = (usuarioId: number) => {
     setSelectedEstudianteId(usuarioId);
+    setIntegrantesAbierto(false);
     const ent = entregas.find((e) => e.estudianteId === usuarioId);
     if (ent) {
       setNotaCalificacion(
@@ -253,23 +256,58 @@ export default function SpeedGraderPanel({
     }
   };
 
-  // Filtrado de estudiantes
-  const totalEntregadas = entregas.filter((e) => e.estado === "ENTREGADO").length;
-  const totalCalificadas = entregas.filter((e) => e.estado === "CALIFICADO").length;
-  const totalSinEntrega = estudiantesAdmitidos.length - entregas.length;
+  // Agrupar por equipo cuando la tarea es GRUPAL (1 fila por grupo); mantener individual si NO es grupal
+  const liderPorEquipo: Record<string, ConvocatoriaParticipanteDTO> = {};
+  const participantesDirectorio: ConvocatoriaParticipanteDTO[] = (() => {
+    if (!tarea.esGrupal) return estudiantesAdmitidos;
+    const porEquipo = new Map<string, ConvocatoriaParticipanteDTO[]>();
+    for (const est of estudiantesAdmitidos) {
+      const ent = entregas.find((e) => e.estudianteId === est.usuarioId);
+      const key = (ent?.grupoNombre || est.nombreEquipo || `IND_${est.usuarioId}`).trim().toUpperCase();
+      if (!porEquipo.has(key)) porEquipo.set(key, []);
+      porEquipo.get(key)!.push(est);
+    }
+    const reps: ConvocatoriaParticipanteDTO[] = [];
+    porEquipo.forEach((miembros, key) => {
+      // El líder es el primer integrante registrado del grupo
+      liderPorEquipo[key] = miembros[0];
+      // Priorizar en el directorio al integrante que subió el archivo
+      const quienSubio = miembros.find((m) => {
+        const ent = entregas.find((e) => e.estudianteId === m.usuarioId);
+        return ent?.entregadoPorEmail && ent.entregadoPorEmail.toLowerCase() === m.email.toLowerCase();
+      });
+      const conEntrega = miembros.find((m) => entregas.some((e) => e.estudianteId === m.usuarioId));
+      reps.push(quienSubio || conEntrega || miembros[0]);
+    });
+    return reps;
+  })();
 
-  const estudiantesFiltrados = estudiantesAdmitidos.filter((est) => {
+  const totalEntregadas = participantesDirectorio.filter((est) => {
+    const ent = entregas.find((e) => e.estudianteId === est.usuarioId);
+    return ent && ent.estado === "ENTREGADO";
+  }).length;
+  const totalCalificadas = participantesDirectorio.filter((est) => {
+    const ent = entregas.find((e) => e.estudianteId === est.usuarioId);
+    return ent && ent.estado === "CALIFICADO";
+  }).length;
+  const totalSinEntrega = participantesDirectorio.filter(
+    (est) => !entregas.some((e) => e.estudianteId === est.usuarioId)
+  ).length;
+
+  const estudiantesFiltrados = participantesDirectorio.filter((est) => {
     const q = searchEstudiante.toLowerCase().trim();
+    const ent = entregas.find((e) => e.estudianteId === est.usuarioId);
     const matchSearch =
       !q ||
       est.nombre.toLowerCase().includes(q) ||
       (est.apellidos && est.apellidos.toLowerCase().includes(q)) ||
       est.email.toLowerCase().includes(q) ||
-      (est.nombreEquipo && est.nombreEquipo.toLowerCase().includes(q));
+      (est.nombreEquipo && est.nombreEquipo.toLowerCase().includes(q)) ||
+      (ent?.grupoNombre && ent.grupoNombre.toLowerCase().includes(q)) ||
+      (ent?.entregadoPorNombre && ent.entregadoPorNombre.toLowerCase().includes(q));
 
     if (!matchSearch) return false;
 
-    const ent = entregas.find((e) => e.estudianteId === est.usuarioId);
     if (filtroEstado === "PENDIENTES") return ent && ent.estado === "ENTREGADO";
     if (filtroEstado === "CALIFICADOS") return ent && ent.estado === "CALIFICADO";
     if (filtroEstado === "SIN_ENTREGA") return !ent;
@@ -278,6 +316,10 @@ export default function SpeedGraderPanel({
 
   const selectedEstudianteObj = estudiantesAdmitidos.find((e) => e.usuarioId === selectedEstudianteId) || null;
   const selectedEntregaObj = entregas.find((e) => e.estudianteId === selectedEstudianteId) || null;
+  const selectedEquipoKey = selectedEstudianteObj
+    ? (selectedEntregaObj?.grupoNombre || selectedEstudianteObj.nombreEquipo || `IND_${selectedEstudianteObj.usuarioId}`).trim().toUpperCase()
+    : "";
+  const selectedLiderObj = selectedEquipoKey ? (liderPorEquipo[selectedEquipoKey] || selectedEstudianteObj) : null;
 
   return (
     <div className="space-y-6">
@@ -339,7 +381,7 @@ export default function SpeedGraderPanel({
           <div className="p-4 border-b border-line space-y-3 bg-paper-sunken/40">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-accent" /> Estudiantes ({estudiantesAdmitidos.length})
+                <Users className="w-4 h-4 text-accent" /> {tarea.esGrupal ? "Equipos" : "Estudiantes"} ({participantesDirectorio.length})
               </h3>
               {cargando && <span className="text-[10px] text-ink-faint">Cargando...</span>}
             </div>
@@ -364,7 +406,7 @@ export default function SpeedGraderPanel({
                     : "bg-paper border border-line text-ink-soft hover:bg-paper-sunken"
                 }`}
               >
-                Todos ({estudiantesAdmitidos.length})
+                Todos ({participantesDirectorio.length})
               </button>
               <button
                 onClick={() => setFiltroEstado("PENDIENTES")}
@@ -471,19 +513,36 @@ export default function SpeedGraderPanel({
                         {est.apellidos?.charAt(0)}
                       </div>
                       <div className="min-w-0">
-                        <span className={`block truncate ${isSelected ? "text-ink font-bold" : "text-ink"}`}>
-                          {est.nombre} {est.apellidos}
-                        </span>
-                        <span className="text-[10px] text-ink-faint block truncate">{est.email}</span>
-                        {(ent?.grupoNombre || est.nombreEquipo) && (
-                          <span className="text-[10px] text-accent flex items-center gap-1 mt-0.5 truncate">
-                            <Tag className="w-2.5 h-2.5 shrink-0" /> {ent?.grupoNombre || est.nombreEquipo}
-                          </span>
-                        )}
-                        {(ent?.esGrupal || tarea.esGrupal) && ent?.entregadoPorNombre && (
-                          <span className="text-[9px] text-ink-faint block truncate">
-                            Envío: {ent.entregadoPorNombre}
-                          </span>
+                        {tarea.esGrupal && (ent?.grupoNombre || est.nombreEquipo) ? (
+                          <>
+                            <span className={`block truncate ${isSelected ? "text-ink font-bold" : "text-ink font-semibold"}`}>
+                              Equipo {ent?.grupoNombre || est.nombreEquipo}
+                            </span>
+                            <span className="text-[10px] text-ink-soft block truncate">
+                              Líder: {(() => {
+                                const k = (ent?.grupoNombre || est.nombreEquipo || `IND_${est.usuarioId}`).trim().toUpperCase();
+                                const l = liderPorEquipo[k] || est;
+                                return `${l.nombre} ${l.apellidos || ""}`.trim();
+                              })()}
+                            </span>
+                            {ent?.entregadoPorNombre && (
+                              <span className="text-[10px] text-accent font-medium block truncate">
+                                Envió: {ent.entregadoPorNombre}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className={`block truncate ${isSelected ? "text-ink font-bold" : "text-ink"}`}>
+                              {est.nombre} {est.apellidos}
+                            </span>
+                            <span className="text-[10px] text-ink-faint block truncate">{est.email}</span>
+                            {(ent?.grupoNombre || est.nombreEquipo) && (
+                              <span className="text-[10px] text-accent flex items-center gap-1 mt-0.5 truncate">
+                                <Tag className="w-2.5 h-2.5 shrink-0" /> {ent?.grupoNombre || est.nombreEquipo}
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -583,24 +642,78 @@ export default function SpeedGraderPanel({
                 {/* Detalles del Envío */}
                 <div className="bg-paper-sunken/50 border border-line rounded-2xl p-5 space-y-4">
                   {(tarea.esGrupal || selectedEntregaObj.esGrupal) && (
-                    <div className="p-3 bg-paper border border-line rounded-xl space-y-1.5 text-xs">
+                    <div className="p-3 bg-paper border border-line rounded-xl space-y-2 text-xs">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-semibold text-ink flex items-center gap-1.5 text-xs">
                           <Users className="w-3.5 h-3.5 text-ink-soft" /> Entrega Grupal • Equipo {selectedEntregaObj.grupoNombre || selectedEstudianteObj.nombreEquipo || "Asignado"}
                         </span>
-                        <span className="text-[11px] text-ink-soft">
-                          Subido por: <strong className="text-ink font-medium">{selectedEntregaObj.entregadoPorNombre || selectedEstudianteObj.nombre}</strong>
-                          {selectedEntregaObj.entregadoPorEmail && (
-                            <span className="text-ink-faint"> ({selectedEntregaObj.entregadoPorEmail})</span>
+                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-ink-soft">
+                          {selectedLiderObj && (
+                            <span>
+                              Líder: <strong className="text-ink font-semibold">{selectedLiderObj.nombre} {selectedLiderObj.apellidos}</strong>
+                            </span>
                           )}
-                        </span>
-                      </div>
-                      {selectedEntregaObj.companerosEquipo && selectedEntregaObj.companerosEquipo.length > 0 && (
-                        <div className="text-[11px] text-ink-soft pt-1 border-t border-line">
-                          <span className="font-medium text-ink">Integrantes: </span>
-                          {selectedEntregaObj.companerosEquipo.join(" • ")}
+                          <span>
+                            Subido por: <strong className="text-accent font-semibold">{selectedEntregaObj.entregadoPorNombre || selectedEstudianteObj.nombre}</strong>
+                            {selectedEntregaObj.entregadoPorEmail && (
+                              <span className="text-ink-faint"> ({selectedEntregaObj.entregadoPorEmail})</span>
+                            )}
+                          </span>
                         </div>
-                      )}
+                      </div>
+                      {selectedEntregaObj.companerosEquipo && selectedEntregaObj.companerosEquipo.length > 0 && (() => {
+                        const liderNombre = selectedLiderObj
+                          ? `${selectedLiderObj.nombre} ${selectedLiderObj.apellidos || ""}`.trim().toLowerCase()
+                          : "";
+                        const envioNombre = (selectedEntregaObj.entregadoPorNombre || "").trim().toLowerCase();
+                        const ordenados = [...selectedEntregaObj.companerosEquipo].sort((a, b) => {
+                          const aLider = liderNombre && a.toLowerCase().includes(liderNombre);
+                          const bLider = liderNombre && b.toLowerCase().includes(liderNombre);
+                          if (aLider && !bLider) return -1;
+                          if (!aLider && bLider) return 1;
+                          return 0;
+                        });
+                        return (
+                          <div className="pt-1.5 border-t border-line">
+                            <button
+                              type="button"
+                              onClick={() => setIntegrantesAbierto((v) => !v)}
+                              className="w-full flex items-center justify-between text-[11px] font-semibold text-ink hover:text-accent transition-colors cursor-pointer py-0.5"
+                            >
+                              <span>Integrantes del equipo ({ordenados.length})</span>
+                              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${integrantesAbierto ? "rotate-180" : ""}`} />
+                            </button>
+                            {integrantesAbierto && (
+                              <ul className="mt-2 space-y-1">
+                                {ordenados.map((nombreComp, idx) => {
+                                  const esLider = (liderNombre && nombreComp.toLowerCase().includes(liderNombre)) || (!liderNombre && idx === 0);
+                                  const esQuienEnvia = envioNombre && nombreComp.toLowerCase().includes(envioNombre);
+                                  return (
+                                    <li
+                                      key={idx}
+                                      className="flex items-center justify-between gap-2 text-[11px] px-2.5 py-1.5 rounded-lg bg-paper-sunken/70 border border-line/60"
+                                    >
+                                      <span className="font-medium text-ink truncate">{nombreComp}</span>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        {esLider && (
+                                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                            Líder
+                                          </span>
+                                        )}
+                                        {esQuienEnvia && (
+                                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/15 text-accent border border-accent/30">
+                                            Envió
+                                          </span>
+                                        )}
+                                      </div>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 
