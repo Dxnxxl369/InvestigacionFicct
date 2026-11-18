@@ -5,11 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ficct.investigacion.dto.ReporteGenerativoDTO.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -21,18 +18,12 @@ public class ReporteGenerativoService {
     private static final Logger log = LoggerFactory.getLogger(ReporteGenerativoService.class);
 
     private final JdbcTemplate jdbcTemplate;
-    private final RestTemplate restTemplate;
+    private final LlmGatewayService llmGatewayService;
     private final ObjectMapper objectMapper;
 
-    @Value("${app.groq.api-key:}")
-    private String groqApiKey;
-
-    @Value("${app.groq.model:llama-3.1-8b-instant}")
-    private String groqModel;
-
-    public ReporteGenerativoService(JdbcTemplate jdbcTemplate) {
+    public ReporteGenerativoService(JdbcTemplate jdbcTemplate, LlmGatewayService llmGatewayService) {
         this.jdbcTemplate = jdbcTemplate;
-        this.restTemplate = new RestTemplate();
+        this.llmGatewayService = llmGatewayService;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -129,13 +120,7 @@ public class ReporteGenerativoService {
                 """;
 
         try {
-            String url = "https://api.groq.com/openai/v1/chat/completions";
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(groqApiKey);
-
             Map<String, Object> body = new HashMap<>();
-            body.put("model", groqModel);
             body.put("max_tokens", 400);
             body.put("temperature", 0.0);
 
@@ -144,17 +129,12 @@ public class ReporteGenerativoService {
             messages.add(Map.of("role", "user", "content", promptUsuario + (tablaFiltro != null && !tablaFiltro.isBlank() ? " (Foco en tabla: " + tablaFiltro + ")" : "")));
             body.put("messages", messages);
 
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-            ResponseEntity<String> res = restTemplate.postForEntity(url, entity, String.class);
-
-            if (res.getStatusCode().is2xxSuccessful() && res.getBody() != null) {
-                JsonNode root = objectMapper.readTree(res.getBody());
-                String raw = root.path("choices").get(0).path("message").path("content").asText();
-                String cleaned = limpiarJson(raw);
-                JsonNode parsed = objectMapper.readTree(cleaned);
-                if (parsed.hasNonNull("sql")) {
-                    return parsed.get("sql").asText();
-                }
+            JsonNode root = llmGatewayService.chatCompletions(body);
+            String raw = root.path("choices").get(0).path("message").path("content").asText();
+            String cleaned = limpiarJson(raw);
+            JsonNode parsed = objectMapper.readTree(cleaned);
+            if (parsed.hasNonNull("sql")) {
+                return parsed.get("sql").asText();
             }
         } catch (Exception e) {
             log.warn("Fallo llamada a LLM para reporte SQL, usando fallback heurístico: {}", e.getMessage());

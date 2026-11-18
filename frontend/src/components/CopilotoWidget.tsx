@@ -372,8 +372,9 @@ export default function CopilotoWidget() {
       for (let i = 0; i < byteChars.length; i++) {
         byteNumbers[i] = byteChars.charCodeAt(i);
       }
+      const isCsv = (rep.nombreArchivo || "").toLowerCase().endsWith(".csv");
       const blob = new Blob([new Uint8Array(byteNumbers)], {
-        type: "application/pdf",
+        type: isCsv ? "text/csv;charset=utf-8" : "application/pdf",
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

@@ -30,14 +30,14 @@ public class CopilotoToolRegistry {
                         List.of("accion"),
                         Map.of(
                                 "accion", Map.of("type", "string", "enum", List.of("HABILITAR", "DESHABILITAR", "EDITAR_FECHAS")),
-                                "aplicarATodas", Map.of("type", "boolean", "description", "true si pide abrir, cerrar o editar todas las tareas (de un aula, módulo, tipo o en general)"),
+                                "aplicarATodas", Map.of("type", "boolean"),
                                 "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION", "TODAS")),
-                                "tareaTitulo", Map.of("type", "string", "description", "Título de la tarea si se refiere a una específica; omitir si es en lote"),
-                                "moduloNombre", Map.of("type", "string", "description", "Nombre o número del módulo si fue mencionado"),
-                                "aulaNombre", Map.of("type", "string", "description", "Nombre de la feria, hackathon, concurso o aula si fue mencionado"),
-                                "fechaHabilitacion", Map.of("type", "string", "description", "Fecha de apertura opcional (YYYY-MM-DD o YYYY-MM-DDTHH:mm)"),
-                                "fechaEntrega", Map.of("type", "string", "description", "Fecha límite de entrega opcional (YYYY-MM-DD o YYYY-MM-DDTHH:mm)"),
-                                "fechaCorte", Map.of("type", "string", "description", "Fecha de cierre/corte opcional (YYYY-MM-DD o YYYY-MM-DDTHH:mm)")
+                                "tareaTitulo", Map.of("type", "string"),
+                                "moduloNombre", Map.of("type", "string"),
+                                "aulaNombre", Map.of("type", "string"),
+                                "fechaHabilitacion", Map.of("type", "string"),
+                                "fechaEntrega", Map.of("type", "string"),
+                                "fechaCorte", Map.of("type", "string")
                         )),
 
                 tool("gestionar_convocatoria",
@@ -45,35 +45,95 @@ public class CopilotoToolRegistry {
                         List.of("nuevoEstado"),
                         Map.of(
                                 "nuevoEstado", Map.of("type", "string", "enum", List.of("BORRADOR", "PUBLICADA", "FINALIZADA", "ARCHIVADA")),
-                                "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION", "TODAS"), "description", "Filtro por tipo si pide varias o todas de un tipo"),
-                                "estadoActual", Map.of("type", "string", "enum", List.of("BORRADOR", "PUBLICADA", "FINALIZADA"), "description", "Filtro opcional por estado actual"),
-                                "titulo", Map.of("type", "string", "description", "Título o parte del título si se refiere a una específica")
+                                "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION", "TODAS")),
+                                "estadoActual", Map.of("type", "string", "enum", List.of("BORRADOR", "PUBLICADA", "FINALIZADA")),
+                                "titulo", Map.of("type", "string")
                         )),
 
                 tool("gestionar_plantilla_tarea",
                         "Prepara la edición de fechas o habilitación de una actividad dentro de una plantilla global (solo ADMIN).",
                         List.of("actividadTitulo"),
                         Map.of(
-                                "plantillaNombre", Map.of("type", "string", "description", "Nombre de la plantilla si fue mencionado"),
-                                "actividadTitulo", Map.of("type", "string", "description", "Título de la actividad/tarea dentro de la plantilla"),
+                                "plantillaNombre", Map.of("type", "string"),
+                                "actividadTitulo", Map.of("type", "string"),
                                 "habilitada", Map.of("type", "boolean"),
-                                "fechaHabilitacion", Map.of("type", "string", "description", "YYYY-MM-DD o YYYY-MM-DDTHH:mm"),
-                                "fechaEntrega", Map.of("type", "string", "description", "YYYY-MM-DD o YYYY-MM-DDTHH:mm"),
-                                "fechaCorte", Map.of("type", "string", "description", "YYYY-MM-DD o YYYY-MM-DDTHH:mm")
+                                "fechaHabilitacion", Map.of("type", "string"),
+                                "fechaEntrega", Map.of("type", "string"),
+                                "fechaCorte", Map.of("type", "string")
+                        )),
+
+                tool("gestionar_grupos",
+                        "Consulta los grupos/equipos de una actividad (mi grupo, cupos disponibles, estudiantes sin grupo) o prepara la generación en lote de grupos (solo ADMIN/DOCENTE).",
+                        List.of("accion"),
+                        Map.of(
+                                "accion", Map.of("type", "string", "enum", List.of("VER_GRUPOS", "ESTUDIANTES_SIN_GRUPO", "GENERAR_LOTE")),
+                                "aulaNombre", Map.of("type", "string"),
+                                "cantidad", Map.of("type", "integer"),
+                                "cupoMaximo", Map.of("type", "integer")
+                        )),
+
+                tool("gestionar_inscripciones",
+                        "Lista inscripciones pendientes de aprobar en una convocatoria y prepara tarjeta con checkboxes para aceptar o rechazar en lote (solo ADMIN/DOCENTE).",
+                        List.of("accion"),
+                        Map.of(
+                                "accion", Map.of("type", "string", "enum", List.of("LISTAR_PENDIENTES", "APROBAR_PENDIENTES", "RECHAZAR_PENDIENTES")),
+                                "aulaNombre", Map.of("type", "string")
+                        )),
+
+                tool("seguimiento_y_notas",
+                        "Consulta qué estudiantes/grupos faltan por entregar una tarea o exporta la planilla de notas en CSV/Excel (solo lectura/exportación, nunca califica).",
+                        List.of("accion"),
+                        Map.of(
+                                "accion", Map.of("type", "string", "enum", List.of("QUIEN_FALTA", "EXPORTAR_NOTAS")),
+                                "aulaNombre", Map.of("type", "string"),
+                                "tareaTitulo", Map.of("type", "string")
+                        )),
+
+                tool("jurados_y_resumen_pdf",
+                        "Consulta estado de jurados/evaluaciones o extrae texto de una entrega PDF para resumirla al jurado/docente SIN calificar ni sugerir nota.",
+                        List.of("accion"),
+                        Map.of(
+                                "accion", Map.of("type", "string", "enum", List.of("ESTADO_JURADOS", "RESUMIR_ENTREGA")),
+                                "aulaNombre", Map.of("type", "string"),
+                                "grupoNombre", Map.of("type", "string")
+                        )),
+
+                tool("gestionar_usuarios_admin",
+                        "Solo ADMIN: obtiene estadísticas por rol, busca usuarios o prepara tarjeta de confirmación para suspender, reactivar o cambiar rol.",
+                        List.of("accion"),
+                        Map.of(
+                                "accion", Map.of("type", "string", "enum", List.of("ESTADISTICAS", "BUSCAR", "SUSPENDER", "ACTIVAR", "CAMBIAR_ROL")),
+                                "usuarioQuery", Map.of("type", "string"),
+                                "nuevoRol", Map.of("type", "string", "enum", List.of("ADMIN", "DOCENTE", "JURADO", "ESTUDIANTE"))
+                        )),
+
+                tool("buscar_biblioteca",
+                        "Busca proyectos y documentos académicos en la Biblioteca de la FICCT.",
+                        List.of("consulta"),
+                        Map.of(
+                                "consulta", Map.of("type", "string"),
+                                "area", Map.of("type", "string")
+                        )),
+
+                tool("gestionar_notificaciones",
+                        "Resume las notificaciones recientes sin leer o las marca todas como leídas.",
+                        List.of("accion"),
+                        Map.of(
+                                "accion", Map.of("type", "string", "enum", List.of("RESUMEN", "MARCAR_LEIDAS"))
                         )),
 
                 tool("generar_reporte_pdf",
                         "Ejecuta una consulta de reporte institucional en lenguaje natural y genera un documento PDF descargable directamente desde el chat (solo ADMIN o DOCENTE).",
                         List.of("consultaNatural"),
                         Map.of(
-                                "consultaNatural", Map.of("type", "string", "description", "Descripción exacta del reporte solicitado por el usuario")
+                                "consultaNatural", Map.of("type", "string")
                         )),
 
                 tool("abrir_agente_convocatorias",
                         "Transfiere al usuario al Agente IA especializado para crear o redactar una nueva convocatoria, feria, hackathon, concurso o investigación (solo ADMIN o DOCENTE).",
                         List.of(),
                         Map.of(
-                                "promptInicial", Map.of("type", "string", "description", "Descripción o instrucción inicial si el usuario dio detalles")
+                                "promptInicial", Map.of("type", "string")
                         ))
         );
     }

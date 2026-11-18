@@ -110,7 +110,7 @@ public class CopilotoService {
                     JsonNode argsNode = tc.path("function").path("arguments");
                     String argsRaw = argsNode.isTextual() ? argsNode.asText("{}") : argsNode.toString();
 
-                    String output = toolExecutor.ejecutar(fnName, argsRaw, user, response);
+                    String output = toolExecutor.ejecutar(fnName, argsRaw, user, request.getRutaActual(), response);
 
                     Map<String, Object> toolMsg = new HashMap<>();
                     toolMsg.put("role", "tool");

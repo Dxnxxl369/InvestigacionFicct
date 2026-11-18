@@ -2,14 +2,17 @@ package com.ficct.investigacion.ai.harness;
 
 import com.ficct.investigacion.dto.CopilotoDTO.ConfirmarAccionRequest;
 import com.ficct.investigacion.dto.CopilotoDTO.CopilotoResponse;
+import com.ficct.investigacion.dto.GenerarLoteGruposRequest;
 import com.ficct.investigacion.dto.TareaRequest;
 import com.ficct.investigacion.model.EstadoConvocatoria;
+import com.ficct.investigacion.model.EstadoUsuario;
 import com.ficct.investigacion.model.Rol;
 import com.ficct.investigacion.model.Tarea;
 import com.ficct.investigacion.model.User;
 import com.ficct.investigacion.repository.TareaRepository;
 import com.ficct.investigacion.repository.UserRepository;
 import com.ficct.investigacion.service.ConvocatoriaService;
+import com.ficct.investigacion.service.GrupoService;
 import com.ficct.investigacion.service.PlantillaService;
 import com.ficct.investigacion.service.PlantillaService.ActividadDatos;
 import com.ficct.investigacion.service.PlantillaService.PlantillaDatos;
@@ -33,17 +36,20 @@ public class CopilotoConfirmacionService {
     private final TareaService tareaService;
     private final ConvocatoriaService convocatoriaService;
     private final PlantillaService plantillaService;
+    private final GrupoService grupoService;
 
     public CopilotoConfirmacionService(UserRepository userRepository,
                                        TareaRepository tareaRepository,
                                        TareaService tareaService,
                                        ConvocatoriaService convocatoriaService,
-                                       PlantillaService plantillaService) {
+                                       PlantillaService plantillaService,
+                                       GrupoService grupoService) {
         this.userRepository = userRepository;
         this.tareaRepository = tareaRepository;
         this.tareaService = tareaService;
         this.convocatoriaService = convocatoriaService;
         this.plantillaService = plantillaService;
+        this.grupoService = grupoService;
     }
 
     @Transactional
@@ -199,6 +205,48 @@ public class CopilotoConfirmacionService {
                 }
                 plantillaService.actualizar(plantilla.id(), new PlantillaDatos(plantilla.id(), plantilla.titulo(), plantilla.descripcion(), nuevas));
                 resp.setMensaje("Plantilla \"" + plantilla.titulo() + "\" actualizada para \"" + tituloAct + "\" y sincronizada con sus aulas.");
+            }
+            case "GENERAR_GRUPOS_LOTE" -> {
+                String[] parts = (req.getValorTexto() != null ? req.getValorTexto() : "5:4").split(":");
+                int cantidad = Integer.parseInt(parts[0]);
+                int cupo = parts.length > 1 ? Integer.parseInt(parts[1]) : 4;
+                GenerarLoteGruposRequest loteReq = new GenerarLoteGruposRequest();
+                loteReq.setCantidad(cantidad);
+                loteReq.setCapacidadMaxima(cupo);
+                loteReq.setPrefijo("Grupo");
+                grupoService.generarLoteGrupos(req.getTargetId(), loteReq, userEmail);
+                resp.setMensaje("Se generaron " + cantidad + " grupos (cupo máx. " + cupo + ") correctamente.");
+            }
+            case "RESOLVER_INSCRIPCIONES_LOTE" -> {
+                boolean rechazar = "RECHAZAR".equalsIgnoreCase(req.getValorTexto());
+                List<Long> ids = req.getTargetIds() != null ? req.getTargetIds() : List.of();
+                int count = 0;
+                for (Long partId : ids) {
+                    if (rechazar) {
+                        convocatoriaService.rechazarEstudiante(req.getTargetId(), partId, "Rechazado por docente/administrador", userEmail);
+                    } else {
+                        convocatoriaService.admitirEstudiante(req.getTargetId(), partId, userEmail);
+                    }
+                    count++;
+                }
+                resp.setMensaje("Listo, se " + (rechazar ? "rechazaron " : "admitieron ") + count + " inscripción(es).");
+            }
+            case "GESTIONAR_USUARIO_ADMIN" -> {
+                if (user.getRol() != Rol.ADMIN) {
+                    throw new AccessDeniedException("Solo Administradores pueden modificar usuarios.");
+                }
+                User target = userRepository.findById(req.getTargetId())
+                        .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado."));
+                String val = req.getValorTexto() != null ? req.getValorTexto() : "";
+                if (val.startsWith("ESTADO:")) {
+                    target.setEstado(EstadoUsuario.valueOf(val.substring(7)));
+                    userRepository.save(target);
+                    resp.setMensaje("Estado de " + target.getNombreCompleto() + " actualizado a " + target.getEstado().name() + ".");
+                } else if (val.startsWith("ROL:")) {
+                    target.setRol(Rol.valueOf(val.substring(4)));
+                    userRepository.save(target);
+                    resp.setMensaje("Rol de " + target.getNombreCompleto() + " actualizado a " + target.getRol().name() + ".");
+                }
             }
             default -> throw new IllegalArgumentException("Acción de confirmación no soportada.");
         }

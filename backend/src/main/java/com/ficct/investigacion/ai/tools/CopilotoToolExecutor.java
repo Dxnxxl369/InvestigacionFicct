@@ -2,9 +2,16 @@ package com.ficct.investigacion.ai.tools;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ficct.investigacion.ai.tools.handlers.BibliotecaBusquedaHandler;
 import com.ficct.investigacion.ai.tools.handlers.ConvocatoriasLoteHandler;
+import com.ficct.investigacion.ai.tools.handlers.GruposEquiposHandler;
+import com.ficct.investigacion.ai.tools.handlers.InscripcionesHandler;
+import com.ficct.investigacion.ai.tools.handlers.JuradosEvaluacionHandler;
+import com.ficct.investigacion.ai.tools.handlers.NotificacionesHandler;
 import com.ficct.investigacion.ai.tools.handlers.PlantillasFechasHandler;
+import com.ficct.investigacion.ai.tools.handlers.SeguimientoNotasHandler;
 import com.ficct.investigacion.ai.tools.handlers.TareasLoteHandler;
+import com.ficct.investigacion.ai.tools.handlers.UsuariosAdminHandler;
 import com.ficct.investigacion.dto.ConvocatoriaDTO;
 import com.ficct.investigacion.dto.CopilotoDTO.*;
 import com.ficct.investigacion.dto.EntregaTareaDTO;
@@ -48,6 +55,13 @@ public class CopilotoToolExecutor {
     private final ConvocatoriasLoteHandler convocatoriasLoteHandler;
     private final PlantillasFechasHandler plantillasFechasHandler;
     private final TareasLoteHandler tareasLoteHandler;
+    private final GruposEquiposHandler gruposEquiposHandler;
+    private final InscripcionesHandler inscripcionesHandler;
+    private final SeguimientoNotasHandler seguimientoNotasHandler;
+    private final JuradosEvaluacionHandler juradosEvaluacionHandler;
+    private final UsuariosAdminHandler usuariosAdminHandler;
+    private final BibliotecaBusquedaHandler bibliotecaBusquedaHandler;
+    private final NotificacionesHandler notificacionesHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CopilotoToolExecutor(ConvocatoriaService convocatoriaService,
@@ -56,7 +70,14 @@ public class CopilotoToolExecutor {
                                 ReporteGenerativoService reporteGenerativoService,
                                 ConvocatoriasLoteHandler convocatoriasLoteHandler,
                                 PlantillasFechasHandler plantillasFechasHandler,
-                                TareasLoteHandler tareasLoteHandler) {
+                                TareasLoteHandler tareasLoteHandler,
+                                GruposEquiposHandler gruposEquiposHandler,
+                                InscripcionesHandler inscripcionesHandler,
+                                SeguimientoNotasHandler seguimientoNotasHandler,
+                                JuradosEvaluacionHandler juradosEvaluacionHandler,
+                                UsuariosAdminHandler usuariosAdminHandler,
+                                BibliotecaBusquedaHandler bibliotecaBusquedaHandler,
+                                NotificacionesHandler notificacionesHandler) {
         this.convocatoriaService = convocatoriaService;
         this.tareaService = tareaService;
         this.evaluacionJuradoService = evaluacionJuradoService;
@@ -64,9 +85,16 @@ public class CopilotoToolExecutor {
         this.convocatoriasLoteHandler = convocatoriasLoteHandler;
         this.plantillasFechasHandler = plantillasFechasHandler;
         this.tareasLoteHandler = tareasLoteHandler;
+        this.gruposEquiposHandler = gruposEquiposHandler;
+        this.inscripcionesHandler = inscripcionesHandler;
+        this.seguimientoNotasHandler = seguimientoNotasHandler;
+        this.juradosEvaluacionHandler = juradosEvaluacionHandler;
+        this.usuariosAdminHandler = usuariosAdminHandler;
+        this.bibliotecaBusquedaHandler = bibliotecaBusquedaHandler;
+        this.notificacionesHandler = notificacionesHandler;
     }
 
-    public String ejecutar(String fnName, String argsRaw, User user, CopilotoResponse response) {
+    public String ejecutar(String fnName, String argsRaw, User user, String rutaActual, CopilotoResponse response) {
         try {
             JsonNode args = objectMapper.readTree(argsRaw != null && !argsRaw.isBlank() ? argsRaw : "{}");
             return switch (fnName) {
@@ -75,6 +103,13 @@ public class CopilotoToolExecutor {
                 case "gestionar_tarea_modulo" -> tareasLoteHandler.ejecutar(args, user, response);
                 case "gestionar_convocatoria" -> convocatoriasLoteHandler.ejecutar(args, user, response);
                 case "gestionar_plantilla_tarea" -> plantillasFechasHandler.ejecutar(args, user, response);
+                case "gestionar_grupos" -> gruposEquiposHandler.ejecutar(args, user, rutaActual, response);
+                case "gestionar_inscripciones" -> inscripcionesHandler.ejecutar(args, user, rutaActual, response);
+                case "seguimiento_y_notas" -> seguimientoNotasHandler.ejecutar(args, user, rutaActual, response);
+                case "jurados_y_resumen_pdf" -> juradosEvaluacionHandler.ejecutar(args, user, rutaActual, response);
+                case "gestionar_usuarios_admin" -> usuariosAdminHandler.ejecutar(args, user, response);
+                case "buscar_biblioteca" -> bibliotecaBusquedaHandler.ejecutar(args, response);
+                case "gestionar_notificaciones" -> notificacionesHandler.ejecutar(args, user);
                 case "generar_reporte_pdf" -> ejecutarGenerarReportePdf(args, user, response);
                 case "abrir_agente_convocatorias" -> ejecutarAbrirAgente(args, user, response);
                 default -> "{\"ok\":false,\"error\":\"Herramienta desconocida\"}";
