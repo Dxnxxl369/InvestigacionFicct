@@ -61,6 +61,44 @@ public class CopilotoConfirmacionService {
         CopilotoResponse resp = new CopilotoResponse();
 
         switch (req.getTipoAccion()) {
+            case "GESTIONAR_TAREAS_LOTE" -> {
+                List<Long> ids = (req.getTargetIds() != null && !req.getTargetIds().isEmpty())
+                        ? req.getTargetIds()
+                        : List.of(req.getTargetId());
+                int actualizadas = 0;
+                for (Long id : ids) {
+                    Tarea tarea = tareaRepository.findById(id).orElse(null);
+                    if (tarea == null) continue;
+                    boolean habFinal = req.getHabilitada() != null ? req.getHabilitada() : tarea.isHabilitada();
+                    LocalDateTime fHab = req.getFechaHabilitacion() != null && !req.getFechaHabilitacion().isBlank()
+                            ? parsearFecha(req.getFechaHabilitacion(), LocalTime.of(0, 0)) : tarea.getFechaHabilitacion();
+                    LocalDateTime fEnt = req.getFechaEntrega() != null && !req.getFechaEntrega().isBlank()
+                            ? parsearFecha(req.getFechaEntrega(), LocalTime.of(23, 59)) : tarea.getFechaEntrega();
+                    LocalDateTime fCor = req.getFechaCorte() != null && !req.getFechaCorte().isBlank()
+                            ? parsearFecha(req.getFechaCorte(), LocalTime.of(23, 59)) : tarea.getFechaCorte();
+
+                    TareaRequest tr = new TareaRequest();
+                    tr.setConvocatoriaId(tarea.getConvocatoria().getId());
+                    tr.setTitulo(tarea.getTitulo());
+                    tr.setDescripcion(tarea.getDescripcion());
+                    tr.setHabilitada(habFinal);
+                    tr.setVisibleJurados(tarea.isVisibleJurados());
+                    tr.setTiposArchivosPermitidos(tarea.getTiposArchivosPermitidos());
+                    tr.setTamanoMaximoMb(tarea.getTamanoMaximoMb());
+                    tr.setPuntajeMaximo(tarea.getPuntajeMaximo());
+                    tr.setEsGrupal(tarea.isEsGrupal());
+                    tr.setFechaHabilitacion(fHab);
+                    tr.setFechaEntrega(fEnt);
+                    tr.setFechaCorte(fCor);
+                    tr.setFechaLimite(fEnt != null ? fEnt : tarea.getFechaLimite());
+                    if (tarea.getModulo() != null) {
+                        tr.setModuloId(tarea.getModulo().getId());
+                    }
+                    tareaService.actualizarTarea(tarea.getId(), tr, userEmail);
+                    actualizadas++;
+                }
+                resp.setMensaje("Listo, se actualizaron " + actualizadas + " tarea(s) correctamente.");
+            }
             case "GESTIONAR_TAREA", "HABILITAR_TAREA", "DESHABILITAR_TAREA", "EDITAR_FECHA_TAREA" -> {
                 Tarea tarea = tareaRepository.findById(req.getTargetId())
                         .orElseThrow(() -> new IllegalArgumentException("La tarea ya no existe."));

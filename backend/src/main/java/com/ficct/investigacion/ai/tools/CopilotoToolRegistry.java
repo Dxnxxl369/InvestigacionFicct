@@ -26,11 +26,13 @@ public class CopilotoToolRegistry {
                         )),
 
                 tool("gestionar_tarea_modulo",
-                        "Busca una tarea dentro de los módulos/aulas del usuario y prepara una tarjeta editable para habilitarla, deshabilitarla o configurar sus 3 fechas (apertura, entrega, corte) antes de confirmar.",
-                        List.of("accion", "tareaTitulo"),
+                        "Busca una tarea o todas las tareas (en lote) dentro de los módulos/aulas y prepara una tarjeta de confirmación editable para habilitarlas, cerrarlas/deshabilitarlas o configurar sus 3 fechas.",
+                        List.of("accion"),
                         Map.of(
                                 "accion", Map.of("type", "string", "enum", List.of("HABILITAR", "DESHABILITAR", "EDITAR_FECHAS")),
-                                "tareaTitulo", Map.of("type", "string", "description", "Título o palabras clave de la tarea (ej. Documentacion, Primer Avance)"),
+                                "aplicarATodas", Map.of("type", "boolean", "description", "true si pide abrir, cerrar o editar todas las tareas (de un aula, módulo, tipo o en general)"),
+                                "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION", "TODAS")),
+                                "tareaTitulo", Map.of("type", "string", "description", "Título de la tarea si se refiere a una específica; omitir si es en lote"),
                                 "moduloNombre", Map.of("type", "string", "description", "Nombre o número del módulo si fue mencionado"),
                                 "aulaNombre", Map.of("type", "string", "description", "Nombre de la feria, hackathon, concurso o aula si fue mencionado"),
                                 "fechaHabilitacion", Map.of("type", "string", "description", "Fecha de apertura opcional (YYYY-MM-DD o YYYY-MM-DDTHH:mm)"),

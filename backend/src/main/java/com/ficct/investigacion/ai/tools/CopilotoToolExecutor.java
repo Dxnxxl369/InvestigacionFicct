@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ficct.investigacion.ai.tools.handlers.ConvocatoriasLoteHandler;
 import com.ficct.investigacion.ai.tools.handlers.PlantillasFechasHandler;
+import com.ficct.investigacion.ai.tools.handlers.TareasLoteHandler;
 import com.ficct.investigacion.dto.ConvocatoriaDTO;
 import com.ficct.investigacion.dto.CopilotoDTO.*;
 import com.ficct.investigacion.dto.EntregaTareaDTO;
@@ -46,6 +47,7 @@ public class CopilotoToolExecutor {
     private final ReporteGenerativoService reporteGenerativoService;
     private final ConvocatoriasLoteHandler convocatoriasLoteHandler;
     private final PlantillasFechasHandler plantillasFechasHandler;
+    private final TareasLoteHandler tareasLoteHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CopilotoToolExecutor(ConvocatoriaService convocatoriaService,
@@ -53,13 +55,15 @@ public class CopilotoToolExecutor {
                                 EvaluacionJuradoService evaluacionJuradoService,
                                 ReporteGenerativoService reporteGenerativoService,
                                 ConvocatoriasLoteHandler convocatoriasLoteHandler,
-                                PlantillasFechasHandler plantillasFechasHandler) {
+                                PlantillasFechasHandler plantillasFechasHandler,
+                                TareasLoteHandler tareasLoteHandler) {
         this.convocatoriaService = convocatoriaService;
         this.tareaService = tareaService;
         this.evaluacionJuradoService = evaluacionJuradoService;
         this.reporteGenerativoService = reporteGenerativoService;
         this.convocatoriasLoteHandler = convocatoriasLoteHandler;
         this.plantillasFechasHandler = plantillasFechasHandler;
+        this.tareasLoteHandler = tareasLoteHandler;
     }
 
     public String ejecutar(String fnName, String argsRaw, User user, CopilotoResponse response) {
@@ -68,7 +72,7 @@ public class CopilotoToolExecutor {
             return switch (fnName) {
                 case "consultar_mis_aulas_y_pendientes" -> ejecutarConsultarAulas(user, response);
                 case "navegar_a" -> ejecutarNavegar(args, user, response);
-                case "gestionar_tarea_modulo" -> ejecutarGestionarTarea(args, user, response);
+                case "gestionar_tarea_modulo" -> tareasLoteHandler.ejecutar(args, user, response);
                 case "gestionar_convocatoria" -> convocatoriasLoteHandler.ejecutar(args, user, response);
                 case "gestionar_plantilla_tarea" -> plantillasFechasHandler.ejecutar(args, user, response);
                 case "generar_reporte_pdf" -> ejecutarGenerarReportePdf(args, user, response);

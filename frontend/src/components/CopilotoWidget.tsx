@@ -550,6 +550,28 @@ export default function CopilotoWidget() {
     } catch {}
   };
 
+  const renderizarTextoFormateado = (texto: string) => {
+    if (!texto) return null;
+    const partes = texto.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+    return partes.map((parte, idx) => {
+      if (parte.startsWith("**") && parte.endsWith("**") && parte.length > 4) {
+        return (
+          <strong key={idx} className="font-bold">
+            {parte.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (parte.startsWith("*") && parte.endsWith("*") && parte.length > 2) {
+        return (
+          <strong key={idx} className="font-semibold">
+            {parte.slice(1, -1)}
+          </strong>
+        );
+      }
+      return <React.Fragment key={idx}>{parte}</React.Fragment>;
+    });
+  };
+
   const sugerencias =
     SUGERENCIAS_POR_ROL[rol] || SUGERENCIAS_POR_ROL.ESTUDIANTE;
 
@@ -628,13 +650,13 @@ export default function CopilotoWidget() {
                 }`}
               >
                 <div
-                  className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed shadow-sm ${
+                  className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed shadow-sm whitespace-pre-line ${
                     msg.role === "user"
                       ? "bg-accent text-white rounded-br-md"
                       : "bg-surface-alt/90 text-ink border border-line/70 rounded-bl-md"
                   }`}
                 >
-                  {msg.content}
+                  {renderizarTextoFormateado(msg.content)}
                 </div>
 
                 {/* Tarjetas interactivas de Aulas / Navegacion */}
