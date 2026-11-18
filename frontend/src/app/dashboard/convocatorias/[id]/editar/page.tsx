@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import DashboardLayout from "@/components/DashboardLayout";
+import AgenteConvocatoriaModal from "@/components/moodle/modals/AgenteConvocatoriaModal";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { api, ConvocatoriaRequest, UserDTO, getMediaUrl } from "@/lib/api";
@@ -90,6 +91,7 @@ export default function EditarConvocatoriaPage() {
   // LocalStorage State
   const [lastSavedLocal, setLastSavedLocal] = useState<string | null>(null);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+  const [agenteModalOpen, setAgenteModalOpen] = useState(false);
 
   useEffect(() => {
     if (!convId) return;
@@ -416,6 +418,14 @@ export default function EditarConvocatoriaPage() {
 
           {/* Indicador de Auto-guardado LocalStorage */}
           <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={() => setAgenteModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-accent to-indigo-600 text-white hover:opacity-90 text-xs font-semibold transition-all shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Asistente IA</span>
+            </button>
             {lastSavedLocal && (
               <span className="text-[11px] px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 flex items-center gap-1.5 font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -1007,6 +1017,36 @@ export default function EditarConvocatoriaPage() {
             </div>
           </div>
         </div>
+
+        {/* Modal de Asistente IA precargado con los datos de la convocatoria */}
+        <AgenteConvocatoriaModal
+          isOpen={agenteModalOpen}
+          onClose={() => setAgenteModalOpen(false)}
+          estadoFormulario={{
+            tipo,
+            modalidadInscripcion,
+            titulo,
+            descripcion,
+            fechaFinInscripcion: fechaCierre,
+            cuposMinEquipo,
+            cuposMaxEquipo,
+            requisitos,
+            selectedDocenteIds,
+          }}
+          onAplicarBorrador={(b) => {
+            if (b.tipo) setTipo(b.tipo);
+            if (b.modalidadInscripcion) setModalidadInscripcion(b.modalidadInscripcion);
+            if (b.titulo) setTitulo(b.titulo);
+            if (b.descripcion) setDescripcion(b.descripcion);
+            if (b.fechaFinInscripcion) setFechaCierre(b.fechaFinInscripcion);
+            if (b.cuposMinEquipo !== undefined) setCuposMinEquipo(b.cuposMinEquipo);
+            if (b.cuposMaxEquipo !== undefined) setCuposMaxEquipo(b.cuposMaxEquipo);
+            if (b.requisitos && Array.isArray(b.requisitos)) setRequisitos(b.requisitos);
+            if (b.selectedDocenteIds && Array.isArray(b.selectedDocenteIds)) {
+              setSelectedDocenteIds(b.selectedDocenteIds);
+            }
+          }}
+        />
       </div>
     </DashboardLayout>
   );
