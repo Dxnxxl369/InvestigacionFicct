@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../../config/app_theme.dart';
 import '../../services/api_service.dart';
 import '../convocatorias/agente_convocatoria_screen.dart';
@@ -32,9 +33,12 @@ class CopilotoFullscreenScreen extends StatefulWidget {
 class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
   final TextEditingController _inputCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
+  final SpeechToText _speech = SpeechToText();
 
   List<Map<String, dynamic>> _mensajes = [];
   bool _cargando = false;
+  bool _escuchando = false;
+  bool _vozDisponible = false;
 
   String get _cacheKey => 'copiloto_mobile_cache_${widget.userId ?? 0}';
 
@@ -77,9 +81,65 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
 
   @override
   void dispose() {
+    _speech.stop();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleMicrofono() async {
+    if (_cargando) return;
+    if (_escuchando) {
+      await _speech.stop();
+      if (mounted) setState(() => _escuchando = false);
+      return;
+    }
+
+    try {
+      if (!_vozDisponible) {
+        _vozDisponible = await _speech.initialize(
+          onStatus: (status) {
+            if ((status == 'done' || status == 'notListening') && mounted) {
+              setState(() => _escuchando = false);
+            }
+          },
+          onError: (_) {
+            if (mounted) setState(() => _escuchando = false);
+          },
+        );
+      }
+
+      if (!_vozDisponible) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Dictado por voz o permiso de micrófono no disponible.')),
+        );
+        return;
+      }
+
+      setState(() => _escuchando = true);
+      await _speech.listen(
+        localeId: 'es_ES',
+        listenOptions: SpeechListenOptions(
+          partialResults: true,
+          cancelOnError: true,
+        ),
+        onResult: (result) {
+          if (!mounted) return;
+          final txt = result.recognizedWords.trim();
+          if (txt.isNotEmpty) {
+            _inputCtrl.text = txt;
+          }
+          if (result.finalResult && txt.isNotEmpty) {
+            setState(() => _escuchando = false);
+            _enviarMensaje(txt);
+          }
+        },
+      );
+    } catch (_) {
+      if (mounted) setState(() => _escuchando = false);
+    }
   }
 
   Map<String, dynamic> _mensajeBienvenida() {
@@ -786,15 +846,42 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
                 ),
               ),
 
-            // Barra inferior de entrada
+            // Barra inferior de entrada + Microfono
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
               decoration: BoxDecoration(
                 color: surfaceColor,
                 border: Border(top: BorderSide(color: borderColor)),
               ),
               child: Row(
                 children: [
+                  Material(
+                    color: _escuchando
+                        ? Colors.redAccent
+                        : bgColor,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: _cargando ? null : _toggleMicrofono,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: _escuchando ? Colors.redAccent : borderColor,
+                          ),
+                        ),
+                        child: Icon(
+                          _escuchando
+                              ? Icons.mic_off_rounded
+                              : Icons.mic_none_rounded,
+                          color: _escuchando ? Colors.white : faintColor,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _inputCtrl,
@@ -802,7 +889,9 @@ class _CopilotoFullscreenScreenState extends State<CopilotoFullscreenScreen> {
                       onSubmitted: (_) => _enviarMensaje(),
                       style: TextStyle(fontSize: 13.5, color: textColor),
                       decoration: InputDecoration(
-                        hintText: 'Escribe tu consulta o acción...',
+                        hintText: _escuchando
+                            ? 'Escuchando...'
+                            : 'Escribe o usa el micrófono...',
                         hintStyle: TextStyle(fontSize: 12.5, color: faintColor),
                         filled: true,
                         fillColor: bgColor,

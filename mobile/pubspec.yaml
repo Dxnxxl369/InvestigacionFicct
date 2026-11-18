@@ -44,6 +44,7 @@ dependencies:
   flutter_local_notifications: ^20.1.0
   flutter_pdfview: ^1.4.5
   path_provider: ^2.1.5
+  speech_to_text: ^7.4.0
 
 dev_dependencies:
   flutter_test:

@@ -4,8 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_theme.dart';
 import '../screens/copiloto/copiloto_fullscreen_screen.dart';
 
-/// Burbuja flotante compacta estilo Binance (46x46) arrastrable con snap izquierdo/derecho.
-/// Al tocarla abre el Copiloto IA a pantalla completa.
+/// Burbuja flotante compacta estilo Binance (46x46) arrastrable a 60/120fps sin delay,
+/// usando ValueNotifier + RepaintBoundary y AnimationController para imantar al borde.
 class CopilotoBubbleOverlay extends StatefulWidget {
   final String userRole;
   final String userName;
@@ -26,20 +26,37 @@ class CopilotoBubbleOverlay extends StatefulWidget {
   State<CopilotoBubbleOverlay> createState() => _CopilotoBubbleOverlayState();
 }
 
-class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay> {
+class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay>
+    with SingleTickerProviderStateMixin {
   static const double _bubbleSize = 46.0;
   static const double _edgeGap = 12.0;
 
-  double? _left;
-  double? _top;
-  bool _dragging = false;
+  late final ValueNotifier<Offset?> _posNotifier;
+  late final AnimationController _snapCtrl;
+  Animation<Offset>? _snapAnim;
 
   String get _posKey => 'copiloto_mobile_pos_${widget.userId ?? 0}';
 
   @override
   void initState() {
     super.initState();
+    _posNotifier = ValueNotifier<Offset?>(null);
+    _snapCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    )..addListener(() {
+        if (_snapAnim != null) {
+          _posNotifier.value = _snapAnim!.value;
+        }
+      });
     _cargarPosicion();
+  }
+
+  @override
+  void dispose() {
+    _snapCtrl.dispose();
+    _posNotifier.dispose();
+    super.dispose();
   }
 
   Future<void> _cargarPosicion() async {
@@ -52,14 +69,12 @@ class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay> {
           final size = MediaQuery.of(context).size;
           final side = parsed['side'] == 'left' ? 'left' : 'right';
           final savedY = (parsed['y'] as num?)?.toDouble();
-          setState(() {
-            _left = side == 'left'
-                ? _edgeGap
-                : size.width - _bubbleSize - _edgeGap;
-            if (savedY != null) {
-              _top = savedY.clamp(60.0, size.height - _bubbleSize - 95.0);
-            }
-          });
+          final x = side == 'left'
+              ? _edgeGap
+              : size.width - _bubbleSize - _edgeGap;
+          final y = (savedY ?? (size.height - _bubbleSize - 108.0))
+              .clamp(54.0, size.height - _bubbleSize - 92.0);
+          _posNotifier.value = Offset(x, y);
         }
       }
     } catch (_) {}
@@ -98,37 +113,35 @@ class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final currentLeft = _left ?? (size.width - _bubbleSize - _edgeGap);
-    final currentTop = _top ?? (size.height - _bubbleSize - 108.0);
+    final defaultOffset = Offset(
+      size.width - _bubbleSize - _edgeGap,
+      size.height - _bubbleSize - 108.0,
+    );
 
-    return AnimatedPositioned(
-      duration: _dragging ? Duration.zero : const Duration(milliseconds: 240),
-      curve: Curves.easeOutCubic,
-      left: currentLeft,
-      top: currentTop,
+    final bubbleWidget = RepaintBoundary(
       child: GestureDetector(
-        onPanStart: (_) => setState(() => _dragging = true),
+        onPanStart: (_) => _snapCtrl.stop(),
         onPanUpdate: (details) {
-          setState(() {
-            _left = (currentLeft + details.delta.dx)
-                .clamp(_edgeGap, size.width - _bubbleSize - _edgeGap);
-            _top = (currentTop + details.delta.dy)
-                .clamp(54.0, size.height - _bubbleSize - 92.0);
-          });
+          final curr = _posNotifier.value ?? defaultOffset;
+          final nextX = (curr.dx + details.delta.dx)
+              .clamp(_edgeGap, size.width - _bubbleSize - _edgeGap);
+          final nextY = (curr.dy + details.delta.dy)
+              .clamp(54.0, size.height - _bubbleSize - 92.0);
+          _posNotifier.value = Offset(nextX, nextY);
         },
         onPanEnd: (_) {
-          final centerX = (_left ?? currentLeft) + (_bubbleSize / 2);
+          final curr = _posNotifier.value ?? defaultOffset;
+          final centerX = curr.dx + (_bubbleSize / 2);
           final side = centerX < (size.width / 2) ? 'left' : 'right';
           final snappedX =
               side == 'left' ? _edgeGap : (size.width - _bubbleSize - _edgeGap);
-          final finalY = (_top ?? currentTop)
-              .clamp(54.0, size.height - _bubbleSize - 92.0);
+          final finalY = curr.dy.clamp(54.0, size.height - _bubbleSize - 92.0);
+          final target = Offset(snappedX, finalY);
 
-          setState(() {
-            _dragging = false;
-            _left = snappedX;
-            _top = finalY;
-          });
+          _snapAnim = Tween<Offset>(begin: curr, end: target).animate(
+            CurvedAnimation(parent: _snapCtrl, curve: Curves.easeOutCubic),
+          );
+          _snapCtrl.forward(from: 0);
           _guardarPosicion(side, finalY);
         },
         onTap: _abrirCopilotoFullscreen,
@@ -148,9 +161,9 @@ class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay> {
             ),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.accent.withValues(alpha: 0.4),
-                blurRadius: 14,
-                offset: const Offset(0, 5),
+                color: AppTheme.accent.withValues(alpha: 0.38),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -179,6 +192,19 @@ class _CopilotoBubbleOverlayState extends State<CopilotoBubbleOverlay> {
           ),
         ),
       ),
+    );
+
+    return ValueListenableBuilder<Offset?>(
+      valueListenable: _posNotifier,
+      child: bubbleWidget,
+      builder: (_, offset, child) {
+        final pos = offset ?? defaultOffset;
+        return Positioned(
+          left: pos.dx,
+          top: pos.dy,
+          child: child!,
+        );
+      },
     );
   }
 }
