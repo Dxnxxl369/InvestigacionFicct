@@ -1,0 +1,8 @@
+tunnel: c39602b4-3ffb-41cd-a280-a3d51339d9d2
+credentials-file: /run/secrets/ficct-aws-web.json
+ingress:
+  - hostname: bshadow.xyz
+    service: http://frontend:3000
+  - hostname: api.bshadow.xyz
+    service: http://backend:8080
+  - service: http_status:404

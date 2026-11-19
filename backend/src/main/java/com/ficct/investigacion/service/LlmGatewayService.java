@@ -42,6 +42,9 @@ public class LlmGatewayService {
     @Value("${app.local-ai.model:qwen2.5:3b}")
     private String localAiModel;
 
+    @Value("${app.local-ai.token:}")
+    private String localAiToken;
+
     @Value("${app.local-ai.connect-timeout-ms:2500}")
     private int localConnectTimeoutMs;
 
@@ -94,6 +97,9 @@ public class LlmGatewayService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        if (localAiToken != null && !localAiToken.isBlank()) {
+            headers.setBearerAuth(localAiToken.trim());
+        }
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(localConnectTimeoutMs);

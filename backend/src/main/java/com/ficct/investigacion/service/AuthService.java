@@ -6,7 +6,6 @@ import com.ficct.investigacion.dto.AuthResponse;
 import com.ficct.investigacion.dto.PerfilUpdateRequest;
 import com.ficct.investigacion.dto.RegisterRequest;
 import com.ficct.investigacion.dto.UserDTO;
-import com.ficct.investigacion.init.DataSeeder;
 import com.ficct.investigacion.model.Convocatoria;
 import com.ficct.investigacion.model.ConvocatoriaParticipante;
 import com.ficct.investigacion.model.EstadoInscripcion;
@@ -17,7 +16,6 @@ import com.ficct.investigacion.repository.ConvocatoriaParticipanteRepository;
 import com.ficct.investigacion.repository.ConvocatoriaRepository;
 import com.ficct.investigacion.repository.UserRepository;
 import com.ficct.investigacion.util.CorreoPermitido;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,7 +30,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class AuthService {
@@ -44,8 +41,6 @@ public class AuthService {
     private final ConvocatoriaParticipanteRepository participanteRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final FeriaMembresiaService feriaMembresiaService;
-    private final JdbcTemplate jdbcTemplate;
-    private final DataSeeder dataSeeder;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
@@ -53,9 +48,7 @@ public class AuthService {
                        AuthenticationManager authenticationManager,
                        ConvocatoriaParticipanteRepository participanteRepository,
                        ConvocatoriaRepository convocatoriaRepository,
-                       FeriaMembresiaService feriaMembresiaService,
-                       JdbcTemplate jdbcTemplate,
-                       DataSeeder dataSeeder) {
+                       FeriaMembresiaService feriaMembresiaService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -63,8 +56,6 @@ public class AuthService {
         this.participanteRepository = participanteRepository;
         this.convocatoriaRepository = convocatoriaRepository;
         this.feriaMembresiaService = feriaMembresiaService;
-        this.jdbcTemplate = jdbcTemplate;
-        this.dataSeeder = dataSeeder;
     }
 
     @Transactional
@@ -297,35 +288,4 @@ public class AuthService {
         return perfil;
     }
 
-    /**
-     * Vacia todas las tablas de datos y asegura que existan únicamente las cuentas y permisos iniciales activos.
-     */
-    public Map<String, Object> vaciarBaseDeDatosYDejarAdmin() {
-        try {
-            List<String> tables = jdbcTemplate.queryForList(
-                    "SELECT tablename FROM pg_tables WHERE schemaname = 'public'", String.class);
-            if (tables != null && !tables.isEmpty()) {
-                String tablesList = tables.stream()
-                        .map(t -> "\"" + t + "\"")
-                        .collect(Collectors.joining(", "));
-                jdbcTemplate.execute("TRUNCATE TABLE " + tablesList + " RESTART IDENTITY CASCADE");
-            }
-        } catch (Exception e) {
-            try {
-                participanteRepository.deleteAll();
-                convocatoriaRepository.deleteAll();
-                userRepository.deleteAll();
-            } catch (Exception ignored) {}
-        }
-
-        // Ejecutar DataSeeder para repoblar permisos y crear los usuarios base
-        dataSeeder.run();
-
-        Map<String, Object> resp = new HashMap<>();
-        resp.put("exito", true);
-        resp.put("mensaje", "Base de datos vaciada con exito. Administrador y cuentas base configuradas correctamente.");
-        resp.put("adminEmail", "admin.investigacion@gmail.com");
-        resp.put("adminPassword", "admin369");
-        return resp;
-    }
 }

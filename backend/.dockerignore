@@ -1,0 +1,6 @@
+target
+.git
+.env*
+src/main/resources/firebase-credentials.b64
+src/main/resources/firebase-service-account.json
+*.log
