@@ -4,7 +4,7 @@
 
 - EC2 `t3.small` (Amazon Linux 2023, disco gp3 cifrado de 40 GB) en `us-east-1`.
 - Docker Compose: PostgreSQL 16, backend Spring Boot, frontend Next.js y Cloudflare Tunnel.
-- `https://bshadow.xyz` sirve el frontend y `https://api.bshadow.xyz` sirve el backend. Los contenedores no publican puertos; solo SSH desde la IP administrativa está habilitado en el grupo de seguridad.
+- `https://ficct.bshadow.xyz` sirve el frontend y `https://api.bshadow.xyz` sirve el backend. `https://bshadow.xyz` redirige al frontend. Los contenedores no publican puertos; solo SSH desde la IP administrativa está habilitado en el grupo de seguridad.
 - PostgreSQL y archivos subidos persisten en `/srv/ficct/data` en EBS. Los secretos de producción están en `/srv/ficct/app.env` y `/srv/ficct/secrets`, fuera del código.
 - `https://ai.bshadow.xyz` conecta el backend con Ollama en la PC local por otro túnel. La PC debe estar encendida y con sesión iniciada; la tarea programada `FicctLocalAI` inicia el modelo, el proxy con token y el túnel al iniciar sesión.
 

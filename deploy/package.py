@@ -14,6 +14,7 @@ extra = [
     "frontend/.dockerignore",
     "frontend/Dockerfile",
     "deploy/cloudflared-web.yml",
+    "deploy/redirect.conf",
     "deploy/compose.yaml",
     "deploy/init-secrets.sh",
 ]
