@@ -41,32 +41,11 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedUsuariosBase() {
-        // 1. Administrador Principal (admin.investigacion@gmail.com / admin369)
-        if (!userRepository.existsByEmail("admin.investigacion@gmail.com")) {
-            userRepository.save(new User("Admin Principal", "", "admin.investigacion@gmail.com",
-                    passwordEncoder.encode("admin369"), Rol.ADMIN, EstadoUsuario.ACTIVO));
-            log.info(">>> [DataSeeder] Usuario ADMIN creado: admin.investigacion@gmail.com");
-        }
-
-        // 2. Administrador UAGRM (admin@uagrm.edu.bo / admin369)
-        if (!userRepository.existsByEmail("admin@uagrm.edu.bo")) {
-            userRepository.save(new User("Administrador", "", "admin@uagrm.edu.bo",
-                    passwordEncoder.encode("admin369"), Rol.ADMIN, EstadoUsuario.ACTIVO));
-            log.info(">>> [DataSeeder] Usuario ADMIN UAGRM creado: admin@uagrm.edu.bo");
-        }
-
-        // 3. Docente (docente.ficct@gmail.com / docente123)
-        if (!userRepository.existsByEmail("docente.ficct@gmail.com")) {
-            userRepository.save(new User("Docente Investigador", "", "docente.ficct@gmail.com",
-                    passwordEncoder.encode("docente123"), Rol.DOCENTE, EstadoUsuario.ACTIVO));
-            log.info(">>> [DataSeeder] Usuario DOCENTE creado: docente.ficct@gmail.com");
-        }
-
-        // 4. Estudiante (alumno.ficct@gmail.com / estudiante123)
-        if (!userRepository.existsByEmail("alumno.ficct@gmail.com")) {
-            userRepository.save(new User("Alumno Prueba", "", "alumno.ficct@gmail.com",
-                    passwordEncoder.encode("estudiante123"), Rol.ESTUDIANTE, EstadoUsuario.ACTIVO));
-            log.info(">>> [DataSeeder] Usuario ESTUDIANTE creado: alumno.ficct@gmail.com");
+        // Unico administrador inicial (admin@gmail.com / admin123)
+        if (!userRepository.existsByEmail("admin@gmail.com")) {
+            userRepository.save(new User("Carlos", "Mendoza", "admin@gmail.com",
+                    passwordEncoder.encode("admin123"), Rol.ADMIN, EstadoUsuario.ACTIVO));
+            log.info(">>> [DataSeeder] Usuario ADMIN creado: admin@gmail.com");
         }
     }
 
