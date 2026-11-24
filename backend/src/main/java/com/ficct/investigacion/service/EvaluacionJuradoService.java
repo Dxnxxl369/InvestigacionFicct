@@ -45,6 +45,12 @@ public class EvaluacionJuradoService {
     private final FormularioEvaluacionJuradoRepository formularios;
     private final EvaluacionJuradoRepository evaluaciones;
     private final ObjectMapper json;
+    private BibliotecaService bibliotecaService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setBibliotecaService(BibliotecaService bibliotecaService) {
+        this.bibliotecaService = bibliotecaService;
+    }
 
     public EvaluacionJuradoService(UserRepository usuarios, ConvocatoriaRepository convocatorias,
                                    ConvocatoriaParticipanteRepository participantes,
@@ -409,6 +415,9 @@ public class EvaluacionJuradoService {
         conv.setEvaluacionJuradosCerrada(true);
         conv.setFechaCierreEvaluacion(LocalDateTime.now());
         convocatorias.save(conv);
+        if (bibliotecaService != null) {
+            bibliotecaService.publicarProyectosFinalizados(conv);
+        }
         return resumenEvaluacion(convocatoriaId, correo);
     }
 

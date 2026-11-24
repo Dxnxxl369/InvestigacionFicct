@@ -72,6 +72,20 @@ export default function ReportesGenerativosPage() {
 
   // Speech Recognition ref
   const recognitionRef = useRef<any>(null);
+  const autoQueryRanRef = useRef(false);
+
+  // Si venimos redirigidos desde el Copiloto con ?q=..., prellenar y ejecutar el reporte automáticamente
+  useEffect(() => {
+    if (typeof window === "undefined" || autoQueryRanRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q")?.trim();
+    if (q) {
+      autoQueryRanRef.current = true;
+      setPrompt(q);
+      ejecutarConsulta(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Inicializar Web Speech API si el navegador lo soporta
   useEffect(() => {

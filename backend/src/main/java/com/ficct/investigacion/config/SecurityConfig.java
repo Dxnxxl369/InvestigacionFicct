@@ -46,8 +46,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Rutas públicas: autenticación y portal público
                         .requestMatchers("/", "/health", "/api").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/biblioteca/filtros", "/api/biblioteca/categorias",
+                                "/api/biblioteca/documentos", "/api/biblioteca/documentos/*/archivo",
+                                "/api/biblioteca/documentos/*/portada").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/permisos/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()

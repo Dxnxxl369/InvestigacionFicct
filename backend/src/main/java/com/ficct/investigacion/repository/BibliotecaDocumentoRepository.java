@@ -8,4 +8,5 @@ public interface BibliotecaDocumentoRepository extends JpaRepository<BibliotecaD
     List<BibliotecaDocumento> findByPublicadoTrueOrderByCreadoEnDesc();
     List<BibliotecaDocumento> findAllByOrderByCreadoEnDesc();
     boolean existsByCategoriaId(Long categoriaId);
+    boolean existsByTituloIgnoreCaseAndNombreArchivoIgnoreCase(String titulo, String nombreArchivo);
 }
