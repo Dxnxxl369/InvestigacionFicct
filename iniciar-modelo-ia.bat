@@ -1,4 +1,4 @@
-@echo off
+x@echo off
 title Copiloto IA FICCT - Ollama + Tunel Cloudflare
 echo ============================================================
 echo   INICIANDO SERVIDOR IA LOCAL (qwen2.5:3b + Cloudflare)
@@ -42,7 +42,7 @@ echo   No cierres esta ventana mientras uses tu modelo local.
 echo ============================================================
 echo.
 
-"%CF_CMD%" tunnel --url http://localhost:11434
+"%CF_CMD%" tunnel --url http://localhost:11434 --http-host-header="localhost:11434"
 
 echo.
 echo El tunel se ha detenido.
