@@ -19,7 +19,8 @@ public class CopilotoPromptBuilder {
         return """
                 Clasifica la intención del usuario en UNA sola palabra exacta:
                 - AULAS_TAREAS: pendientes, aulas, tareas, módulos, fechas de entrega, quién falta entregar.
-                - CONVOCATORIAS: ferias, hackathones, concursos, publicar/archivar convocatorias, plantillas, crear convocatoria.
+                - PLANTILLAS: plantillas globales, primer avance, segundo avance, presentación final, habilitar plantilla en ferias/hackathones.
+                - CONVOCATORIAS: ferias, hackathones, concursos, publicar/archivar convocatorias, crear convocatoria.
                 - GRUPOS_INSCRIPCIONES: grupos, equipos, inscripciones pendientes, aprobar/rechazar postulantes.
                 - JURADOS_REPORTES: jurados, evaluaciones, resumir PDF entregado, generar reporte PDF, exportar notas.
                 - BIBLIOTECA_USUARIOS_CHARLA: biblioteca, buscar proyectos, notificaciones, usuarios/roles, navegar a una vista.
@@ -33,7 +34,8 @@ public class CopilotoPromptBuilder {
         String contextoPantalla = contextResolver.describirContextoRuta(rutaActual, user);
         String guiaRama = switch (rama) {
             case "AULAS_TAREAS" -> "- Pendientes/aulas -> `consultar_mis_aulas_y_pendientes`.\n- Habilitar/cerrar/fechas tareas -> `gestionar_tarea_modulo`.\n- Quién falta entregar o exportar notas -> `seguimiento_y_notas`.\n- Ir a vista -> `navegar_a`.";
-            case "CONVOCATORIAS" -> "- Publicar/archivar/estado convocatorias -> `gestionar_convocatoria`.\n- Plantillas globales -> `gestionar_plantilla_tarea`.\n- Crear nueva convocatoria -> `abrir_agente_convocatorias`.\n- Ir a vista -> `navegar_a`.";
+            case "PLANTILLAS" -> "- Consultar/contar plantillas o ver sus tareas -> `consultar_plantillas`.\n- Habilitar/deshabilitar plantilla en tipos (Ferias, Hackathones) o en eventos específicos -> `asignar_plantilla_a_eventos`.\n- Crear/renombrar/eliminar plantilla o agregar/quitar tarea -> `gestionar_plantilla_estructura`.\n- Editar fechas/habilitación de una tarea de plantilla -> `gestionar_plantilla_tarea`.\n- Solo navegar si piden ir a la vista -> `navegar_a`.";
+            case "CONVOCATORIAS" -> "- Publicar/archivar/estado convocatorias -> `gestionar_convocatoria`.\n- Consultar plantillas -> `consultar_plantillas`.\n- Crear nueva convocatoria -> `abrir_agente_convocatorias`.\n- Ir a vista -> `navegar_a`.";
             case "GRUPOS_INSCRIPCIONES" -> "- Grupos/equipos o estudiantes sin grupo -> `gestionar_grupos`.\n- Inscripciones pendientes -> `gestionar_inscripciones`.\n- Ir a vista -> `navegar_a`.";
             case "JURADOS_REPORTES" -> "- Jurados, evaluaciones o resumir PDF -> `jurados_y_resumen_pdf`.\n- Reporte PDF (SOLO si pide reporte/PDF) -> `generar_reporte_pdf`.\n- Exportar notas -> `seguimiento_y_notas`.\n- Pendientes -> `consultar_mis_aulas_y_pendientes`.";
             case "CHARLA" -> "- Responde directo en español cordial (máximo 2 líneas).";

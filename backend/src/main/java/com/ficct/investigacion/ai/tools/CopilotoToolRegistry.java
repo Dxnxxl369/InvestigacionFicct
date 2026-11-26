@@ -35,7 +35,9 @@ public class CopilotoToolRegistry {
             case ADMIN -> Set.of(
                     "consultar_mis_aulas_y_pendientes", "navegar_a",
                     "gestionar_tarea_modulo", "gestionar_convocatoria",
-                    "gestionar_plantilla_tarea", "gestionar_grupos",
+                    "gestionar_plantilla_tarea", "consultar_plantillas",
+                    "asignar_plantilla_a_eventos", "gestionar_plantilla_estructura",
+                    "gestionar_grupos",
                     "gestionar_inscripciones", "seguimiento_y_notas",
                     "jurados_y_resumen_pdf", "gestionar_usuarios_admin",
                     "buscar_biblioteca", "gestionar_notificaciones",
@@ -45,7 +47,8 @@ public class CopilotoToolRegistry {
 
         Set<String> ramaTools = switch (rama) {
             case "AULAS_TAREAS" -> Set.of("consultar_mis_aulas_y_pendientes", "gestionar_tarea_modulo", "seguimiento_y_notas", "navegar_a");
-            case "CONVOCATORIAS" -> Set.of("gestionar_convocatoria", "gestionar_plantilla_tarea", "abrir_agente_convocatorias", "navegar_a");
+            case "PLANTILLAS" -> Set.of("consultar_plantillas", "asignar_plantilla_a_eventos", "gestionar_plantilla_estructura", "gestionar_plantilla_tarea", "navegar_a");
+            case "CONVOCATORIAS" -> Set.of("gestionar_convocatoria", "consultar_plantillas", "abrir_agente_convocatorias", "navegar_a");
             case "GRUPOS_INSCRIPCIONES" -> Set.of("gestionar_grupos", "gestionar_inscripciones", "navegar_a");
             case "JURADOS_REPORTES" -> Set.of("jurados_y_resumen_pdf", "generar_reporte_pdf", "seguimiento_y_notas", "consultar_mis_aulas_y_pendientes", "navegar_a");
             default -> Set.of("buscar_biblioteca", "gestionar_notificaciones", "gestionar_usuarios_admin", "navegar_a");
@@ -113,6 +116,34 @@ public class CopilotoToolRegistry {
                                 "fechaHabilitacion", Map.of("type", "string"),
                                 "fechaEntrega", Map.of("type", "string"),
                                 "fechaCorte", Map.of("type", "string")
+                        )),
+
+                tool("consultar_plantillas",
+                        "Lista las plantillas globales existentes, cuántas son, sus tareas, fechas y en qué tipos de convocatoria están habilitadas.",
+                        List.of(),
+                        Map.of(
+                                "plantillaNombre", Map.of("type", "string")
+                        )),
+
+                tool("asignar_plantilla_a_eventos",
+                        "Habilita o deshabilita una plantilla para tipos globales (FERIA, HACKATHON, CONCURSO, INVESTIGACION) o para convocatorias/ferias específicas cuyo título coincida con eventoNombre (solo ADMIN).",
+                        List.of("plantillaNombre", "accion"),
+                        Map.of(
+                                "plantillaNombre", Map.of("type", "string"),
+                                "accion", Map.of("type", "string", "enum", List.of("HABILITAR", "DESHABILITAR")),
+                                "tipos", Map.of("type", "array", "items", Map.of("type", "string")),
+                                "eventoNombre", Map.of("type", "string")
+                        )),
+
+                tool("gestionar_plantilla_estructura",
+                        "Crea, renombra o elimina una plantilla, o agrega/elimina tareas dentro de una plantilla (solo ADMIN).",
+                        List.of("accion", "plantillaNombre"),
+                        Map.of(
+                                "accion", Map.of("type", "string", "enum", List.of("CREAR_PLANTILLA", "RENOMBRAR_PLANTILLA", "ELIMINAR_PLANTILLA", "AGREGAR_TAREA", "ELIMINAR_TAREA")),
+                                "plantillaNombre", Map.of("type", "string"),
+                                "nuevoTitulo", Map.of("type", "string"),
+                                "tareaTitulo", Map.of("type", "string"),
+                                "tareas", Map.of("type", "array", "items", Map.of("type", "string"))
                         )),
 
                 tool("gestionar_grupos",

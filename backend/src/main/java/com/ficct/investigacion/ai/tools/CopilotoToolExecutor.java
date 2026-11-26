@@ -9,6 +9,7 @@ import com.ficct.investigacion.ai.tools.handlers.InscripcionesHandler;
 import com.ficct.investigacion.ai.tools.handlers.JuradosEvaluacionHandler;
 import com.ficct.investigacion.ai.tools.handlers.NotificacionesHandler;
 import com.ficct.investigacion.ai.tools.handlers.PlantillasFechasHandler;
+import com.ficct.investigacion.ai.tools.handlers.PlantillasGestionHandler;
 import com.ficct.investigacion.ai.tools.handlers.SeguimientoNotasHandler;
 import com.ficct.investigacion.ai.tools.handlers.TareasLoteHandler;
 import com.ficct.investigacion.ai.tools.handlers.UsuariosAdminHandler;
@@ -54,6 +55,7 @@ public class CopilotoToolExecutor {
     private final ReporteGenerativoService reporteGenerativoService;
     private final ConvocatoriasLoteHandler convocatoriasLoteHandler;
     private final PlantillasFechasHandler plantillasFechasHandler;
+    private final PlantillasGestionHandler plantillasGestionHandler;
     private final TareasLoteHandler tareasLoteHandler;
     private final GruposEquiposHandler gruposEquiposHandler;
     private final InscripcionesHandler inscripcionesHandler;
@@ -70,6 +72,7 @@ public class CopilotoToolExecutor {
                                 ReporteGenerativoService reporteGenerativoService,
                                 ConvocatoriasLoteHandler convocatoriasLoteHandler,
                                 PlantillasFechasHandler plantillasFechasHandler,
+                                PlantillasGestionHandler plantillasGestionHandler,
                                 TareasLoteHandler tareasLoteHandler,
                                 GruposEquiposHandler gruposEquiposHandler,
                                 InscripcionesHandler inscripcionesHandler,
@@ -84,6 +87,7 @@ public class CopilotoToolExecutor {
         this.reporteGenerativoService = reporteGenerativoService;
         this.convocatoriasLoteHandler = convocatoriasLoteHandler;
         this.plantillasFechasHandler = plantillasFechasHandler;
+        this.plantillasGestionHandler = plantillasGestionHandler;
         this.tareasLoteHandler = tareasLoteHandler;
         this.gruposEquiposHandler = gruposEquiposHandler;
         this.inscripcionesHandler = inscripcionesHandler;
@@ -103,6 +107,9 @@ public class CopilotoToolExecutor {
                 case "gestionar_tarea_modulo" -> tareasLoteHandler.ejecutar(args, user, response);
                 case "gestionar_convocatoria" -> convocatoriasLoteHandler.ejecutar(args, user, response);
                 case "gestionar_plantilla_tarea" -> plantillasFechasHandler.ejecutar(args, user, response);
+                case "consultar_plantillas" -> plantillasGestionHandler.consultar(args);
+                case "asignar_plantilla_a_eventos" -> plantillasGestionHandler.asignarAEventos(args, user, response);
+                case "gestionar_plantilla_estructura" -> plantillasGestionHandler.gestionarEstructura(args, user, response);
                 case "gestionar_grupos" -> gruposEquiposHandler.ejecutar(args, user, rutaActual, response);
                 case "gestionar_inscripciones" -> inscripcionesHandler.ejecutar(args, user, rutaActual, response);
                 case "seguimiento_y_notas" -> seguimientoNotasHandler.ejecutar(args, user, rutaActual, response);

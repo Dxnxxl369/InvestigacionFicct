@@ -23,7 +23,7 @@ public class CopilotoService {
     private static final Logger log = LoggerFactory.getLogger(CopilotoService.class);
     private static final int MAX_ITERACIONES = 3;
     private static final List<String> RAMAS_VALIDAS = List.of(
-            "AULAS_TAREAS", "CONVOCATORIAS", "GRUPOS_INSCRIPCIONES",
+            "AULAS_TAREAS", "PLANTILLAS", "CONVOCATORIAS", "GRUPOS_INSCRIPCIONES",
             "JURADOS_REPORTES", "BIBLIOTECA_USUARIOS_CHARLA", "CHARLA"
     );
 
@@ -119,6 +119,9 @@ public class CopilotoService {
                     String argsRaw = argsNode.isTextual() ? argsNode.asText("{}") : argsNode.toString();
 
                     String output = toolExecutor.ejecutar(fnName, argsRaw, user, request.getRutaActual(), response);
+                    if ("navegar_a".equals(fnName) && "NAVEGAR".equals(response.getAccion())) {
+                        return "Listo, te redirijo a la sección solicitada.";
+                    }
 
                     Map<String, Object> toolMsg = new HashMap<>();
                     toolMsg.put("role", "tool");
@@ -141,6 +144,9 @@ public class CopilotoService {
         String msg = request.getMensaje() != null ? request.getMensaje().toLowerCase(Locale.ROOT).trim() : "";
         if (msg.isBlank() || msg.matches("^(hola|buenas|buenos d[ií]as|buenas tardes|buenas noches|gracias|ok|listo|ayuda|qu[eé] puedes hacer).*")) {
             return "CHARLA";
+        }
+        if (msg.contains("plantilla") || msg.contains("primer avance") || msg.contains("segundo avance") || msg.contains("presentación final") || msg.contains("presentacion final")) {
+            return "PLANTILLAS";
         }
         if (msg.contains("reporte") || msg.contains("pdf") || msg.contains("jurado") || msg.contains("evaluaci") || msg.contains("resum")) {
             return "JURADOS_REPORTES";
