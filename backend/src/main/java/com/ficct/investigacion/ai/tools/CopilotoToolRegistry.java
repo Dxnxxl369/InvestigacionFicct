@@ -128,10 +128,11 @@ public class CopilotoToolRegistry {
                         )),
 
                 tool("consultar_plantillas",
-                        "Lista las plantillas globales existentes, cuántas son, sus tareas, fechas y en qué tipos de convocatoria están habilitadas.",
+                        "Lista las plantillas globales existentes, sus tareas exactas y su orden de asignación. Si se pasa tipoConvocatoria (FERIA, HACKATHON, CONCURSO, INVESTIGACION), devuelve cuáles están asignadas en orden (1, 2...) y cuáles NO están asignadas.",
                         List.of(),
                         Map.of(
-                                "plantillaNombre", Map.of("type", "string")
+                                "plantillaNombre", Map.of("type", "string"),
+                                "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION"))
                         )),
 
                 tool("asignar_plantilla_a_eventos",

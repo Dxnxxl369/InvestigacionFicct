@@ -35,14 +35,56 @@ public class PlantillasGestionHandler {
 
     public String consultar(JsonNode args) throws Exception {
         String filtroNombre = normalizar(args.path("plantillaNombre").asText(""));
+        String tipoRaw = normalizar(args.path("tipoConvocatoria").asText(""));
+        TipoConvocatoria tipoFiltro = parseTipo(tipoRaw).orElse(null);
+
         List<PlantillaDatos> plantillas = plantillaService.listar();
         List<TipoDatos> tiposConfig = plantillaService.configuracionTipos();
+
+        Map<Long, PlantillaDatos> porId = new LinkedHashMap<>();
+        for (PlantillaDatos p : plantillas) {
+            porId.put(p.id(), p);
+        }
+
+        if (tipoFiltro != null) {
+            List<Long> idsOrdenados = tiposConfig.stream()
+                    .filter(td -> td.tipo() == tipoFiltro)
+                    .findFirst()
+                    .map(TipoDatos::plantillaIds)
+                    .orElse(List.of());
+
+            List<Map<String, Object>> asignadas = new ArrayList<>();
+            for (int i = 0; i < idsOrdenados.size(); i++) {
+                PlantillaDatos p = porId.get(idsOrdenados.get(i));
+                if (p == null) continue;
+                asignadas.add(resumirPlantilla(p, i + 1));
+            }
+
+            Set<Long> setAsignadas = new HashSet<>(idsOrdenados);
+            List<Map<String, Object>> disponiblesNoAsignadas = new ArrayList<>();
+            for (PlantillaDatos p : plantillas) {
+                if (!setAsignadas.contains(p.id())) {
+                    disponiblesNoAsignadas.add(resumirPlantilla(p, null));
+                }
+            }
+
+            return objectMapper.writeValueAsString(Map.of(
+                    "ok", true,
+                    "tipoConvocatoria", tipoFiltro.name(),
+                    "totalAsignadas", asignadas.size(),
+                    "asignadasEnOrden", asignadas,
+                    "totalNoAsignadas", disponiblesNoAsignadas.size(),
+                    "noAsignadas", disponiblesNoAsignadas
+            ));
+        }
 
         Map<Long, List<String>> tiposPorPlantilla = new HashMap<>();
         for (TipoDatos td : tiposConfig) {
             if (td.plantillaIds() == null) continue;
-            for (Long pid : td.plantillaIds()) {
-                tiposPorPlantilla.computeIfAbsent(pid, k -> new ArrayList<>()).add(td.tipo().name());
+            for (int i = 0; i < td.plantillaIds().size(); i++) {
+                Long pid = td.plantillaIds().get(i);
+                tiposPorPlantilla.computeIfAbsent(pid, k -> new ArrayList<>())
+                        .add(td.tipo().name() + " (orden " + (i + 1) + ")");
             }
         }
 
@@ -51,20 +93,9 @@ public class PlantillasGestionHandler {
             if (!filtroNombre.isBlank() && !normalizar(p.titulo()).contains(filtroNombre)) {
                 continue;
             }
-            List<String> tareas = new ArrayList<>();
-            if (p.actividades() != null) {
-                for (ActividadDatos a : p.actividades()) {
-                    String estado = Boolean.TRUE.equals(a.habilitada()) ? "habilitada" : "deshabilitada";
-                    tareas.add(a.titulo() + " (" + estado + ")");
-                }
-            }
-            resultado.add(Map.of(
-                    "id", p.id(),
-                    "titulo", p.titulo(),
-                    "totalTareas", tareas.size(),
-                    "tareas", tareas,
-                    "tiposHabilitados", tiposPorPlantilla.getOrDefault(p.id(), List.of())
-            ));
+            Map<String, Object> item = new LinkedHashMap<>(resumirPlantilla(p, null));
+            item.put("asignadaEnTipos", tiposPorPlantilla.getOrDefault(p.id(), List.of()));
+            resultado.add(item);
         }
 
         return objectMapper.writeValueAsString(Map.of(
@@ -73,6 +104,24 @@ public class PlantillasGestionHandler {
                 "coincidencias", resultado.size(),
                 "plantillas", resultado
         ));
+    }
+
+    private Map<String, Object> resumirPlantilla(PlantillaDatos p, Integer orden) {
+        List<String> tareas = new ArrayList<>();
+        if (p.actividades() != null) {
+            for (ActividadDatos a : p.actividades()) {
+                tareas.add(a.titulo());
+            }
+        }
+        Map<String, Object> map = new LinkedHashMap<>();
+        if (orden != null) {
+            map.put("orden", orden);
+        }
+        map.put("id", p.id());
+        map.put("titulo", p.titulo());
+        map.put("totalTareas", tareas.size());
+        map.put("tareas", tareas);
+        return map;
     }
 
     public String asignarAEventos(JsonNode args, User user, CopilotoResponse response) throws Exception {
