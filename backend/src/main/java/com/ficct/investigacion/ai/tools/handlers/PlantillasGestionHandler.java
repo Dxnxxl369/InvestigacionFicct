@@ -109,11 +109,20 @@ public class PlantillasGestionHandler {
             }
         }
 
+        // Blindaje: nunca confundir eventoNombre con el nombre de la plantilla o palabras genéricas ("todas las ferias")
+        if (!eventoNombre.isBlank() && esEventoNombreGenericoOPlantilla(eventoNombre, plantillaQuery)) {
+            for (String token : eventoNombre.split("[\\s,;]+")) {
+                parseTipo(token).ifPresent(tipos::add);
+            }
+            eventoNombre = "";
+        }
+
         if (!eventoNombre.isBlank()) {
+            final String eventoFiltro = eventoNombre;
             List<Convocatoria> matches = convocatoriaRepository.findAll().stream()
                     .filter(c -> c.getEstado() != EstadoConvocatoria.FINALIZADA)
                     .filter(c -> tipos.isEmpty() || tipos.contains(c.getTipo()))
-                    .filter(c -> normalizar(c.getTitulo()).contains(eventoNombre))
+                    .filter(c -> normalizar(c.getTitulo()).contains(eventoFiltro))
                     .toList();
 
             if (matches.isEmpty()) {
@@ -238,6 +247,16 @@ public class PlantillasGestionHandler {
         response.setAccion("CONFIRMAR_ACCION");
         response.setConfirmacionPendiente(conf);
         return objectMapper.writeValueAsString(Map.of("ok", true, "requiereConfirmacion", true, "titulo", conf.getTitulo()));
+    }
+
+    private boolean esEventoNombreGenericoOPlantilla(String eventoNombre, String plantillaQuery) {
+        if (eventoNombre.equals(plantillaQuery) || plantillaQuery.contains(eventoNombre) || eventoNombre.contains(plantillaQuery)) {
+            return true;
+        }
+        String sinPalabrasComunes = eventoNombre
+                .replaceAll("\\b(todas|todos|las|los|para|en|de|del|ferias|feria|hackathones|hackathon|hackatones|hackaton|concursos|concurso|investigaciones|investigacion|convocatorias|convocatoria|eventos|evento|ninguno|null)\\b", "")
+                .trim();
+        return sinPalabrasComunes.isBlank();
     }
 
     private Optional<TipoConvocatoria> parseTipo(String raw) {

@@ -17,15 +17,15 @@ public class CopilotoToolRegistry {
 
         Set<String> permitidasPorRol = switch (rol) {
             case ESTUDIANTE -> Set.of(
-                    "consultar_mis_aulas_y_pendientes", "gestionar_grupos",
+                    "consultar_mis_aulas_y_pendientes", "consultar_convocatorias", "gestionar_grupos",
                     "buscar_biblioteca", "gestionar_notificaciones", "navegar_a"
             );
             case JURADO -> Set.of(
-                    "consultar_mis_aulas_y_pendientes", "jurados_y_resumen_pdf",
+                    "consultar_mis_aulas_y_pendientes", "consultar_convocatorias", "jurados_y_resumen_pdf",
                     "buscar_biblioteca", "gestionar_notificaciones", "navegar_a"
             );
             case DOCENTE -> Set.of(
-                    "consultar_mis_aulas_y_pendientes", "navegar_a",
+                    "consultar_mis_aulas_y_pendientes", "consultar_convocatorias", "navegar_a",
                     "gestionar_tarea_modulo", "gestionar_convocatoria",
                     "gestionar_grupos", "gestionar_inscripciones",
                     "seguimiento_y_notas", "jurados_y_resumen_pdf",
@@ -33,7 +33,7 @@ public class CopilotoToolRegistry {
                     "generar_reporte_pdf", "abrir_agente_convocatorias"
             );
             case ADMIN -> Set.of(
-                    "consultar_mis_aulas_y_pendientes", "navegar_a",
+                    "consultar_mis_aulas_y_pendientes", "consultar_convocatorias", "navegar_a",
                     "gestionar_tarea_modulo", "gestionar_convocatoria",
                     "gestionar_plantilla_tarea", "consultar_plantillas",
                     "asignar_plantilla_a_eventos", "gestionar_plantilla_estructura",
@@ -48,7 +48,7 @@ public class CopilotoToolRegistry {
         Set<String> ramaTools = switch (rama) {
             case "AULAS_TAREAS" -> Set.of("consultar_mis_aulas_y_pendientes", "gestionar_tarea_modulo", "seguimiento_y_notas", "navegar_a");
             case "PLANTILLAS" -> Set.of("consultar_plantillas", "asignar_plantilla_a_eventos", "gestionar_plantilla_estructura", "gestionar_plantilla_tarea", "navegar_a");
-            case "CONVOCATORIAS" -> Set.of("gestionar_convocatoria", "consultar_plantillas", "abrir_agente_convocatorias", "navegar_a");
+            case "CONVOCATORIAS" -> Set.of("consultar_convocatorias", "gestionar_convocatoria", "consultar_plantillas", "abrir_agente_convocatorias", "navegar_a");
             case "GRUPOS_INSCRIPCIONES" -> Set.of("gestionar_grupos", "gestionar_inscripciones", "navegar_a");
             case "JURADOS_REPORTES" -> Set.of("jurados_y_resumen_pdf", "generar_reporte_pdf", "seguimiento_y_notas", "consultar_mis_aulas_y_pendientes", "navegar_a");
             default -> Set.of("buscar_biblioteca", "gestionar_notificaciones", "gestionar_usuarios_admin", "navegar_a");
@@ -96,6 +96,15 @@ public class CopilotoToolRegistry {
                                 "fechaCorte", Map.of("type", "string")
                         )),
 
+                tool("consultar_convocatorias",
+                        "Lista o cuenta convocatorias reales en la base de datos (ferias, hackathones, concursos, investigaciones) filtrando opcionalmente por tipo, estado o título.",
+                        List.of(),
+                        Map.of(
+                                "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION", "TODAS")),
+                                "estado", Map.of("type", "string", "enum", List.of("BORRADOR", "PUBLICADA", "FINALIZADA", "TODOS")),
+                                "titulo", Map.of("type", "string")
+                        )),
+
                 tool("gestionar_convocatoria",
                         "Busca una o varias convocatorias (individual o en lote, ej. todas las FERIAS en borrador) y prepara una tarjeta de confirmación para cambiarles el estado.",
                         List.of("nuevoEstado"),
@@ -126,13 +135,13 @@ public class CopilotoToolRegistry {
                         )),
 
                 tool("asignar_plantilla_a_eventos",
-                        "Habilita o deshabilita una plantilla para tipos globales (FERIA, HACKATHON, CONCURSO, INVESTIGACION) o para convocatorias/ferias específicas cuyo título coincida con eventoNombre (solo ADMIN).",
+                        "Habilita o deshabilita una plantilla para tipos globales (FERIA, HACKATHON, CONCURSO, INVESTIGACION) o para un evento específico por nombre propio (solo ADMIN).",
                         List.of("plantillaNombre", "accion"),
                         Map.of(
-                                "plantillaNombre", Map.of("type", "string"),
+                                "plantillaNombre", Map.of("type", "string", "description", "Nombre de la plantilla, ej. Primer avance"),
                                 "accion", Map.of("type", "string", "enum", List.of("HABILITAR", "DESHABILITAR")),
-                                "tipos", Map.of("type", "array", "items", Map.of("type", "string")),
-                                "eventoNombre", Map.of("type", "string")
+                                "tipos", Map.of("type", "array", "items", Map.of("type", "string"), "description", "Usa FERIA, HACKATHON, CONCURSO o INVESTIGACION cuando pidan para un tipo o 'todas las ferias'."),
+                                "eventoNombre", Map.of("type", "string", "description", "SOLO usar si dan el título propio de una convocatoria específica (ej. ExpoFICCT). NUNCA poner aquí el nombre de la plantilla ni 'todas'.")
                         )),
 
                 tool("gestionar_plantilla_estructura",

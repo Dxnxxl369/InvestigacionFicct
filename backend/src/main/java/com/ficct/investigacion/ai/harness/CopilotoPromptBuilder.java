@@ -35,7 +35,7 @@ public class CopilotoPromptBuilder {
         String guiaRama = switch (rama) {
             case "AULAS_TAREAS" -> "- Pendientes/aulas -> `consultar_mis_aulas_y_pendientes`.\n- Habilitar/cerrar/fechas tareas -> `gestionar_tarea_modulo`.\n- Quién falta entregar o exportar notas -> `seguimiento_y_notas`.\n- Ir a vista -> `navegar_a`.";
             case "PLANTILLAS" -> "- Consultar/contar plantillas o ver sus tareas -> `consultar_plantillas`.\n- Habilitar/deshabilitar plantilla en tipos (Ferias, Hackathones) o en eventos específicos -> `asignar_plantilla_a_eventos`.\n- Crear/renombrar/eliminar plantilla o agregar/quitar tarea -> `gestionar_plantilla_estructura`.\n- Editar fechas/habilitación de una tarea de plantilla -> `gestionar_plantilla_tarea`.\n- Solo navegar si piden ir a la vista -> `navegar_a`.";
-            case "CONVOCATORIAS" -> "- Publicar/archivar/estado convocatorias -> `gestionar_convocatoria`.\n- Consultar plantillas -> `consultar_plantillas`.\n- Crear nueva convocatoria -> `abrir_agente_convocatorias`.\n- Ir a vista -> `navegar_a`.";
+            case "CONVOCATORIAS" -> "- Consultar/contar ferias, hackathones, concursos o borradores -> `consultar_convocatorias`.\n- Publicar/archivar/estado convocatorias -> `gestionar_convocatoria`.\n- Consultar plantillas -> `consultar_plantillas`.\n- Crear nueva convocatoria -> `abrir_agente_convocatorias`.\n- Ir a vista -> `navegar_a`.";
             case "GRUPOS_INSCRIPCIONES" -> "- Grupos/equipos o estudiantes sin grupo -> `gestionar_grupos`.\n- Inscripciones pendientes -> `gestionar_inscripciones`.\n- Ir a vista -> `navegar_a`.";
             case "JURADOS_REPORTES" -> "- Jurados, evaluaciones o resumir PDF -> `jurados_y_resumen_pdf`.\n- Reporte PDF (SOLO si pide reporte/PDF) -> `generar_reporte_pdf`.\n- Exportar notas -> `seguimiento_y_notas`.\n- Pendientes -> `consultar_mis_aulas_y_pendientes`.";
             case "CHARLA" -> "- Responde directo en español cordial (máximo 2 líneas).";
@@ -48,7 +48,7 @@ public class CopilotoPromptBuilder {
                 REGLAS:
                 - Responde en español cordial y directo (máximo 2-3 líneas).
                 - PROHIBIDO mencionar rutas "/dashboard...", IDs, SQL, tablas Markdown inventadas con "[campo]" ni sugerir notas numéricas.
-                - Usa SOLO las herramientas disponibles cuando necesites datos reales. No generes PDF si solo hacen una pregunta simple.
+                - Usa SOLO las herramientas disponibles cuando necesites datos reales. NUNCA inventes ni afirmes si existen o no ferias, convocatorias, plantillas o usuarios sin consultar antes la herramienta correspondiente. No generes PDF si solo hacen una pregunta simple.
                 %s
                 """.formatted(
                 LocalDate.now(),
