@@ -1,12 +1,65 @@
 package com.ficct.investigacion.ai.tools;
 
+import com.ficct.investigacion.model.Rol;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class CopilotoToolRegistry {
+
+    public List<Map<String, Object>> obtenerToolsPorRamaYRol(String rama, Rol rol) {
+        if ("CHARLA".equals(rama)) {
+            return List.of();
+        }
+
+        Set<String> permitidasPorRol = switch (rol) {
+            case ESTUDIANTE -> Set.of(
+                    "consultar_mis_aulas_y_pendientes", "gestionar_grupos",
+                    "buscar_biblioteca", "gestionar_notificaciones", "navegar_a"
+            );
+            case JURADO -> Set.of(
+                    "consultar_mis_aulas_y_pendientes", "jurados_y_resumen_pdf",
+                    "buscar_biblioteca", "gestionar_notificaciones", "navegar_a"
+            );
+            case DOCENTE -> Set.of(
+                    "consultar_mis_aulas_y_pendientes", "navegar_a",
+                    "gestionar_tarea_modulo", "gestionar_convocatoria",
+                    "gestionar_grupos", "gestionar_inscripciones",
+                    "seguimiento_y_notas", "jurados_y_resumen_pdf",
+                    "buscar_biblioteca", "gestionar_notificaciones",
+                    "generar_reporte_pdf", "abrir_agente_convocatorias"
+            );
+            case ADMIN -> Set.of(
+                    "consultar_mis_aulas_y_pendientes", "navegar_a",
+                    "gestionar_tarea_modulo", "gestionar_convocatoria",
+                    "gestionar_plantilla_tarea", "gestionar_grupos",
+                    "gestionar_inscripciones", "seguimiento_y_notas",
+                    "jurados_y_resumen_pdf", "gestionar_usuarios_admin",
+                    "buscar_biblioteca", "gestionar_notificaciones",
+                    "generar_reporte_pdf", "abrir_agente_convocatorias"
+            );
+        };
+
+        Set<String> ramaTools = switch (rama) {
+            case "AULAS_TAREAS" -> Set.of("consultar_mis_aulas_y_pendientes", "gestionar_tarea_modulo", "seguimiento_y_notas", "navegar_a");
+            case "CONVOCATORIAS" -> Set.of("gestionar_convocatoria", "gestionar_plantilla_tarea", "abrir_agente_convocatorias", "navegar_a");
+            case "GRUPOS_INSCRIPCIONES" -> Set.of("gestionar_grupos", "gestionar_inscripciones", "navegar_a");
+            case "JURADOS_REPORTES" -> Set.of("jurados_y_resumen_pdf", "generar_reporte_pdf", "seguimiento_y_notas", "consultar_mis_aulas_y_pendientes", "navegar_a");
+            default -> Set.of("buscar_biblioteca", "gestionar_notificaciones", "gestionar_usuarios_admin", "navegar_a");
+        };
+
+        return obtenerDefinicionTools().stream()
+                .filter(t -> {
+                    Object fnObj = t.get("function");
+                    if (!(fnObj instanceof Map<?, ?> fnMap)) return false;
+                    String name = String.valueOf(fnMap.get("name"));
+                    return permitidasPorRol.contains(name) && ramaTools.contains(name);
+                })
+                .toList();
+    }
 
     public List<Map<String, Object>> obtenerDefinicionTools() {
         return List.of(
@@ -123,7 +176,7 @@ public class CopilotoToolRegistry {
                         )),
 
                 tool("generar_reporte_pdf",
-                        "Ejecuta una consulta de reporte institucional en lenguaje natural y genera un documento PDF descargable directamente desde el chat (solo ADMIN o DOCENTE).",
+                        "Genera un reporte PDF descargable SOLO cuando el usuario pide explícitamente un reporte, tabla o PDF (ADMIN/DOCENTE). NO usar para preguntas informativas simples.",
                         List.of("consultaNatural"),
                         Map.of(
                                 "consultaNatural", Map.of("type", "string")

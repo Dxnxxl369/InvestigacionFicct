@@ -14,6 +14,50 @@ public class CopilotoPromptBuilder {
         this.contextResolver = contextResolver;
     }
 
+    public String construirPromptClasificador(User user, String rutaActual) {
+        String contextoPantalla = contextResolver.describirContextoRuta(rutaActual, user);
+        return """
+                Clasifica la intención del usuario en UNA sola palabra exacta:
+                - AULAS_TAREAS: pendientes, aulas, tareas, módulos, fechas de entrega, quién falta entregar.
+                - CONVOCATORIAS: ferias, hackathones, concursos, publicar/archivar convocatorias, plantillas, crear convocatoria.
+                - GRUPOS_INSCRIPCIONES: grupos, equipos, inscripciones pendientes, aprobar/rechazar postulantes.
+                - JURADOS_REPORTES: jurados, evaluaciones, resumir PDF entregado, generar reporte PDF, exportar notas.
+                - BIBLIOTECA_USUARIOS_CHARLA: biblioteca, buscar proyectos, notificaciones, usuarios/roles, navegar a una vista.
+                - CHARLA: saludo, agradecimiento o pregunta general sin acción en base de datos.
+                Rol: %s | Ubicación: %s
+                Responde SOLO con el nombre de la categoría.
+                """.formatted(user.getRol().name(), contextoPantalla);
+    }
+
+    public String construirSystemPromptPorRama(User user, String rutaActual, String rama) {
+        String contextoPantalla = contextResolver.describirContextoRuta(rutaActual, user);
+        String guiaRama = switch (rama) {
+            case "AULAS_TAREAS" -> "- Pendientes/aulas -> `consultar_mis_aulas_y_pendientes`.\n- Habilitar/cerrar/fechas tareas -> `gestionar_tarea_modulo`.\n- Quién falta entregar o exportar notas -> `seguimiento_y_notas`.\n- Ir a vista -> `navegar_a`.";
+            case "CONVOCATORIAS" -> "- Publicar/archivar/estado convocatorias -> `gestionar_convocatoria`.\n- Plantillas globales -> `gestionar_plantilla_tarea`.\n- Crear nueva convocatoria -> `abrir_agente_convocatorias`.\n- Ir a vista -> `navegar_a`.";
+            case "GRUPOS_INSCRIPCIONES" -> "- Grupos/equipos o estudiantes sin grupo -> `gestionar_grupos`.\n- Inscripciones pendientes -> `gestionar_inscripciones`.\n- Ir a vista -> `navegar_a`.";
+            case "JURADOS_REPORTES" -> "- Jurados, evaluaciones o resumir PDF -> `jurados_y_resumen_pdf`.\n- Reporte PDF (SOLO si pide reporte/PDF) -> `generar_reporte_pdf`.\n- Exportar notas -> `seguimiento_y_notas`.\n- Pendientes -> `consultar_mis_aulas_y_pendientes`.";
+            case "CHARLA" -> "- Responde directo en español cordial (máximo 2 líneas).";
+            default -> "- Biblioteca -> `buscar_biblioteca`.\n- Notificaciones -> `gestionar_notificaciones`.\n- Usuarios/estadísticas ADMIN -> `gestionar_usuarios_admin`.\n- Ir a vista -> `navegar_a`.";
+        };
+        return """
+                Eres el Copiloto IA de FICCT - UAGRM.
+                Fecha: %s | Usuario: %s %s | Rol: %s | Ubicación: %s
+
+                REGLAS:
+                - Responde en español cordial y directo (máximo 2-3 líneas).
+                - PROHIBIDO mencionar rutas "/dashboard...", IDs, SQL, tablas Markdown inventadas con "[campo]" ni sugerir notas numéricas.
+                - Usa SOLO las herramientas disponibles cuando necesites datos reales. No generes PDF si solo hacen una pregunta simple.
+                %s
+                """.formatted(
+                LocalDate.now(),
+                user.getNombre(),
+                user.getApellido() != null ? user.getApellido() : "",
+                user.getRol().name(),
+                contextoPantalla,
+                guiaRama
+        );
+    }
+
     public String construirSystemPrompt(User user, String rutaActual) {
         String contextoPantalla = contextResolver.describirContextoRuta(rutaActual, user);
         return """
