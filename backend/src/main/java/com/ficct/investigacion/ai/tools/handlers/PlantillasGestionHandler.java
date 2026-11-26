@@ -68,8 +68,32 @@ public class PlantillasGestionHandler {
                 }
             }
 
+            StringBuilder sb = new StringBuilder();
+            sb.append(tipoFiltro.name()).append(" tiene ").append(asignadas.size())
+                    .append(" plantilla(s) asignada(s) en orden: ");
+            if (asignadas.isEmpty()) {
+                sb.append("ninguna");
+            } else {
+                for (int i = 0; i < asignadas.size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    Map<String, Object> m = asignadas.get(i);
+                    sb.append(m.get("orden")).append(". ").append(m.get("titulo"))
+                            .append(" (").append(m.get("totalTareas")).append(" tarea(s))");
+                }
+            }
+            if (!disponiblesNoAsignadas.isEmpty()) {
+                sb.append(". No asignadas: ");
+                for (int i = 0; i < disponiblesNoAsignadas.size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    Map<String, Object> m = disponiblesNoAsignadas.get(i);
+                    sb.append(m.get("titulo")).append(" (").append(m.get("totalTareas")).append(" tarea(s))");
+                }
+            }
+            sb.append(".");
+
             return objectMapper.writeValueAsString(Map.of(
                     "ok", true,
+                    "resumenTexto", sb.toString(),
                     "tipoConvocatoria", tipoFiltro.name(),
                     "totalAsignadas", asignadas.size(),
                     "asignadasEnOrden", asignadas,
@@ -98,8 +122,18 @@ public class PlantillasGestionHandler {
             resultado.add(item);
         }
 
+        StringBuilder sb = new StringBuilder();
+        sb.append("Tienes ").append(plantillas.size()).append(" plantilla(s) en total: ");
+        for (int i = 0; i < resultado.size(); i++) {
+            if (i > 0) sb.append("; ");
+            Map<String, Object> m = resultado.get(i);
+            sb.append(m.get("titulo")).append(" (").append(m.get("totalTareas")).append(" tarea(s))");
+        }
+        sb.append(".");
+
         return objectMapper.writeValueAsString(Map.of(
                 "ok", true,
+                "resumenTexto", sb.toString(),
                 "totalPlantillas", plantillas.size(),
                 "coincidencias", resultado.size(),
                 "plantillas", resultado
@@ -211,14 +245,18 @@ public class PlantillasGestionHandler {
             return "{\"ok\":false,\"error\":\"Indica los tipos de convocatoria (FERIA, HACKATHON, CONCURSO, INVESTIGACION) o el nombre del evento.\"}";
         }
 
+        int orden = args.has("orden") && args.get("orden").canConvertToInt() ? args.get("orden").asInt(0) : 0;
         String tiposCsv = String.join(",", tipos.stream().map(Enum::name).toList());
         ConfirmacionPendiente conf = new ConfirmacionPendiente();
         conf.setTipoAccion("ASIGNAR_PLANTILLA_TIPOS");
         conf.setTargetId(plantilla.id());
         conf.setHabilitada(habilitar);
-        conf.setValorTexto(tiposCsv);
-        conf.setTitulo((habilitar ? "Habilitar" : "Deshabilitar") + " plantilla \"" + plantilla.titulo() + "\"");
-        conf.setDetalle("Tipos afectados: " + tiposCsv.replace(",", ", ") + " (se sincroniza con aulas activas)");
+        conf.setValorTexto((orden > 0 ? orden + "::" : "") + tiposCsv);
+        conf.setTitulo((habilitar ? "Habilitar" : "Deshabilitar") + " plantilla \"" + plantilla.titulo() + "\""
+                + (orden > 0 && habilitar ? " (orden " + orden + ")" : ""));
+        conf.setDetalle("Tipos afectados: " + tiposCsv.replace(",", ", ")
+                + (orden > 0 && habilitar ? " · Posición #" + orden : "")
+                + " (se sincroniza con aulas activas)");
 
         response.setAccion("CONFIRMAR_ACCION");
         response.setConfirmacionPendiente(conf);
@@ -278,6 +316,10 @@ public class PlantillasGestionHandler {
                     conf.setDetalle("Se quitará la plantilla del catálogo global.");
                 } else if ("AGREGAR_TAREA".equals(accion)) {
                     if (tareaTitulo.isBlank()) return "{\"ok\":false,\"error\":\"Indica el título de la tarea a agregar.\"}";
+                    String tNorm = normalizar(tareaTitulo);
+                    if (tNorm.startsWith("orden ") || tNorm.matches("^\\d+$") || tNorm.contains("feria") || tNorm.contains("hack") || tNorm.contains("concurs") || tNorm.contains("invest")) {
+                        return "{\"ok\":false,\"error\":\"Para asignar una plantilla a una categoría (FERIA, HACKATHON, etc.) con orden, usa asignar_plantilla_a_eventos en vez de AGREGAR_TAREA.\"}";
+                    }
                     conf.setValorTexto("AGREGAR_TAREA::" + tareaTitulo);
                     conf.setTitulo("Agregar tarea a \"" + p.titulo() + "\"");
                     conf.setDetalle("Nueva tarea: \"" + tareaTitulo + "\"");

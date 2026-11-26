@@ -123,6 +123,15 @@ public class CopilotoService {
                     if ("navegar_a".equals(fnName) && "NAVEGAR".equals(response.getAccion())) {
                         return "Listo, te redirijo a la sección solicitada.";
                     }
+                    if ("consultar_plantillas".equals(fnName)) {
+                        try {
+                            JsonNode outJson = objectMapper.readTree(output);
+                            String resumen = outJson.path("resumenTexto").asText("");
+                            if (!resumen.isBlank()) {
+                                return resumen;
+                            }
+                        } catch (Exception ignored) {}
+                    }
 
                     Map<String, Object> toolMsg = new HashMap<>();
                     toolMsg.put("role", "tool");

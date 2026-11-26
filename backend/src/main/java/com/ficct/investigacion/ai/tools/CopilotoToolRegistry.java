@@ -136,17 +136,18 @@ public class CopilotoToolRegistry {
                         )),
 
                 tool("asignar_plantilla_a_eventos",
-                        "Habilita o deshabilita una plantilla para tipos globales (FERIA, HACKATHON, CONCURSO, INVESTIGACION) o para un evento específico por nombre propio (solo ADMIN).",
+                        "Habilita, agrega, asigna o ordena una plantilla dentro de categorías globales (FERIA, HACKATHON, CONCURSO, INVESTIGACION) o en eventos específicos por nombre propio (solo ADMIN).",
                         List.of("plantillaNombre", "accion"),
                         Map.of(
-                                "plantillaNombre", Map.of("type", "string", "description", "Nombre de la plantilla, ej. Primer avance"),
+                                "plantillaNombre", Map.of("type", "string", "description", "Nombre de la plantilla, ej. Presentación final"),
                                 "accion", Map.of("type", "string", "enum", List.of("HABILITAR", "DESHABILITAR")),
-                                "tipos", Map.of("type", "array", "items", Map.of("type", "string"), "description", "Usa FERIA, HACKATHON, CONCURSO o INVESTIGACION cuando pidan para un tipo o 'todas las ferias'."),
+                                "tipos", Map.of("type", "array", "items", Map.of("type", "string"), "description", "Usa FERIA, HACKATHON, CONCURSO o INVESTIGACION cuando pidan agregar/habilitar en una categoría."),
+                                "orden", Map.of("type", "integer", "description", "Posición/orden 1-based opcional en la categoría (ej. 1 para primera posición)."),
                                 "eventoNombre", Map.of("type", "string", "description", "SOLO usar si dan el título propio de una convocatoria específica (ej. ExpoFICCT). NUNCA poner aquí el nombre de la plantilla ni 'todas'.")
                         )),
 
                 tool("gestionar_plantilla_estructura",
-                        "Crea, renombra o elimina una plantilla, o agrega/elimina tareas dentro de una plantilla (solo ADMIN).",
+                        "Crea, renombra o elimina una plantilla, o agrega/elimina una TAREA dentro de una plantilla (solo ADMIN). NUNCA usar para asignar una plantilla a FERIA/HACKATHON/CONCURSO.",
                         List.of("accion", "plantillaNombre"),
                         Map.of(
                                 "accion", Map.of("type", "string", "enum", List.of("CREAR_PLANTILLA", "RENOMBRAR_PLANTILLA", "ELIMINAR_PLANTILLA", "AGREGAR_TAREA", "ELIMINAR_TAREA")),

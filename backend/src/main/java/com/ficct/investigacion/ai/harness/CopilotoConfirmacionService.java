@@ -225,7 +225,14 @@ public class CopilotoConfirmacionService {
                 }
                 Long plantillaId = req.getTargetId();
                 boolean habilitar = !Boolean.FALSE.equals(req.getHabilitada());
-                String[] tiposArr = (req.getValorTexto() != null ? req.getValorTexto() : "").split(",");
+                String rawVal = req.getValorTexto() != null ? req.getValorTexto() : "";
+                int ordenDeseado = 0;
+                if (rawVal.contains("::")) {
+                    String[] p = rawVal.split("::", 2);
+                    try { ordenDeseado = Integer.parseInt(p[0].trim()); } catch (NumberFormatException ignored) {}
+                    rawVal = p.length > 1 ? p[1] : "";
+                }
+                String[] tiposArr = rawVal.split(",");
                 List<TipoDatos> actuales = plantillaService.configuracionTipos();
                 int actualizados = 0;
                 for (String tRaw : tiposArr) {
@@ -238,15 +245,23 @@ public class CopilotoConfirmacionService {
                             .ifPresent(td -> {
                                 if (td.plantillaIds() != null) ids.addAll(td.plantillaIds());
                             });
-                    if (habilitar && !ids.contains(plantillaId)) {
-                        ids.add(plantillaId);
-                    } else if (!habilitar) {
+                    if (habilitar) {
+                        ids.remove(plantillaId);
+                        if (ordenDeseado > 0) {
+                            int idx = Math.max(0, Math.min(ordenDeseado - 1, ids.size()));
+                            ids.add(idx, plantillaId);
+                        } else {
+                            ids.add(plantillaId);
+                        }
+                    } else {
                         ids.remove(plantillaId);
                     }
                     plantillaService.configurarTipo(tipo, new AsignacionDatos(ids));
                     actualizados++;
                 }
-                resp.setMensaje("Listo, la plantilla fue " + (habilitar ? "habilitada" : "deshabilitada") + " en " + actualizados + " tipo(s) y sincronizada con las aulas activas.");
+                resp.setMensaje("Listo, la plantilla fue " + (habilitar ? "habilitada" : "deshabilitada")
+                        + (ordenDeseado > 0 && habilitar ? " en orden " + ordenDeseado : "")
+                        + " en " + actualizados + " tipo(s) y sincronizada con las aulas activas.");
             }
             case "ASIGNAR_PLANTILLA_EVENTOS" -> {
                 if (user.getRol() != Rol.ADMIN) {
