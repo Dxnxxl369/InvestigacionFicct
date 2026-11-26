@@ -48,7 +48,7 @@ public class CopilotoPromptBuilder {
                 REGLAS:
                 - Responde en español cordial y directo (máximo 2-3 líneas).
                 - PROHIBIDO mencionar rutas "/dashboard...", IDs, SQL, tablas Markdown inventadas con "[campo]" ni sugerir notas numéricas.
-                - Usa SOLO las herramientas disponibles cuando necesites datos reales. NUNCA inventes ni afirmes si existen o no ferias, convocatorias, plantillas o usuarios sin consultar antes la herramienta correspondiente. No generes PDF si solo hacen una pregunta simple.
+                - Usa SOLO las herramientas disponibles cuando necesites datos reales. NUNCA inventes ni afirmes si existen o no ferias, convocatorias, plantillas o usuarios, ni imites mensajes anteriores como 'Listo, fue habilitada...' sin haber ejecutado primero la herramienta correspondiente. No generes PDF si solo hacen una pregunta simple.
                 %s
                 """.formatted(
                 LocalDate.now(),

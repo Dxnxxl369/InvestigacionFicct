@@ -429,6 +429,10 @@ export default function CopilotoWidget() {
           content: resp.mensaje,
         },
       ]);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ficct:copiloto-confirmed", { detail: { tipoAccion: conf.tipoAccion } }));
+      }
+      router.refresh();
     } catch (err: any) {
       setMensajes((prev) => [
         ...prev,

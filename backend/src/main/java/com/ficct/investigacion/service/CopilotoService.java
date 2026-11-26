@@ -91,13 +91,14 @@ public class CopilotoService {
 
         List<Map<String, Object>> tools = toolRegistry.obtenerToolsPorRamaYRol(rama, user.getRol());
         boolean yaEjecutoTool = false;
+        boolean forzarTool = !"CHARLA".equals(rama) && requiereToolObligatoria(request.getMensaje());
 
         for (int iter = 0; iter < MAX_ITERACIONES; iter++) {
             Map<String, Object> body = new HashMap<>();
             body.put("messages", messages);
             if (!yaEjecutoTool && !tools.isEmpty()) {
                 body.put("tools", tools);
-                body.put("tool_choice", "auto");
+                body.put("tool_choice", (iter == 0 && forzarTool) ? "required" : "auto");
             }
             body.put("temperature", 0.2);
             body.put("max_tokens", 550);
@@ -138,6 +139,12 @@ public class CopilotoService {
         }
 
         return "¿En qué actividad o módulo te gustaría trabajar ahora?";
+    }
+
+    private boolean requiereToolObligatoria(String mensaje) {
+        if (mensaje == null) return false;
+        String m = mensaje.toLowerCase(Locale.ROOT);
+        return m.matches(".*\\b(habilita|deshabilita|activa|desactiva|crea|crear|elimina|borrar|renombra|agrega|quita|cambia|edita|asigna|publica|archiva|aprueba|rechaza|genera|exporta|lista|muestra|cuantas|cuántas|cuantos|cuántos|hay|tiene|tengo|faltan|pendientes|ir a|llevame|llévame)\\b.*");
     }
 
     private String clasificarRama(CopilotoRequest request, User user) {
