@@ -83,6 +83,9 @@ public class UploadController {
                     .path("/api/uploads/")
                     .path(uniqueName)
                     .toUriString();
+            if (fileDownloadUri.startsWith("http://") && !fileDownloadUri.contains("localhost") && !fileDownloadUri.contains("127.0.0.1")) {
+                fileDownloadUri = "https://" + fileDownloadUri.substring("http://".length());
+            }
 
             Map<String, Object> response = new HashMap<>();
             response.put("url", fileDownloadUri);
@@ -144,6 +147,9 @@ public class UploadController {
                     .path("/api/uploads/")
                     .path(uniqueName)
                     .toUriString();
+            if (fileDownloadUri.startsWith("http://") && !fileDownloadUri.contains("localhost") && !fileDownloadUri.contains("127.0.0.1")) {
+                fileDownloadUri = "https://" + fileDownloadUri.substring("http://".length());
+            }
 
             Map<String, Object> response = new HashMap<>();
             response.put("url", fileDownloadUri);
