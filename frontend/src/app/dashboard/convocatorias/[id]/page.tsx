@@ -12,6 +12,7 @@ import {
   TareaDTO,
   User,
   getMediaUrl,
+  modulosAPI,
   ModuloDTO,
   GrupoDTO,
   GruposAreaResponse,
@@ -184,6 +185,7 @@ export default function ConvocatoriaDetallePage() {
 
   // Estados de interacción en pestaña Calificaciones
   const [searchGradebookEstudiante, setSearchGradebookEstudiante] = useState("");
+  const [modoEdicion, setModoEdicion] = useState(false);
 
   // Permisos y roles
   const esAdmin = user?.rol === "ADMIN";
@@ -252,11 +254,12 @@ export default function ConvocatoriaDetallePage() {
       setErrorCarga(null);
 
       // Restauración de estado según query params
-      const urlTab = searchParams.get("tab");
-      const urlModulo = searchParams.get("modulo");
-      const urlTarea = searchParams.get("tarea");
-      const urlEquipo = searchParams.get("equipo");
-      const urlEntregas = searchParams.get("entregas");
+      const sp = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const urlTab = sp.get("tab");
+      const urlModulo = sp.get("modulo");
+      const urlTarea = sp.get("tarea");
+      const urlEquipo = sp.get("equipo");
+      const urlEntregas = sp.get("entregas");
 
       if (urlTab && ["tareas", "grupos", "solicitudes", "participantes", "jurados", "calificaciones", "seguimiento"].includes(urlTab)
         && (!["seguimiento", "jurados"].includes(urlTab) || user.rol === "ADMIN" || user.rol === "DOCENTE")) {
@@ -362,7 +365,23 @@ export default function ConvocatoriaDetallePage() {
     } finally {
       setLoading(false);
     }
-  }, [convocatoriaId, user?.rol, user?.id, esAdmin, toast, searchParams]);
+  }, [convocatoriaId, user?.rol, user?.id, esAdmin, toast]);
+
+  const handleToggleModuloActivo = useCallback(async (mod: ModuloDTO) => {
+    try {
+      const nuevoEstado = mod.activo === false;
+      const actualizado = await modulosAPI.update(mod.id, {
+        titulo: mod.titulo,
+        descripcion: mod.descripcion,
+        orden: mod.orden,
+        activo: nuevoEstado,
+      });
+      setModulos((prev) => prev.map((m) => (m.id === mod.id ? actualizado : m)));
+      toast(nuevoEstado ? `Módulo "${mod.titulo}" habilitado` : `Módulo "${mod.titulo}" ocultado`, "success");
+    } catch (err: any) {
+      toast(err?.message || "No se pudo actualizar la visibilidad del módulo.", "error");
+    }
+  }, [toast]);
 
   useEffect(() => {
     if (user?.rol === "JURADO") router.replace("/dashboard/jurado");
@@ -1000,135 +1019,79 @@ export default function ConvocatoriaDetallePage() {
 
         {/* Encabezado y Breadcrumb */}
         <div>
-          <div className="flex items-center gap-2 text-xs text-ink-faint mb-2">
-            <Link href="/dashboard/convocatorias" className="hover:text-accent flex items-center gap-1">
-              <ArrowLeft className="w-3.5 h-3.5" /> Convocatorias
-            </Link>
-            <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-ink-soft font-medium truncate max-w-xs">{convocatoria.titulo}</span>
-          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-ink-faint">
+              <Link href="/dashboard/convocatorias" className="hover:text-accent flex items-center gap-1 transition-colors">
+                <ArrowLeft className="w-3.5 h-3.5" /> Convocatorias
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-ink font-semibold truncate max-w-xs sm:max-w-md">{convocatoria.titulo}</span>
+            </div>
 
-          <div className="bg-paper border border-line rounded-2xl shadow-sm relative overflow-hidden">
-            {convocatoria.imagenPortada && (
-              <div className="w-full h-44 sm:h-56 relative overflow-hidden bg-paper-sunken border-b border-line-soft">
-                <img
-                  src={getMediaUrl(convocatoria.imagenPortada)}
-                  alt={convocatoria.titulo}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const parent = e.currentTarget.parentElement;
-                    if (parent) parent.style.display = "none";
-                  }}
-                />
-              </div>
-            )}
-            <div className="p-6 sm:p-8">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div className="space-y-2 max-w-3xl">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent/10 text-accent uppercase tracking-wider">
-                      {convocatoria.tipo}
-                    </span>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
-                        convocatoria.estado === "PUBLICADA"
-                          ? "bg-emerald-500/10 text-emerald-700"
-                          : "bg-amber-500/10 text-amber-700"
-                      }`}
-                    >
-                      {convocatoria.estado}
-                    </span>
-                    {miParticipacion && (
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-700">
-                        Mi Rol: {miParticipacion.rol} {miParticipacion.nombreEquipo && `(${miParticipacion.nombreEquipo})`}
-                      </span>
-                    )}
-                  </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {user?.rol === "ESTUDIANTE" && !esEstudianteInscrito && convocatoria.estado !== "FINALIZADA" && (
+                <button
+                  onClick={() => setShowInscripcionModal(true)}
+                  className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                >
+                  {esEstudianteRechazado ? "Volver a Postular" : "Inscribirme al Área"}
+                </button>
+              )}
+              {user?.rol === "ESTUDIANTE" && esEstudianteInscrito &&
+                convocatoria.modalidadInscripcion === "GRUPAL" && convocatoria.estado === "PUBLICADA" && (
+                <button type="button" onClick={() => setShowInscripcionModal(true)}
+                  className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white cursor-pointer">
+                  Inscribir otro equipo
+                </button>
+              )}
 
-                  <h1 className="font-serif text-2xl sm:text-3xl font-bold text-ink leading-snug">
-                    {convocatoria.titulo}
-                  </h1>
-                  <p className="text-xs sm:text-sm text-ink-soft line-clamp-2">{convocatoria.descripcion}</p>
-                  {convocatoria.archivoInformacionUrl && <a href={getMediaUrl(convocatoria.archivoInformacionUrl)}
-                    target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-xs font-semibold text-accent hover:underline">
-                    Ver archivo informativo: {convocatoria.archivoInformacionNombre || "Documento del evento"}
-                  </a>}
+              {puedeGestionarTareas && (
+                <button
+                  type="button"
+                  onClick={() => setModoEdicion((v) => !v)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                    modoEdicion
+                      ? "bg-accent text-white border-accent shadow-xs"
+                      : "bg-paper border-line text-ink-soft hover:text-ink hover:border-accent/40"
+                  }`}
+                  title="Mostrar módulos ocultos precargados y habilitar edición"
+                >
+                  <span>{modoEdicion ? "Modo edición: ON" : "Modo edición"}</span>
+                </button>
+              )}
 
-                  {/* Métricas rápidas del aula */}
-                  <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-3 text-xs text-ink-soft">
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <FolderKanban className="w-4 h-4 text-accent" />
-                      <span>{modulos.length} módulos</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <BookOpen className="w-4 h-4 text-accent" />
-                      <span>{tareas.length} tareas</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <Users className="w-4 h-4 text-purple-600" />
-                      <span>{participantes.filter((p) => p.estadoInscripcion === "ACEPTADO").length} participantes</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <Users className="w-4 h-4 text-emerald-600" />
-                      <span>{convocatoria.modalidadInscripcion === "GRUPAL"
-                        ? `${equiposFeriaAceptados.length} ${equiposFeriaAceptados.length === 1 ? "equipo" : "equipos"}`
-                        : `${gruposArea.length} grupos`}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Acciones principales de inscripción o gestión */}
-                <div className="flex items-center gap-2 sm:gap-3 shrink-0 flex-wrap">
-                  {user?.rol === "ESTUDIANTE" && !esEstudianteInscrito && convocatoria.estado !== "FINALIZADA" && (
+              {esAdmin && (
+                <>
+                  {convocatoria.estado !== "FINALIZADA" && (
                     <button
-                      onClick={() => setShowInscripcionModal(true)}
-                      className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                      type="button"
+                      onClick={() => {
+                        setItemAEliminar({
+                          tipo: "CONVOCATORIA",
+                          id: convocatoria.id,
+                          titulo: convocatoria.titulo,
+                          totalParticipantes: participantes.length,
+                          totalTareas: tareas.length,
+                        });
+                      }}
+                      className="px-3 py-2 bg-paper hover:bg-paper-sunken border border-line text-ink-soft hover:text-ink rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Gestionar estado o archivar aula"
                     >
-                      {esEstudianteRechazado ? "Volver a Postular" : "Inscribirme al Área"}
+                      <Archive className="w-3.5 h-3.5 text-accent" />
+                      <span className="hidden sm:inline">Archivar Área</span>
                     </button>
                   )}
-                  {user?.rol === "ESTUDIANTE" && esEstudianteInscrito &&
-                    convocatoria.modalidadInscripcion === "GRUPAL" && convocatoria.estado === "PUBLICADA" && (
-                    <button type="button" onClick={() => setShowInscripcionModal(true)}
-                      className="rounded-xl bg-accent px-5 py-2.5 text-xs font-semibold text-white">
-                      Inscribir otro equipo
-                    </button>
-                  )}
-
-                  {esAdmin && (
-                    <div className="flex items-center gap-2">
-                      {convocatoria.estado !== "FINALIZADA" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setItemAEliminar({
-                              tipo: "CONVOCATORIA",
-                              id: convocatoria.id,
-                              titulo: convocatoria.titulo,
-                              totalParticipantes: participantes.length,
-                              totalTareas: tareas.length,
-                            });
-                          }}
-                          className="px-3 py-2 bg-paper hover:bg-paper-sunken border border-line text-ink-soft hover:text-ink rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                          title="Gestionar estado o archivar aula"
-                        >
-                          <Archive className="w-3.5 h-3.5 text-accent" />
-                          <span className="hidden sm:inline">Archivar Área</span>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={handleAbrirEliminarConvocatoria}
-                        className="px-3 py-2 bg-paper hover:bg-rose-500/10 border border-line hover:border-rose-300 text-ink-soft hover:text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Eliminar aula definitivamente"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Eliminar Aula</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+                  <button
+                    type="button"
+                    onClick={handleAbrirEliminarConvocatoria}
+                    className="px-3 py-2 bg-paper hover:bg-rose-500/10 border border-line hover:border-rose-300 text-ink-soft hover:text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Eliminar aula definitivamente"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Eliminar Aula</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1238,6 +1201,8 @@ export default function ConvocatoriaDetallePage() {
             esEstudiantePendiente={esEstudiantePendiente}
             esEstudianteRechazado={esEstudianteRechazado}
             puedeGestionarTareas={puedeGestionarTareas}
+            modoEdicion={modoEdicion}
+            onToggleModuloActivo={handleToggleModuloActivo}
             tareas={tareas}
             modulos={modulos}
             actividadesGrupo={actividadesGrupo}

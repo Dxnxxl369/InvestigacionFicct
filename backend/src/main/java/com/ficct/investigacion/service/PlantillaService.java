@@ -287,7 +287,7 @@ public class PlantillaService {
     private Modulo crearModulo(Convocatoria convocatoria, User creador,
                               PlantillaDefinicion plantilla, int orden) {
         Modulo modulo = modulos.save(new Modulo(convocatoria, plantilla.getTitulo(),
-                plantilla.getDescripcion(), null, orden, true));
+                plantilla.getDescripcion(), null, orden, false));
         for (PlantillaActividad actividad : plantilla.getActividades()) {
             crearTareaDeActividad(convocatoria, modulo, creador, actividad);
         }

@@ -38,6 +38,8 @@ interface TabTareasProps {
   esEstudiantePendiente: boolean;
   esEstudianteRechazado: boolean;
   puedeGestionarTareas: boolean;
+  modoEdicion?: boolean;
+  onToggleModuloActivo?: (m: ModuloDTO) => void;
   tareas: TareaDTO[];
   modulos: ModuloDTO[];
   actividadesGrupo: ActividadGrupoDTO[];
@@ -64,6 +66,8 @@ export default function TabTareas({
   esEstudiantePendiente,
   esEstudianteRechazado,
   puedeGestionarTareas,
+  modoEdicion = false,
+  onToggleModuloActivo,
   tareas,
   modulos,
   actividadesGrupo,
@@ -228,16 +232,27 @@ export default function TabTareas({
         </div>
 
         {/* Grid de Cards de Módulos */}
-        {modulos.length === 0 ? (
+        {(() => {
+          const modulosVisibles = (puedeGestionarTareas && modoEdicion)
+            ? modulos
+            : modulos.filter((m) => m.activo !== false);
+          if (modulosVisibles.length === 0) {
+            return (
           <div className="bg-paper border border-line rounded-2xl p-8 text-center space-y-3">
             <Layers className="w-10 h-10 text-ink-faint mx-auto" />
-            <h4 className="text-base font-serif font-bold text-ink">No hay módulos configurados aún</h4>
+            <h4 className="text-base font-serif font-bold text-ink">
+              {modulos.length > 0 && puedeGestionarTareas
+                ? "Tienes módulos precargados ocultos"
+                : "No hay módulos activos aún"}
+            </h4>
             <p className="text-xs text-ink-soft max-w-md mx-auto">
-              {puedeGestionarTareas
-                ? "Crea módulos temáticos para estructurar las tareas y fases de investigación de manera ordenada estilo Moodle."
-                : "El docente aún no ha organizado los contenidos en módulos."}
+              {modulos.length > 0 && puedeGestionarTareas
+                ? "Activa el 'Modo edición' arriba a la derecha para ver y habilitar los módulos precargados desde plantillas."
+                : puedeGestionarTareas
+                ? "Crea módulos temáticos para estructurar las tareas y fases de investigación."
+                : "El docente aún no ha habilitado módulos para esta convocatoria."}
             </p>
-            {puedeGestionarTareas && (
+            {puedeGestionarTareas && modoEdicion && (
               <button
                 onClick={onAbrirCrearModulo}
                 className="px-4 py-2 bg-accent text-white rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
@@ -246,9 +261,12 @@ export default function TabTareas({
               </button>
             )}
           </div>
-        ) : (
+            );
+          }
+          return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {modulos.map((mod) => {
+            {modulosVisibles.map((mod) => {
+              const oculto = mod.activo === false;
               const tareasDelMod = tareas.filter((t) => t.moduloId === mod.id);
               const entregadasDelMod = tareasDelMod.filter((t) => t.miEntrega).length;
               const totalTareas = tareasDelMod.length;
@@ -258,7 +276,9 @@ export default function TabTareas({
               return (
                 <div
                   key={mod.id}
-                  className="bg-paper border border-line rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                  className={`bg-paper border rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group ${
+                    oculto ? "border-dashed border-amber-500/60 opacity-85" : "border-line"
+                  }`}
                 >
                   <div>
                     {/* Portada o banner del Módulo */}
@@ -280,6 +300,11 @@ export default function TabTareas({
                       <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-black/60 text-white backdrop-blur-xs">
                         Módulo #{mod.orden}
                       </span>
+                      {oculto && (
+                        <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                          Oculto (Plantilla)
+                        </span>
+                      )}
                     </div>
 
                     {/* Contenido del Módulo */}
@@ -336,8 +361,21 @@ export default function TabTareas({
                       Entrar al Módulo <ChevronRight className="w-4 h-4" />
                     </button>
 
-                    {puedeGestionarTareas && (
+                    {puedeGestionarTareas && modoEdicion && (
                       <div className="flex items-center gap-1">
+                        {onToggleModuloActivo && (
+                          <button
+                            onClick={() => onToggleModuloActivo(mod)}
+                            title={oculto ? "Habilitar módulo para estudiantes" : "Ocultar módulo"}
+                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                              oculto
+                                ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
+                                : "bg-amber-500/10 text-amber-700 border-amber-500/30 hover:bg-amber-500/20"
+                            }`}
+                          >
+                            {oculto ? "Habilitar" : "Ocultar"}
+                          </button>
+                        )}
                         <button
                           onClick={() => onAbrirEditarModulo(mod)}
                           title="Editar Módulo"
@@ -359,7 +397,8 @@ export default function TabTareas({
               );
             })}
           </div>
-        )}
+          );
+        })()}
 
         {/* SECCIÓN DE TAREAS GENERALES (FUERA DE MÓDULOS) */}
         <div className="pt-4 border-t border-line space-y-4">
