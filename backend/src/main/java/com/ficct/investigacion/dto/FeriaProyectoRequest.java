@@ -7,7 +7,7 @@ public record FeriaProyectoRequest(
         String grupoMateria, String docente, List<FeriaIntegranteRequest> integrantes
 ) {
     public record FeriaIntegranteRequest(
-            String registro, String nombre, String carrera, String celular,
+            String registro, String nombre, String apellido, String carrera, String celular,
             Integer semestre, Integer ferias, String correo, Boolean crearCuenta
     ) {}
 }

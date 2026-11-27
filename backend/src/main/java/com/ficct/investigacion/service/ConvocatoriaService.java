@@ -843,12 +843,17 @@ public class ConvocatoriaService {
         for (var persona : enviados) {
             if (persona == null) throw new IllegalArgumentException("Completa los datos de cada integrante.");
             String registro = persona.registro() == null ? "" : persona.registro().trim();
-            String nombre = requerido(persona.nombre(), "el nombre del integrante");
+            String nombreBase = requerido(persona.nombre(), "el nombre del integrante");
+            String apellidoBase = persona.apellido() == null ? "" : persona.apellido().trim();
+            String nombre = apellidoBase.isBlank() ? nombreBase : (nombreBase + " " + apellidoBase).trim();
             String carrera = conv.getTipo() == TipoConvocatoria.FERIA
                     ? requerido(persona.carrera(), "la carrera del integrante")
                     : persona.carrera() == null ? "" : persona.carrera().trim();
-            String celular = requerido(persona.celular(), "el celular del integrante");
             String correo = requerido(persona.correo(), "el correo del integrante").toLowerCase(Locale.ROOT);
+            boolean esJefe = correo.equalsIgnoreCase(responsable.getEmail());
+            String celular = esJefe
+                    ? requerido(persona.celular(), "el celular del jefe de equipo")
+                    : (persona.celular() == null ? "" : persona.celular().trim());
             if (!CorreoPermitido.esValido(correo) ||
                     persona.semestre() == null || persona.semestre() < 0 ||
                     persona.ferias() == null || persona.ferias() < 0) {
@@ -869,17 +874,26 @@ public class ConvocatoriaService {
     private List<FeriaIntegrante> registrarCuentasFeria(List<FeriaIntegrante> integrantes, FeriaProyectoRequest proyecto) {
         List<FeriaIntegrante> normalizados = new ArrayList<>();
         for (int index = 0; index < integrantes.size(); index++) {
-            FeriaIntegrante integrante = integrantes.get(index);
-            boolean crearCuenta = Boolean.TRUE.equals(proyecto.integrantes().get(index).crearCuenta());
+            final int idx = index;
+            FeriaIntegrante integrante = integrantes.get(idx);
+            boolean crearCuenta = Boolean.TRUE.equals(proyecto.integrantes().get(idx).crearCuenta());
             User cuenta = userRepository.findByEmail(integrante.getCorreo()).orElseGet(() -> {
                 if (!crearCuenta) {
                     throw new IllegalArgumentException("El correo " + integrante.getCorreo() +
                             " no tiene cuenta. Confirma su creación en el formulario.");
                 }
-                String nombreCompleto = integrante.getNombre().trim();
-                int espacio = nombreCompleto.indexOf(' ');
-                String nombre = espacio < 0 ? nombreCompleto : nombreCompleto.substring(0, espacio);
-                String apellido = espacio < 0 ? "" : nombreCompleto.substring(espacio + 1).trim();
+                var reqPersona = proyecto.integrantes().get(idx);
+                String nombre;
+                String apellido;
+                if (reqPersona.apellido() != null && !reqPersona.apellido().isBlank()) {
+                    nombre = reqPersona.nombre() != null ? reqPersona.nombre().trim() : "";
+                    apellido = reqPersona.apellido().trim();
+                } else {
+                    String nombreCompleto = integrante.getNombre().trim();
+                    int espacio = nombreCompleto.indexOf(' ');
+                    nombre = espacio < 0 ? nombreCompleto : nombreCompleto.substring(0, espacio);
+                    apellido = espacio < 0 ? "" : nombreCompleto.substring(espacio + 1).trim();
+                }
                 String registro = integrante.getRegistro() == null || integrante.getRegistro().isBlank()
                         ? "000000" : integrante.getRegistro();
                 String temporal = nombre.substring(0, 1).toLowerCase(Locale.ROOT) + "." + registro;
