@@ -710,7 +710,7 @@ public class TareaService {
         Tarea tarea = entrega.getTarea();
         Convocatoria conv = tarea.getConvocatoria();
         boolean esAdmin = evaluador.getRol() == Rol.ADMIN;
-        boolean esDocente = participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRol(conv.getId(), evaluador.getId(), Rol.DOCENTE);
+        boolean esDocente = evaluador.getRol() == Rol.DOCENTE;
         if (!esAdmin && !esDocente) {
             throw new AccessDeniedException("Las notas de tareas solo pueden registrarlas docentes o administradores. El jurado usa su formulario de evaluación.");
         }
