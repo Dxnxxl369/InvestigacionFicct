@@ -18,8 +18,29 @@ const proyectoVacio = (): FeriaProyectoRequest => ({
   grupoMateria: "", docente: "", integrantes: [],
 });
 
-const integranteVacio = (nombre = "", correo = "", registro = "", celular = ""): FeriaIntegranteRequest => ({
-  registro, nombre, carrera: "", celular, semestre: 0, ferias: 0, correo,
+const CARRERAS_FICCT = [
+  "Ingenieria Informatica",
+  "Ingenieria en Sistemas",
+  "Ingenieria en Robotica",
+  "Ingenieria en Redes y Telecomunicaciones",
+  "Otro",
+] as const;
+
+const separarNombreApellido = (nombreCompleto: string): { nombre: string; apellido: string } => {
+  const clean = nombreCompleto.trim();
+  const idx = clean.indexOf(" ");
+  if (idx < 0) return { nombre: clean, apellido: "" };
+  return { nombre: clean.slice(0, idx).trim(), apellido: clean.slice(idx + 1).trim() };
+};
+
+const integranteVacio = (
+  nombre = "",
+  apellido = "",
+  correo = "",
+  registro = "",
+  celular = ""
+): FeriaIntegranteRequest => ({
+  registro, nombre, apellido, carrera: "", celular, semestre: 0, ferias: 0, correo,
 });
 
 export default function FeriaInscripcionModal({ isOpen, onClose, convocatoria, onSuccess, toast }: Props) {
@@ -36,7 +57,7 @@ export default function FeriaInscripcionModal({ isOpen, onClose, convocatoria, o
   useEffect(() => {
     if (!isOpen || !user) return;
     const correo = user.email.toLowerCase();
-    setIntegrantes([integranteVacio(`${user.nombre} ${user.apellido}`.trim(), correo,
+    setIntegrantes([integranteVacio(user.nombre || "", user.apellido || "", correo,
       user.registroUniversitario || "", user.celular || "")]);
     setBusquedas({ 0: "existente" });
     setPaso(1);
@@ -61,8 +82,9 @@ export default function FeriaInscripcionModal({ isOpen, onClose, convocatoria, o
       const resultado = await api.buscarIntegranteFeria(convocatoria.id, correo);
       setBusquedas((actual) => ({ ...actual, [indice]: resultado.existe ? "existente" : "nuevo" }));
       if (resultado.existe) {
+        const sep = separarNombreApellido(resultado.nombre || "");
         setIntegrantes((actual) => actual.map((i, n) => n === indice ? {
-          ...i, correo, nombre: resultado.nombre || "", registro: resultado.registro || "",
+          ...i, correo, nombre: sep.nombre, apellido: sep.apellido, registro: resultado.registro || "",
           celular: resultado.celular || "", crearCuenta: false,
         } : i));
       }
@@ -91,9 +113,13 @@ export default function FeriaInscripcionModal({ isOpen, onClose, convocatoria, o
     if (integrantes.some((_, indice) => busquedas[indice] !== "existente" && busquedas[indice] !== "crear")) {
       toast("Busca el correo de cada integrante y confirma si se debe crear su cuenta.", "error"); return;
     }
-    if (integrantes.some((i) => !i.nombre.trim() || (esFeria && !i.carrera.trim()) ||
-      !i.celular.trim() || !i.correo.trim() || i.semestre < 0 || i.ferias < 0)) {
-      toast("Completa todos los datos de cada integrante.", "error"); return;
+    const jefeCorreo = user?.email.toLowerCase() || "";
+    if (integrantes.some((i) => {
+      const esJefe = i.correo.trim().toLowerCase() === jefeCorreo;
+      return !i.nombre.trim() || !(i.apellido || "").trim() || (esFeria && !i.carrera.trim()) ||
+        (esJefe && !i.celular.trim()) || !i.correo.trim() || i.semestre < 0 || i.ferias < 0;
+    })) {
+      toast("Completa todos los datos obligatorios de cada integrante (Nombre(s), Apellido(s), Carrera y Celular del jefe).", "error"); return;
     }
     const correos = integrantes.map((i) => i.correo.trim().toLowerCase());
     const registros = integrantes.map((i) => i.registro.trim());
@@ -193,26 +219,56 @@ export default function FeriaInscripcionModal({ isOpen, onClose, convocatoria, o
                   )}
                   {busquedas[indice] === "existente" && <p className="mb-3 text-xs text-emerald-700">Cuenta encontrada. Se utilizará el nombre registrado.</p>}
                   {busquedas[indice] === "crear" && <p className="mb-3 text-xs text-amber-700">Se creará una cuenta temporal al enviar la postulación.</p>}
-                  {(busquedas[indice] === "existente" || busquedas[indice] === "crear") && (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {([ ["registro", "Registro universitario (opcional)"], ["nombre", "Nombre completo"], ...(esFeria ? [["carrera", "Carrera"]] : []), ["celular", "Celular"] ] as Array<["registro" | "nombre" | "carrera" | "celular", string]>).map(([campo, etiqueta]) => (
-                      <label key={campo} className="text-xs font-semibold text-ink-soft">{etiqueta}{campo !== "registro" ? " *" : ""}
-                        <input required={campo !== "registro"} readOnly={campo === "nombre" && busquedas[indice] === "existente"} type="text" value={integrante[campo]}
-                          onChange={(e) => actualizarIntegrante(indice, campo, e.target.value)}
+                  {(busquedas[indice] === "existente" || busquedas[indice] === "crear") && (() => {
+                    const esJefe = integrante.correo.toLowerCase() === (user?.email.toLowerCase() || "");
+                    const soloLecturaNombre = busquedas[indice] === "existente";
+                    return (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label className="text-xs font-semibold text-ink-soft">Registro universitario (opcional)
+                        <input type="text" value={integrante.registro}
+                          onChange={(e) => actualizarIntegrante(indice, "registro", e.target.value)}
                           className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink" />
                       </label>
-                    ))}
-                    {esFeria && <><label className="text-xs font-semibold text-ink-soft">Semestre *
-                      <input required type="number" min={0} value={integrante.semestre} onChange={(e) => actualizarIntegrante(indice, "semestre", Number(e.target.value))}
-                        className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink" />
-                    </label>
-                    <label className="text-xs font-semibold text-ink-soft">Ferias anteriores *
-                      <input required type="number" min={0} value={integrante.ferias} onChange={(e) => actualizarIntegrante(indice, "ferias", Number(e.target.value))}
-                        className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink" />
-                    </label>
-                    </>}
-                  </div>
-                  )}
+                      <label className="text-xs font-semibold text-ink-soft">Nombre(s) *
+                        <input required readOnly={soloLecturaNombre} type="text" value={integrante.nombre}
+                          onChange={(e) => actualizarIntegrante(indice, "nombre", e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink" />
+                      </label>
+                      <label className="text-xs font-semibold text-ink-soft">Apellido(s) *
+                        <input required readOnly={soloLecturaNombre} type="text" value={integrante.apellido || ""}
+                          onChange={(e) => actualizarIntegrante(indice, "apellido", e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink" />
+                      </label>
+                      {esFeria && (
+                        <label className="text-xs font-semibold text-ink-soft">Carrera *
+                          <select required value={integrante.carrera}
+                            onChange={(e) => actualizarIntegrante(indice, "carrera", e.target.value)}
+                            className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink">
+                            <option value="">Selecciona una carrera...</option>
+                            {CARRERAS_FICCT.map((c) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      <label className="text-xs font-semibold text-ink-soft">
+                        {esJefe ? "Celular *" : "Celular (opcional)"}
+                        <input required={esJefe} type="text" value={integrante.celular}
+                          onChange={(e) => actualizarIntegrante(indice, "celular", e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink" />
+                      </label>
+                      {esFeria && <><label className="text-xs font-semibold text-ink-soft">Semestre *
+                        <input required type="number" min={0} value={integrante.semestre} onChange={(e) => actualizarIntegrante(indice, "semestre", Number(e.target.value))}
+                          className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink" />
+                      </label>
+                      <label className="text-xs font-semibold text-ink-soft">Ferias anteriores *
+                        <input required type="number" min={0} value={integrante.ferias} onChange={(e) => actualizarIntegrante(indice, "ferias", Number(e.target.value))}
+                          className="mt-1 w-full rounded-lg border border-line bg-paper-raised px-3 py-2 text-sm text-ink" />
+                      </label>
+                      </>}
+                    </div>
+                    );
+                  })()}
                 </div>
               ))}
               <div className="flex flex-wrap items-center justify-between gap-2">

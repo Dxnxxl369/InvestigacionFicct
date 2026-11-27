@@ -127,6 +127,7 @@ export interface InscribirseAreaRequest {
 export interface FeriaIntegranteRequest {
   registro: string;
   nombre: string;
+  apellido?: string;
   carrera: string;
   celular: string;
   semestre: number;
