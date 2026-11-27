@@ -113,6 +113,21 @@ public class ModuloService {
         }
         if (request.getActivo() != null) {
             modulo.setActivo(request.getActivo());
+            if (Boolean.TRUE.equals(request.getActivo())) {
+                List<Tarea> tareasDelModulo = tareaRepository.findByConvocatoriaOrderByCreatedAtDesc(modulo.getConvocatoria())
+                        .stream()
+                        .filter(t -> t.getModulo() != null && t.getModulo().getId().equals(modulo.getId()))
+                        .toList();
+                for (Tarea t : tareasDelModulo) {
+                    if (t.isPlantillaModulo() && !t.isHabilitada()) {
+                        t.setHabilitada(true);
+                        t.setVisibleEstudiantes(true);
+                    }
+                }
+                if (!tareasDelModulo.isEmpty()) {
+                    tareaRepository.saveAll(tareasDelModulo);
+                }
+            }
         }
 
         Modulo saved = moduloRepository.save(modulo);

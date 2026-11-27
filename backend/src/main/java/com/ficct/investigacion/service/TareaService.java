@@ -76,17 +76,7 @@ public class TareaService {
     }
 
     private boolean puedeDocenteGestionarTarea(Convocatoria convocatoria, User user) {
-        if (user.getRol() == Rol.ADMIN) {
-            return true;
-        }
-        if (user.getRol() == Rol.DOCENTE) {
-            if (convocatoria.getCreador() != null && convocatoria.getCreador().getId().equals(user.getId())) {
-                return true;
-            }
-            return participanteRepository.existsByConvocatoriaIdAndUsuarioIdAndRolAndEstadoInscripcion(
-                    convocatoria.getId(), user.getId(), Rol.DOCENTE, EstadoInscripcion.ACEPTADO);
-        }
-        return false;
+        return user.getRol() == Rol.ADMIN || user.getRol() == Rol.DOCENTE;
     }
 
     private void actualizarAdjuntos(Tarea tarea, List<AdjuntoTareaDTO> adjuntos) {
