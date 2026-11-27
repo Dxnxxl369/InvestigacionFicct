@@ -1015,6 +1015,10 @@ export default function ConvocatoriaDetallePage() {
                   src={getMediaUrl(convocatoria.imagenPortada)}
                   alt={convocatoria.titulo}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) parent.style.display = "none";
+                  }}
                 />
               </div>
             )}
