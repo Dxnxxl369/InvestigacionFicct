@@ -69,6 +69,7 @@ export interface Convocatoria {
   totalAdmitidos?: number;
   totalSolicitudesPendientes?: number;
   miEstadoInscripcion?: EstadoInscripcion;
+  proyectosPublicados?: number;
 }
 
 export type ConvocatoriaDTO = Convocatoria;
@@ -1088,6 +1089,7 @@ export interface TareaDTO {
   fechaLimite?: string;
   habilitada: boolean;
   visibleJurados: boolean;
+  publicarEnBiblioteca?: boolean;
   tiposArchivosPermitidos: string;
   tamanoMaximoMb: number;
   puntajeMaximo: number;
@@ -1124,6 +1126,7 @@ export interface TareaRequest {
   puntajeMaximo?: number;
   esGrupal?: boolean;
   visibleJurados?: boolean;
+  publicarEnBiblioteca?: boolean;
   actividadGrupoId?: number;
   // Mejoras: null = no tocar; [] = borrar; lista = reemplazar
   rubrica?: CriterioRequest[] | null;
@@ -1171,6 +1174,14 @@ export const tareasAPI = {
 
   async toggleHabilitar(id: number): Promise<TareaDTO> {
     const res = await fetch(`${API_BASE_URL}/tareas/${id}/habilitar`, {
+      method: "PUT",
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse<TareaDTO>(res);
+  },
+
+  async togglePublicarBiblioteca(id: number): Promise<TareaDTO> {
+    const res = await fetch(`${API_BASE_URL}/tareas/${id}/biblioteca`, {
       method: "PUT",
       headers: { ...getAuthHeader() },
     });
@@ -1806,6 +1817,7 @@ export const api = {
   getTareaById: tareasAPI.getById,
   updateTarea: tareasAPI.update,
   toggleHabilitarTarea: tareasAPI.toggleHabilitar,
+  togglePublicarBibliotecaTarea: tareasAPI.togglePublicarBiblioteca,
   entregarTarea: tareasAPI.submitEntrega,
   getEntregasTarea: tareasAPI.getEntregas,
   calificarEntrega: tareasAPI.calificar,

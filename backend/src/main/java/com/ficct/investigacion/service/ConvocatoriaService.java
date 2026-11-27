@@ -263,10 +263,11 @@ public class ConvocatoriaService {
 
         c.setEstado(nuevoEstado);
         Convocatoria updated = convocatoriaRepository.save(c);
+        ConvocatoriaDTO dto = new ConvocatoriaDTO(updated);
         if (nuevoEstado == EstadoConvocatoria.FINALIZADA && bibliotecaService != null) {
-            bibliotecaService.publicarProyectosFinalizados(updated);
+            dto.setProyectosPublicados(bibliotecaService.publicarProyectosFinalizados(updated));
         }
-        return new ConvocatoriaDTO(updated);
+        return dto;
     }
 
     @Transactional
@@ -281,10 +282,11 @@ public class ConvocatoriaService {
 
         c.setEstado(EstadoConvocatoria.FINALIZADA);
         Convocatoria updated = convocatoriaRepository.save(c);
+        ConvocatoriaDTO dto = new ConvocatoriaDTO(updated);
         if (bibliotecaService != null) {
-            bibliotecaService.publicarProyectosFinalizados(updated);
+            dto.setProyectosPublicados(bibliotecaService.publicarProyectosFinalizados(updated));
         }
-        return new ConvocatoriaDTO(updated);
+        return dto;
     }
 
     @Transactional

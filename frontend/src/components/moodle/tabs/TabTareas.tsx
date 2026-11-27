@@ -15,6 +15,7 @@ import {
   Layers,
   Users,
   CheckCircle,
+  BookOpen,
 } from "lucide-react";
 import {
   ConvocatoriaDTO,
@@ -40,6 +41,7 @@ interface TabTareasProps {
   puedeGestionarTareas: boolean;
   modoEdicion?: boolean;
   onToggleModuloActivo?: (m: ModuloDTO) => void;
+  onTogglePublicarBiblioteca?: (t: TareaDTO) => void;
   tareas: TareaDTO[];
   modulos: ModuloDTO[];
   actividadesGrupo: ActividadGrupoDTO[];
@@ -68,6 +70,7 @@ export default function TabTareas({
   puedeGestionarTareas,
   modoEdicion = false,
   onToggleModuloActivo,
+  onTogglePublicarBiblioteca,
   tareas,
   modulos,
   actividadesGrupo,
@@ -457,6 +460,11 @@ export default function TabTareas({
                               Grupal
                             </span>
                           )}
+                          {t.publicarEnBiblioteca && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 inline-flex items-center gap-1">
+                              <BookOpen className="w-2.5 h-2.5" /> Para Biblioteca
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11px] text-ink-soft flex items-center gap-2 flex-wrap">
                           <span>Vence: {formatMoodleDateShort(t.fechaEntrega || t.fechaLimite)}</span>
@@ -501,6 +509,24 @@ export default function TabTareas({
                           </span>
                           {puedeGestionarTareas && (
                             <div className="flex items-center gap-1">
+                              {modoEdicion && onTogglePublicarBiblioteca && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onTogglePublicarBiblioteca(t);
+                                  }}
+                                  title={t.publicarEnBiblioteca ? "Quitar de publicación automática en Biblioteca" : "Marcar para publicar sus entregas en Biblioteca al finalizar"}
+                                  className={`px-2 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 transition-colors cursor-pointer ${
+                                    t.publicarEnBiblioteca
+                                      ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                                      : "bg-paper text-ink-soft border-line hover:text-indigo-600 hover:border-indigo-300"
+                                  }`}
+                                >
+                                  <BookOpen className="w-3 h-3" />
+                                  <span className="hidden md:inline">{t.publicarEnBiblioteca ? "En Biblioteca" : "Biblioteca"}</span>
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -765,6 +791,11 @@ export default function TabTareas({
                           Grupal
                         </span>
                       )}
+                      {t.publicarEnBiblioteca && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 inline-flex items-center gap-1">
+                          <BookOpen className="w-2.5 h-2.5" /> Para Biblioteca
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-ink-soft flex items-center gap-2 flex-wrap">
                       <span>Vence: {formatMoodleDateShort(t.fechaEntrega || t.fechaLimite)}</span>
@@ -809,6 +840,24 @@ export default function TabTareas({
                       </span>
                       {puedeGestionarTareas && (
                         <div className="flex items-center gap-1">
+                          {modoEdicion && onTogglePublicarBiblioteca && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onTogglePublicarBiblioteca(t);
+                              }}
+                              title={t.publicarEnBiblioteca ? "Quitar de publicación automática en Biblioteca" : "Marcar para publicar sus entregas en Biblioteca al finalizar"}
+                              className={`px-2 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 transition-colors cursor-pointer ${
+                                t.publicarEnBiblioteca
+                                  ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                                  : "bg-paper text-ink-soft border-line hover:text-indigo-600 hover:border-indigo-300"
+                              }`}
+                            >
+                              <BookOpen className="w-3 h-3" />
+                              <span className="hidden md:inline">{t.publicarEnBiblioteca ? "En Biblioteca" : "Biblioteca"}</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {

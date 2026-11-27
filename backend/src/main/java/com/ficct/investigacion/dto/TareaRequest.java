@@ -27,6 +27,7 @@ public class TareaRequest {
 
     private boolean habilitada = true;
     private Boolean visibleJurados;
+    private Boolean publicarEnBiblioteca;
 
     private String tiposArchivosPermitidos = ".pdf, .docx, .zip";
 
@@ -39,6 +40,14 @@ public class TareaRequest {
     private Boolean documentoColaborativoHabilitado;
     private boolean esGrupal;
     private Long actividadGrupoId;
+
+    public Boolean getPublicarEnBiblioteca() {
+        return publicarEnBiblioteca;
+    }
+
+    public void setPublicarEnBiblioteca(Boolean publicarEnBiblioteca) {
+        this.publicarEnBiblioteca = publicarEnBiblioteca;
+    }
 
     public TareaRequest() {
     }

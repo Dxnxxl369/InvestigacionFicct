@@ -130,6 +130,7 @@ public class TareaService {
         }
         tarea.setEsGrupal(request.isEsGrupal());
         tarea.setVisibleJurados(Boolean.TRUE.equals(request.getVisibleJurados()));
+        tarea.setPublicarEnBiblioteca(Boolean.TRUE.equals(request.getPublicarEnBiblioteca()));
         tarea.setActividadGrupo(null);
         if (request.getAdjuntos() != null) {
             actualizarAdjuntos(tarea, request.getAdjuntos());
@@ -243,6 +244,9 @@ public class TareaService {
         if (request.getVisibleJurados() != null) {
             tarea.setVisibleJurados(request.getVisibleJurados());
         }
+        if (request.getPublicarEnBiblioteca() != null) {
+            tarea.setPublicarEnBiblioteca(request.getPublicarEnBiblioteca());
+        }
         tarea.setActividadGrupo(null);
         if (request.getAdjuntos() != null) {
             actualizarAdjuntos(tarea, request.getAdjuntos());
@@ -339,6 +343,20 @@ public class TareaService {
         return toDTO(saved, user);
     }
 
+    public TareaDTO togglePublicarEnBiblioteca(Long tareaId, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        Tarea tarea = tareaRepository.findById(tareaId)
+                .orElseThrow(() -> new IllegalArgumentException("Tarea no encontrada con ID: " + tareaId));
+
+        if (!puedeDocenteGestionarTarea(tarea.getConvocatoria(), user)) {
+            throw new AccessDeniedException("Solo un docente a cargo o administrador puede marcar tareas para la Biblioteca.");
+        }
+
+        tarea.setPublicarEnBiblioteca(!tarea.isPublicarEnBiblioteca());
+        Tarea saved = tareaRepository.save(tarea);
+        return toDTO(saved, user);
+    }
+
     @Transactional(readOnly = true)
     public List<TareaDTO> listarPorConvocatoria(Long convocatoriaId, String userEmail) {
         User user = getUserByEmail(userEmail);
@@ -423,6 +441,11 @@ public class TareaService {
             if (!admitido) {
                 throw new AccessDeniedException("Debes estar formalmente admitido en esta área para realizar entregas de tareas.");
             }
+        }
+
+        // 0.5 Bloquear entregas si la convocatoria/actividad ya finalizó
+        if (tarea.getConvocatoria().getEstado() == EstadoConvocatoria.FINALIZADA) {
+            throw new IllegalStateException("Esta actividad ha finalizado y ya no acepta nuevas entregas.");
         }
 
         // 1. Control manual de habilitación
@@ -1256,6 +1279,7 @@ public class TareaService {
         dto.setFechaLimite(tarea.getFechaLimite());
         dto.setHabilitada(tarea.isHabilitada());
         dto.setVisibleJurados(tarea.isVisibleJurados());
+        dto.setPublicarEnBiblioteca(tarea.isPublicarEnBiblioteca());
         dto.setTiposArchivosPermitidos(tarea.getTiposArchivosPermitidos());
         dto.setTamanoMaximoMb(tarea.getTamanoMaximoMb());
         dto.setPuntajeMaximo(tarea.getPuntajeMaximo());

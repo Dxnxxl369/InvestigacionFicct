@@ -383,6 +383,21 @@ export default function ConvocatoriaDetallePage() {
     }
   }, [toast]);
 
+  const handleTogglePublicarBiblioteca = useCallback(async (t: TareaDTO) => {
+    try {
+      const actualizada = await api.togglePublicarBibliotecaTarea(t.id);
+      setTareas((prev) => prev.map((item) => (item.id === t.id ? actualizada : item)));
+      toast(
+        actualizada.publicarEnBiblioteca
+          ? `"${t.titulo}" marcada para publicarse en la Biblioteca al finalizar.`
+          : `"${t.titulo}" quitada de publicación en Biblioteca.`,
+        "success"
+      );
+    } catch (err: any) {
+      toast(err?.message || "No se pudo actualizar la configuración de Biblioteca.", "error");
+    }
+  }, [toast]);
+
   useEffect(() => {
     if (user?.rol === "JURADO") router.replace("/dashboard/jurado");
     else cargarDatos();
@@ -521,8 +536,14 @@ export default function ConvocatoriaDetallePage() {
   const handleArchivarConvocatoriaDesdeModal = async () => {
     try {
       setEliminandoItem(true);
-      await api.archivarConvocatoria(convocatoriaId);
-      toast("Área archivada exitosamente", "success");
+      const res = await api.archivarConvocatoria(convocatoriaId);
+      const pub = res?.proyectosPublicados ?? 0;
+      toast(
+        pub > 0
+          ? `Actividad finalizada. Se publicaron ${pub} proyecto(s) en la Biblioteca Virtual.`
+          : "Actividad finalizada y archivada.",
+        "success"
+      );
       setItemAEliminar(null);
       await cargarDatos();
     } catch (err: any) {
@@ -1075,10 +1096,10 @@ export default function ConvocatoriaDetallePage() {
                         });
                       }}
                       className="px-3 py-2 bg-paper hover:bg-paper-sunken border border-line text-ink-soft hover:text-ink rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      title="Gestionar estado o archivar aula"
+                      title="Finalizar actividad y publicar entregas seleccionadas en Biblioteca"
                     >
                       <Archive className="w-3.5 h-3.5 text-accent" />
-                      <span className="hidden sm:inline">Archivar Área</span>
+                      <span className="hidden sm:inline">Finalizar y Archivar</span>
                     </button>
                   )}
                   <button
@@ -1094,6 +1115,23 @@ export default function ConvocatoriaDetallePage() {
               )}
             </div>
           </div>
+
+          {convocatoria.estado === "FINALIZADA" && (
+            <div className="mt-4 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-xs text-ink">
+                <Archive className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>
+                  <strong>Actividad finalizada y archivada.</strong> Ya no se aceptan nuevas entregas; los proyectos seleccionados están disponibles para consulta pública.
+                </span>
+              </div>
+              <Link
+                href="/biblioteca"
+                className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors shrink-0"
+              >
+                Ver en Biblioteca Virtual
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Barra de Pestañas estilo Moodle LMS con efecto Liquid Glass Sticky */}
@@ -1203,6 +1241,7 @@ export default function ConvocatoriaDetallePage() {
             puedeGestionarTareas={puedeGestionarTareas}
             modoEdicion={modoEdicion}
             onToggleModuloActivo={handleToggleModuloActivo}
+            onTogglePublicarBiblioteca={handleTogglePublicarBiblioteca}
             tareas={tareas}
             modulos={modulos}
             actividadesGrupo={actividadesGrupo}

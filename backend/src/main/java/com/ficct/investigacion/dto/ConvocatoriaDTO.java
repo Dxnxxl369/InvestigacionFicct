@@ -43,6 +43,7 @@ public class ConvocatoriaDTO {
     private long totalSolicitudesPendientes = 0;
     private EstadoInscripcion miEstadoInscripcion;
     private Rol miRol;
+    private Integer proyectosPublicados;
 
     public ConvocatoriaDTO() {
     }
@@ -302,5 +303,13 @@ public class ConvocatoriaDTO {
 
     public void setJuradoIds(List<Long> juradoIds) {
         this.juradoIds = juradoIds;
+    }
+
+    public Integer getProyectosPublicados() {
+        return proyectosPublicados;
+    }
+
+    public void setProyectosPublicados(Integer proyectosPublicados) {
+        this.proyectosPublicados = proyectosPublicados;
     }
 }

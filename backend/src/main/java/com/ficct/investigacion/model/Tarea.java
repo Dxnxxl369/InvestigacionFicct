@@ -54,6 +54,9 @@ public class Tarea {
     @Column(name = "visible_jurados")
     private Boolean visibleJurados = false;
 
+    @Column(name = "publicar_en_biblioteca", nullable = false, columnDefinition = "boolean default false")
+    private boolean publicarEnBiblioteca = false;
+
     @Column(name = "visible_estudiantes")
     private Boolean visibleEstudiantes;
 
@@ -223,6 +226,9 @@ public class Tarea {
 
     public boolean isVisibleJurados() { return Boolean.TRUE.equals(visibleJurados); }
     public void setVisibleJurados(boolean visibleJurados) { this.visibleJurados = visibleJurados; }
+
+    public boolean isPublicarEnBiblioteca() { return publicarEnBiblioteca; }
+    public void setPublicarEnBiblioteca(boolean publicarEnBiblioteca) { this.publicarEnBiblioteca = publicarEnBiblioteca; }
 
     public Boolean getVisibleEstudiantes() { return visibleEstudiantes; }
     public void setVisibleEstudiantes(Boolean visibleEstudiantes) { this.visibleEstudiantes = visibleEstudiantes; }

@@ -109,16 +109,44 @@ public class BibliotecaService {
     @Transactional(readOnly = true)
     public List<DocumentoDatos> buscar(String texto, Long categoriaId, String area, String nivel) {
         String consulta = normalizar(texto);
-        return documentos.findByPublicadoTrueOrderByCreadoEnDesc().stream()
+        List<BibliotecaDocumento> filtrados = documentos.findByPublicadoTrueOrderByCreadoEnDesc().stream()
                 .filter(d -> categoriaId == null || (categoriaId == -1
                         ? d.getCategoria() == null
                         : d.getCategoria() != null && d.getCategoria().getId().equals(categoriaId)))
                 .filter(d -> area == null || area.isBlank() || area.equalsIgnoreCase(d.getArea()))
                 .filter(d -> nivel == null || nivel.isBlank() || nivel.equalsIgnoreCase(d.getNivel()))
-                .filter(d -> consulta.isBlank() || normalizar(String.join(" ", d.getTitulo(),
-                        Objects.toString(d.getDescripcion(), ""), Objects.toString(d.getTextoExtraido(), "")))
-                        .contains(consulta))
-                .map(this::documentoDatos).toList();
+                .toList();
+
+        if (consulta.isBlank()) {
+            return filtrados.stream().map(this::documentoDatos).toList();
+        }
+
+        // Búsqueda inteligente con TF-IDF + coincidencia literal como respaldo
+        List<RecomendadorBibliotecaService.Resultado> mlResultados = recomendador.recomendar(
+                filtrados, new RecomendadorBibliotecaService.Contexto(area, nivel, texto));
+        List<BibliotecaDocumento> ordenados = new ArrayList<>();
+        Set<Long> incluidos = new HashSet<>();
+        for (RecomendadorBibliotecaService.Resultado res : mlResultados) {
+            BibliotecaDocumento doc = res.documento();
+            if (doc.getId() != null && incluidos.add(doc.getId())) {
+                ordenados.add(doc);
+            }
+        }
+        for (BibliotecaDocumento d : filtrados) {
+            if (d.getId() != null && incluidos.contains(d.getId())) continue;
+            String contenido = normalizar(String.join(" ",
+                    Objects.toString(d.getTitulo(), ""),
+                    Objects.toString(d.getDescripcion(), ""),
+                    Objects.toString(d.getArea(), ""),
+                    Objects.toString(d.getNivel(), ""),
+                    d.getCategoria() != null ? Objects.toString(d.getCategoria().getNombre(), "") : "",
+                    Objects.toString(d.getTextoExtraido(), "")));
+            if (contenido.contains(consulta)) {
+                if (d.getId() != null) incluidos.add(d.getId());
+                ordenados.add(d);
+            }
+        }
+        return ordenados.stream().map(this::documentoDatos).toList();
     }
 
     @Transactional
@@ -242,88 +270,134 @@ public class BibliotecaService {
     public int publicarProyectosFinalizados(Convocatoria convocatoria) {
         if (convocatoria == null || modulos == null || tareas == null || entregas == null) return 0;
 
-        Tarea tareaFinal = obtenerTareaFinal(convocatoria);
-        if (tareaFinal == null) return 0;
+        List<Tarea> tareasBiblioteca = tareas.findByConvocatoriaOrderByCreatedAtDesc(convocatoria).stream()
+                .filter(Tarea::isPublicarEnBiblioteca)
+                .toList();
+        if (tareasBiblioteca.isEmpty()) {
+            Tarea tareaFinal = obtenerTareaFinal(convocatoria);
+            if (tareaFinal != null) {
+                tareasBiblioteca = List.of(tareaFinal);
+            }
+        }
+        if (tareasBiblioteca.isEmpty()) return 0;
 
-        List<EntregaTarea> entregasFinales = entregas.findByTareaOrderByFechaEntregaDesc(tareaFinal);
-        if (entregasFinales.isEmpty()) return 0;
-
+        BibliotecaCategoria categoriaConv = obtenerOCrearCategoriaConvocatoria(convocatoria.getTipo());
         Set<String> proyectosProcesados = new HashSet<>();
         int publicados = 0;
 
-        for (EntregaTarea entrega : entregasFinales) {
-            if (entrega.getArchivoUrl() == null || entrega.getArchivoUrl().isBlank()) continue;
+        for (Tarea tareaFinal : tareasBiblioteca) {
+            List<EntregaTarea> entregasFinales = entregas.findByTareaOrderByFechaEntregaDesc(tareaFinal);
+            if (entregasFinales.isEmpty()) continue;
 
-            String claveProyecto;
-            String tituloBase;
-            String autorInfo;
+            for (EntregaTarea entrega : entregasFinales) {
+                if (entrega.getArchivoUrl() == null || entrega.getArchivoUrl().isBlank()) continue;
 
-            if (entrega.getFeriaPostulacion() != null) {
-                claveProyecto = "FERIA:" + entrega.getFeriaPostulacion().getId();
-                String np = entrega.getFeriaPostulacion().getTema();
-                tituloBase = (np != null && !np.isBlank()) ? np.trim() : Objects.toString(entrega.getNombreEquipo(), "Proyecto de Feria");
-                autorInfo = "Equipo: " + Objects.toString(entrega.getNombreEquipo(), tituloBase);
-            } else if (entrega.getGrupo() != null) {
-                claveProyecto = "GRUPO:" + entrega.getGrupo().getId();
-                String ng = entrega.getGrupo().getNombre();
-                tituloBase = (ng != null && !ng.isBlank()) ? ng.trim() + " — " + convocatoria.getTitulo() : convocatoria.getTitulo();
-                autorInfo = "Grupo: " + Objects.toString(ng, "Equipo");
-            } else if (entrega.getEstudiante() != null) {
-                claveProyecto = "EST:" + entrega.getEstudiante().getId();
-                String nom = (Objects.toString(entrega.getEstudiante().getNombre(), "") + " " + Objects.toString(entrega.getEstudiante().getApellido(), "")).trim();
-                tituloBase = nom.isBlank() ? convocatoria.getTitulo() : nom + " — " + convocatoria.getTitulo();
-                autorInfo = "Autor: " + (nom.isBlank() ? entrega.getEstudiante().getEmail() : nom);
-            } else {
-                continue;
-            }
+                String claveProyecto;
+                String tituloBase;
+                String autorInfo;
 
-            if (!proyectosProcesados.add(claveProyecto)) continue;
-
-            Path origen = resolverArchivoEntrega(entrega.getArchivoUrl());
-            if (origen == null || !Files.isRegularFile(origen)) continue;
-
-            try {
-                byte[] bytes = Files.readAllBytes(origen);
-                if (bytes.length < 5 || bytes[0] != '%' || bytes[1] != 'P' || bytes[2] != 'D'
-                        || bytes[3] != 'F' || bytes[4] != '-') {
-                    continue;
-                }
-
-                String tituloFinal = tituloBase.substring(0, Math.min(tituloBase.length(), 200));
-                String nombreArch = Objects.toString(entrega.getNombreArchivo(), origen.getFileName().toString());
-                if (nombreArch.length() > 255) nombreArch = nombreArch.substring(0, 255);
-
-                if (documentos.existsByTituloIgnoreCaseAndNombreArchivoIgnoreCase(tituloFinal, nombreArch)) {
-                    continue;
-                }
-
-                String texto;
-                try (PDDocument pdf = Loader.loadPDF(bytes)) {
-                    texto = new PDFTextStripper().getText(pdf);
-                }
-
-                Files.createDirectories(directorio);
-                String rutaDest = UUID.randomUUID() + ".pdf";
-                Files.write(resolver(rutaDest), bytes, StandardOpenOption.CREATE_NEW);
-
-                BibliotecaDocumento doc = new BibliotecaDocumento();
-                doc.setTitulo(tituloFinal);
-                String desc = "Proyecto culminado en " + convocatoria.getTitulo() + ". " + autorInfo + ".";
-                doc.setDescripcion(desc.substring(0, Math.min(desc.length(), 1000)));
                 if (entrega.getFeriaPostulacion() != null) {
-                    doc.setArea(coincideArea(entrega.getFeriaPostulacion().getArea()));
-                    doc.setNivel(coincideNivel(entrega.getFeriaPostulacion().getCategoria()));
+                    claveProyecto = "FERIA:" + entrega.getFeriaPostulacion().getId();
+                    String np = entrega.getFeriaPostulacion().getTema();
+                    tituloBase = (np != null && !np.isBlank()) ? np.trim() : Objects.toString(entrega.getNombreEquipo(), "Proyecto de Feria");
+                    autorInfo = "Equipo: " + Objects.toString(entrega.getNombreEquipo(), tituloBase);
+                } else if (entrega.getGrupo() != null) {
+                    claveProyecto = "GRUPO:" + entrega.getGrupo().getId();
+                    String ng = entrega.getGrupo().getNombre();
+                    tituloBase = (ng != null && !ng.isBlank()) ? ng.trim() + " — " + convocatoria.getTitulo() : convocatoria.getTitulo();
+                    autorInfo = "Grupo: " + Objects.toString(ng, "Equipo");
+                } else if (entrega.getEstudiante() != null) {
+                    claveProyecto = "EST:" + entrega.getEstudiante().getId();
+                    String nom = (Objects.toString(entrega.getEstudiante().getNombre(), "") + " " + Objects.toString(entrega.getEstudiante().getApellido(), "")).trim();
+                    tituloBase = nom.isBlank() ? convocatoria.getTitulo() : nom + " — " + convocatoria.getTitulo();
+                    autorInfo = "Autor: " + (nom.isBlank() ? entrega.getEstudiante().getEmail() : nom);
+                } else {
+                    continue;
                 }
-                doc.setNombreArchivo(nombreArch);
-                doc.setRutaArchivo(rutaDest);
-                doc.setTextoExtraido(texto.substring(0, Math.min(texto.length(), 100_000)));
-                doc.setPublicado(true);
-                documentos.save(doc);
-                publicados++;
-            } catch (Exception ignored) {
+
+                if (!proyectosProcesados.add(tareaFinal.getId() + ":" + claveProyecto)) continue;
+
+                Path origen = resolverArchivoEntrega(entrega.getArchivoUrl());
+                if (origen == null || !Files.isRegularFile(origen)) continue;
+
+                try {
+                    byte[] bytes = Files.readAllBytes(origen);
+                    boolean pdfValido = bytes.length >= 5 && bytes[0] == '%' && bytes[1] == 'P' && bytes[2] == 'D'
+                            && bytes[3] == 'F' && bytes[4] == '-';
+
+                    String tituloFinal = tituloBase.substring(0, Math.min(tituloBase.length(), 200));
+                    String nombreArch = Objects.toString(entrega.getNombreArchivo(), origen.getFileName().toString());
+                    if (nombreArch.length() > 255) nombreArch = nombreArch.substring(0, 255);
+
+                    if (documentos.existsByTituloIgnoreCaseAndNombreArchivoIgnoreCase(tituloFinal, nombreArch)) {
+                        continue;
+                    }
+
+                    String texto;
+                    String ext = ".pdf";
+                    if (pdfValido) {
+                        try (PDDocument pdf = Loader.loadPDF(bytes)) {
+                            texto = new PDFTextStripper().getText(pdf);
+                        }
+                    } else {
+                        int dot = nombreArch.lastIndexOf('.');
+                        ext = (dot >= 0 && dot < nombreArch.length() - 1) ? nombreArch.substring(dot).toLowerCase(Locale.ROOT) : "";
+                        if (ext.equals(".txt") || ext.equals(".md") || ext.equals(".csv")) {
+                            texto = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                        } else {
+                            texto = String.join(" ",
+                                    tituloFinal,
+                                    autorInfo,
+                                    convocatoria.getTitulo(),
+                                    Objects.toString(convocatoria.getDescripcion(), ""),
+                                    Objects.toString(tareaFinal.getTitulo(), ""),
+                                    Objects.toString(entrega.getComentarioEstudiante(), ""));
+                        }
+                    }
+
+                    Files.createDirectories(directorio);
+                    String rutaDest = UUID.randomUUID() + ext;
+                    Files.write(resolver(rutaDest), bytes, StandardOpenOption.CREATE_NEW);
+
+                    BibliotecaDocumento doc = new BibliotecaDocumento();
+                    doc.setTitulo(tituloFinal);
+                    String desc = "Proyecto culminado en " + convocatoria.getTitulo()
+                            + " (" + tareaFinal.getTitulo() + "). " + autorInfo + ".";
+                    doc.setDescripcion(desc.substring(0, Math.min(desc.length(), 1000)));
+                    doc.setCategoria(categoriaConv);
+                    if (entrega.getFeriaPostulacion() != null) {
+                        doc.setArea(coincideArea(entrega.getFeriaPostulacion().getArea()));
+                        doc.setNivel(coincideNivel(entrega.getFeriaPostulacion().getCategoria()));
+                    }
+                    doc.setNombreArchivo(nombreArch);
+                    doc.setRutaArchivo(rutaDest);
+                    doc.setTextoExtraido(texto.substring(0, Math.min(texto.length(), 100_000)));
+                    doc.setPublicado(true);
+                    documentos.save(doc);
+                    publicados++;
+                } catch (Exception ignored) {
+                }
             }
         }
         return publicados;
+    }
+
+    private BibliotecaCategoria obtenerOCrearCategoriaConvocatoria(TipoConvocatoria tipo) {
+        String nombre = switch (tipo != null ? tipo : TipoConvocatoria.INVESTIGACION) {
+            case FERIA -> "Feria";
+            case HACKATHON -> "Hackathon";
+            case CONCURSO -> "Concurso";
+            case INVESTIGACION -> "Investigación";
+        };
+        return categorias.findAll().stream()
+                .filter(c -> c.getNombre() != null && c.getNombre().equalsIgnoreCase(nombre))
+                .findFirst()
+                .orElseGet(() -> {
+                    BibliotecaCategoria nueva = new BibliotecaCategoria();
+                    nueva.setNombre(nombre);
+                    nueva.setDescripcion("Proyectos publicados al finalizar actividades de tipo " + nombre + ".");
+                    return categorias.save(nueva);
+                });
     }
 
     private Tarea obtenerTareaFinal(Convocatoria convocatoria) {

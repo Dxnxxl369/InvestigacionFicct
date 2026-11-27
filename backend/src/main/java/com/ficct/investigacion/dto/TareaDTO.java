@@ -18,6 +18,7 @@ public class TareaDTO {
     private LocalDateTime fechaLimite; // Compatibilidad
     private boolean habilitada;
     private boolean visibleJurados;
+    private boolean publicarEnBiblioteca;
     private String tiposArchivosPermitidos;
     private Integer tamanoMaximoMb;
     private Double puntajeMaximo;
@@ -268,5 +269,13 @@ public class TareaDTO {
 
     public void setMiEstado(String miEstado) {
         this.miEstado = miEstado;
+    }
+
+    public boolean isPublicarEnBiblioteca() {
+        return publicarEnBiblioteca;
+    }
+
+    public void setPublicarEnBiblioteca(boolean publicarEnBiblioteca) {
+        this.publicarEnBiblioteca = publicarEnBiblioteca;
     }
 }

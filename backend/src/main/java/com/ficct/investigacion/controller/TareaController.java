@@ -120,6 +120,18 @@ public class TareaController {
         }
     }
 
+    @PutMapping("/tareas/{id}/biblioteca")
+    public ResponseEntity<?> togglePublicarEnBiblioteca(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            TareaDTO actualizada = tareaService.togglePublicarEnBiblioteca(id, userDetails.getUsername());
+            return ResponseEntity.ok(actualizada);
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping("/tareas/{id}/entregar")
     public ResponseEntity<?> entregarTarea(@PathVariable Long id,
                                           @RequestBody EntregaRequest request,
