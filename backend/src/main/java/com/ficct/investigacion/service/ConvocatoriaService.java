@@ -44,6 +44,12 @@ public class ConvocatoriaService {
     private final FeriaMembresiaService feriaMembresiaService;
     private final PasswordEncoder passwordEncoder;
     private final PlantillaService plantillaService;
+    private BibliotecaService bibliotecaService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setBibliotecaService(BibliotecaService bibliotecaService) {
+        this.bibliotecaService = bibliotecaService;
+    }
 
     public ConvocatoriaService(ConvocatoriaRepository convocatoriaRepository,
                                ConvocatoriaParticipanteRepository participanteRepository,
@@ -257,6 +263,9 @@ public class ConvocatoriaService {
 
         c.setEstado(nuevoEstado);
         Convocatoria updated = convocatoriaRepository.save(c);
+        if (nuevoEstado == EstadoConvocatoria.FINALIZADA && bibliotecaService != null) {
+            bibliotecaService.publicarProyectosFinalizados(updated);
+        }
         return new ConvocatoriaDTO(updated);
     }
 
@@ -272,6 +281,9 @@ public class ConvocatoriaService {
 
         c.setEstado(EstadoConvocatoria.FINALIZADA);
         Convocatoria updated = convocatoriaRepository.save(c);
+        if (bibliotecaService != null) {
+            bibliotecaService.publicarProyectosFinalizados(updated);
+        }
         return new ConvocatoriaDTO(updated);
     }
 

@@ -1,12 +1,68 @@
 package com.ficct.investigacion.ai.tools;
 
+import com.ficct.investigacion.model.Rol;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class CopilotoToolRegistry {
+
+    public List<Map<String, Object>> obtenerToolsPorRamaYRol(String rama, Rol rol) {
+        if ("CHARLA".equals(rama)) {
+            return List.of();
+        }
+
+        Set<String> permitidasPorRol = switch (rol) {
+            case ESTUDIANTE -> Set.of(
+                    "consultar_mis_aulas_y_pendientes", "consultar_convocatorias", "gestionar_grupos",
+                    "buscar_biblioteca", "gestionar_notificaciones", "navegar_a"
+            );
+            case JURADO -> Set.of(
+                    "consultar_mis_aulas_y_pendientes", "consultar_convocatorias", "jurados_y_resumen_pdf",
+                    "buscar_biblioteca", "gestionar_notificaciones", "navegar_a"
+            );
+            case DOCENTE -> Set.of(
+                    "consultar_mis_aulas_y_pendientes", "consultar_convocatorias", "navegar_a",
+                    "gestionar_tarea_modulo", "gestionar_convocatoria",
+                    "gestionar_grupos", "gestionar_inscripciones",
+                    "seguimiento_y_notas", "jurados_y_resumen_pdf",
+                    "buscar_biblioteca", "gestionar_notificaciones",
+                    "generar_reporte_pdf", "abrir_agente_convocatorias"
+            );
+            case ADMIN -> Set.of(
+                    "consultar_mis_aulas_y_pendientes", "consultar_convocatorias", "navegar_a",
+                    "gestionar_tarea_modulo", "gestionar_convocatoria",
+                    "gestionar_plantilla_tarea", "consultar_plantillas",
+                    "asignar_plantilla_a_eventos", "gestionar_plantilla_estructura",
+                    "gestionar_grupos",
+                    "gestionar_inscripciones", "seguimiento_y_notas",
+                    "jurados_y_resumen_pdf", "gestionar_usuarios_admin",
+                    "buscar_biblioteca", "gestionar_notificaciones",
+                    "generar_reporte_pdf", "abrir_agente_convocatorias"
+            );
+        };
+
+        Set<String> ramaTools = switch (rama) {
+            case "AULAS_TAREAS" -> Set.of("consultar_mis_aulas_y_pendientes", "gestionar_tarea_modulo", "seguimiento_y_notas", "navegar_a");
+            case "PLANTILLAS" -> Set.of("consultar_plantillas", "asignar_plantilla_a_eventos", "gestionar_plantilla_estructura", "gestionar_plantilla_tarea", "navegar_a");
+            case "CONVOCATORIAS" -> Set.of("consultar_convocatorias", "gestionar_convocatoria", "consultar_plantillas", "abrir_agente_convocatorias", "navegar_a");
+            case "GRUPOS_INSCRIPCIONES" -> Set.of("gestionar_grupos", "gestionar_inscripciones", "navegar_a");
+            case "JURADOS_REPORTES" -> Set.of("jurados_y_resumen_pdf", "generar_reporte_pdf", "seguimiento_y_notas", "consultar_mis_aulas_y_pendientes", "navegar_a");
+            default -> Set.of("buscar_biblioteca", "gestionar_notificaciones", "gestionar_usuarios_admin", "navegar_a");
+        };
+
+        return obtenerDefinicionTools().stream()
+                .filter(t -> {
+                    Object fnObj = t.get("function");
+                    if (!(fnObj instanceof Map<?, ?> fnMap)) return false;
+                    String name = String.valueOf(fnMap.get("name"));
+                    return permitidasPorRol.contains(name) && ramaTools.contains(name);
+                })
+                .toList();
+    }
 
     public List<Map<String, Object>> obtenerDefinicionTools() {
         return List.of(
@@ -40,6 +96,15 @@ public class CopilotoToolRegistry {
                                 "fechaCorte", Map.of("type", "string")
                         )),
 
+                tool("consultar_convocatorias",
+                        "Lista o cuenta convocatorias reales en la base de datos (ferias, hackathones, concursos, investigaciones) filtrando opcionalmente por tipo, estado o título.",
+                        List.of(),
+                        Map.of(
+                                "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION", "TODAS")),
+                                "estado", Map.of("type", "string", "enum", List.of("BORRADOR", "PUBLICADA", "FINALIZADA", "TODOS")),
+                                "titulo", Map.of("type", "string")
+                        )),
+
                 tool("gestionar_convocatoria",
                         "Busca una o varias convocatorias (individual o en lote, ej. todas las FERIAS en borrador) y prepara una tarjeta de confirmación para cambiarles el estado.",
                         List.of("nuevoEstado"),
@@ -60,6 +125,36 @@ public class CopilotoToolRegistry {
                                 "fechaHabilitacion", Map.of("type", "string"),
                                 "fechaEntrega", Map.of("type", "string"),
                                 "fechaCorte", Map.of("type", "string")
+                        )),
+
+                tool("consultar_plantillas",
+                        "Lista las plantillas globales existentes, sus tareas exactas y su orden de asignación. Si se pasa tipoConvocatoria (FERIA, HACKATHON, CONCURSO, INVESTIGACION), devuelve cuáles están asignadas en orden (1, 2...) y cuáles NO están asignadas.",
+                        List.of(),
+                        Map.of(
+                                "plantillaNombre", Map.of("type", "string"),
+                                "tipoConvocatoria", Map.of("type", "string", "enum", List.of("FERIA", "HACKATHON", "CONCURSO", "INVESTIGACION"))
+                        )),
+
+                tool("asignar_plantilla_a_eventos",
+                        "Habilita, agrega, asigna o ordena una plantilla dentro de categorías globales (FERIA, HACKATHON, CONCURSO, INVESTIGACION) o en eventos específicos por nombre propio (solo ADMIN).",
+                        List.of("plantillaNombre", "accion"),
+                        Map.of(
+                                "plantillaNombre", Map.of("type", "string", "description", "Nombre de la plantilla, ej. Presentación final"),
+                                "accion", Map.of("type", "string", "enum", List.of("HABILITAR", "DESHABILITAR")),
+                                "tipos", Map.of("type", "array", "items", Map.of("type", "string"), "description", "Usa FERIA, HACKATHON, CONCURSO o INVESTIGACION cuando pidan agregar/habilitar en una categoría."),
+                                "orden", Map.of("type", "integer", "description", "Posición/orden 1-based opcional en la categoría (ej. 1 para primera posición)."),
+                                "eventoNombre", Map.of("type", "string", "description", "SOLO usar si dan el título propio de una convocatoria específica (ej. ExpoFICCT). NUNCA poner aquí el nombre de la plantilla ni 'todas'.")
+                        )),
+
+                tool("gestionar_plantilla_estructura",
+                        "Crea, renombra o elimina una plantilla, o agrega/elimina una TAREA dentro de una plantilla (solo ADMIN). NUNCA usar para asignar una plantilla a FERIA/HACKATHON/CONCURSO.",
+                        List.of("accion", "plantillaNombre"),
+                        Map.of(
+                                "accion", Map.of("type", "string", "enum", List.of("CREAR_PLANTILLA", "RENOMBRAR_PLANTILLA", "ELIMINAR_PLANTILLA", "AGREGAR_TAREA", "ELIMINAR_TAREA")),
+                                "plantillaNombre", Map.of("type", "string"),
+                                "nuevoTitulo", Map.of("type", "string"),
+                                "tareaTitulo", Map.of("type", "string"),
+                                "tareas", Map.of("type", "array", "items", Map.of("type", "string"))
                         )),
 
                 tool("gestionar_grupos",
@@ -123,7 +218,7 @@ public class CopilotoToolRegistry {
                         )),
 
                 tool("generar_reporte_pdf",
-                        "Ejecuta una consulta de reporte institucional en lenguaje natural y genera un documento PDF descargable directamente desde el chat (solo ADMIN o DOCENTE).",
+                        "Genera un reporte PDF descargable SOLO cuando el usuario pide explícitamente un reporte, tabla o PDF (ADMIN/DOCENTE). NO usar para preguntas informativas simples.",
                         List.of("consultaNatural"),
                         Map.of(
                                 "consultaNatural", Map.of("type", "string")

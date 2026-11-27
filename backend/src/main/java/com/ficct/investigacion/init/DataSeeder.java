@@ -54,6 +54,11 @@ public class DataSeeder implements CommandLineRunner {
             userRepository.save(new User("Administrador", "", bootstrapAdminEmail,
                     passwordEncoder.encode(bootstrapAdminPassword), Rol.ADMIN, EstadoUsuario.ACTIVO));
             log.info(">>> [DataSeeder] Administrador inicial creado");
+        } else if ((bootstrapAdminEmail == null || bootstrapAdminEmail.isBlank())
+                && !userRepository.existsByEmail("admin@gmail.com")) {
+            userRepository.save(new User("Carlos", "Mendoza", "admin@gmail.com",
+                    passwordEncoder.encode("admin123"), Rol.ADMIN, EstadoUsuario.ACTIVO));
+            log.info(">>> [DataSeeder] Usuario ADMIN creado: admin@gmail.com");
         }
     }
 

@@ -17,8 +17,8 @@ import java.util.Map;
 
 /**
  * Puerta de enlace unificada para modelos LLM OpenAI-compatible.
- * Intenta primero el servidor local configurado (LOCAL_AI_URL / Ollama en PC via tunel)
- * con timeout rapido y hace fallback automatico a Groq si la PC o el tunel no estan disponibles.
+ * Prioriza Groq en la nube por velocidad y hace fallback automatico al servidor local
+ * configurado (LOCAL_AI_URL / Ollama en PC via tunel) si Groq falla o no esta disponible.
  */
 @Service
 public class LlmGatewayService {
@@ -68,26 +68,26 @@ public class LlmGatewayService {
     }
 
     /**
-     * Envia una peticion chat/completions. Prioriza LOCAL_AI_URL si esta configurada,
-     * y ante cualquier fallo de conexion/timeout/5xx hace fallback transparente a Groq.
+     * Envia una peticion chat/completions. Prioriza Groq si esta configurada,
+     * y ante cualquier fallo de conexion/rate-limit/5xx hace fallback transparente a LOCAL_AI_URL.
      */
     public JsonNode chatCompletions(Map<String, Object> payloadBase) throws Exception {
-        if (hasLocalAi()) {
+        if (hasGroq()) {
             try {
-                return llamarLocalAi(payloadBase);
-            } catch (Exception localEx) {
-                log.warn("[LlmGateway] Modelo local no disponible ({}). Haciendo fallback automatico a Groq.", localEx.getMessage());
-                if (!hasGroq()) {
-                    throw localEx;
+                return llamarGroqConAutoDiscovery(payloadBase);
+            } catch (Exception groqEx) {
+                log.warn("[LlmGateway] Groq no disponible ({}). Haciendo fallback automatico a modelo local.", groqEx.getMessage());
+                if (!hasLocalAi()) {
+                    throw groqEx;
                 }
             }
         }
 
-        if (!hasGroq()) {
-            throw new IllegalStateException("No hay proveedor IA configurado (ni LOCAL_AI_URL ni GROQ_API_KEY).");
+        if (!hasLocalAi()) {
+            throw new IllegalStateException("No hay proveedor IA configurado (ni GROQ_API_KEY ni LOCAL_AI_URL).");
         }
 
-        return llamarGroqConAutoDiscovery(payloadBase);
+        return llamarLocalAi(payloadBase);
     }
 
     private JsonNode llamarLocalAi(Map<String, Object> payloadBase) throws Exception {

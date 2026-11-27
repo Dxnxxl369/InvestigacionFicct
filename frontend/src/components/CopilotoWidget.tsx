@@ -191,9 +191,9 @@ export default function CopilotoWidget() {
   useEffect(() => {
     if (!hidratado || typeof window === "undefined") return;
     try {
-      // Evitar saturar sessionStorage con PDFs base64 muy grandes
+      // Evitar saturar sessionStorage solo si el PDF base64 es muy grande (> 400 KB)
       const paraGuardar = mensajes.slice(-30).map((m) =>
-        m.reporte
+        m.reporte && m.reporte.pdfBase64 && m.reporte.pdfBase64.length > 400000
           ? { ...m, reporte: { ...m.reporte, pdfBase64: "" } }
           : m
       );
@@ -429,6 +429,10 @@ export default function CopilotoWidget() {
           content: resp.mensaje,
         },
       ]);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ficct:copiloto-confirmed", { detail: { tipoAccion: conf.tipoAccion } }));
+      }
+      router.refresh();
     } catch (err: any) {
       setMensajes((prev) => [
         ...prev,

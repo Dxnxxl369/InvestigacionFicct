@@ -18,7 +18,6 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/biblioteca")
-@PreAuthorize("hasAnyRole('ADMIN','ESTUDIANTE')")
 public class BibliotecaController {
     private final BibliotecaService service;
 
@@ -96,9 +95,9 @@ public class BibliotecaController {
     public ResponseEntity<Resource> archivo(@PathVariable Long id,
                                             @RequestParam(defaultValue = "false") boolean descargar,
                                             @AuthenticationPrincipal UserDetails usuario) throws MalformedURLException {
-        boolean admin = usuario.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean admin = usuario != null && usuario.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         ArchivoDatos datos = service.archivo(id, admin);
-        if (!admin) service.registrarAcceso(usuario.getUsername(), id, descargar);
+        if (usuario != null && !admin) service.registrarAcceso(usuario.getUsername(), id, descargar);
         Resource pdf = new UrlResource(datos.ruta().toUri());
         ContentDisposition disposition = (descargar ? ContentDisposition.attachment() : ContentDisposition.inline())
                 .filename(datos.nombreArchivo(), StandardCharsets.UTF_8).build();
@@ -109,7 +108,7 @@ public class BibliotecaController {
     @GetMapping("/documentos/{id}/portada")
     public ResponseEntity<Resource> portada(@PathVariable Long id,
                                             @AuthenticationPrincipal UserDetails usuario) throws MalformedURLException {
-        boolean admin = usuario.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean admin = usuario != null && usuario.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         ArchivoDatos datos = service.portada(id, admin);
         Resource imagen = new UrlResource(datos.ruta().toUri());
         String nombre = datos.nombreArchivo();

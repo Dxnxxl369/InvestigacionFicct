@@ -29,7 +29,11 @@ public class BibliotecaService {
     private final FeriaPostulacionRepository postulaciones;
     private final UserRepository usuarios;
     private final RecomendadorBibliotecaService recomendador;
+    private final Path uploadsRoot;
     private final Path directorio;
+    private ModuloRepository modulos;
+    private TareaRepository tareas;
+    private EntregaTareaRepository entregas;
 
     public BibliotecaService(BibliotecaCategoriaRepository categorias, BibliotecaDocumentoRepository documentos,
                              BibliotecaLecturaRepository lecturas,
@@ -43,7 +47,15 @@ public class BibliotecaService {
         this.postulaciones = postulaciones;
         this.usuarios = usuarios;
         this.recomendador = recomendador;
-        this.directorio = Paths.get(uploads).toAbsolutePath().normalize().resolve("biblioteca");
+        this.uploadsRoot = Paths.get(uploads).toAbsolutePath().normalize();
+        this.directorio = this.uploadsRoot.resolve("biblioteca");
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRepositoriosFinalizacion(ModuloRepository modulos, TareaRepository tareas, EntregaTareaRepository entregas) {
+        this.modulos = modulos;
+        this.tareas = tareas;
+        this.entregas = entregas;
     }
 
     public record CategoriaDatos(Long id, String nombre, String descripcion) {}
@@ -219,6 +231,135 @@ public class BibliotecaService {
             popularidad.put(((Number) fila[0]).longValue(), ((Number) fila[1]).longValue());
         return recomendador.recomendar(documentos.findByPublicadoTrueOrderByCreadoEnDesc(), contextos, historial, popularidad).stream()
                 .map(r -> new RecomendacionDatos(documentoDatos(r.documento()), r.puntaje(), r.motivo())).toList();
+    }
+
+    /**
+     * Al finalizar una convocatoria o cerrar su evaluación, publica automáticamente en la Biblioteca Virtual
+     * únicamente los proyectos cuya entrega corresponda a la ÚLTIMA tarea del ÚLTIMO módulo (presentación final).
+     * Los participantes que solo entregaron en módulos previos (proyectos inconclusos) no se publican.
+     */
+    @Transactional
+    public int publicarProyectosFinalizados(Convocatoria convocatoria) {
+        if (convocatoria == null || modulos == null || tareas == null || entregas == null) return 0;
+
+        Tarea tareaFinal = obtenerTareaFinal(convocatoria);
+        if (tareaFinal == null) return 0;
+
+        List<EntregaTarea> entregasFinales = entregas.findByTareaOrderByFechaEntregaDesc(tareaFinal);
+        if (entregasFinales.isEmpty()) return 0;
+
+        Set<String> proyectosProcesados = new HashSet<>();
+        int publicados = 0;
+
+        for (EntregaTarea entrega : entregasFinales) {
+            if (entrega.getArchivoUrl() == null || entrega.getArchivoUrl().isBlank()) continue;
+
+            String claveProyecto;
+            String tituloBase;
+            String autorInfo;
+
+            if (entrega.getFeriaPostulacion() != null) {
+                claveProyecto = "FERIA:" + entrega.getFeriaPostulacion().getId();
+                String np = entrega.getFeriaPostulacion().getTema();
+                tituloBase = (np != null && !np.isBlank()) ? np.trim() : Objects.toString(entrega.getNombreEquipo(), "Proyecto de Feria");
+                autorInfo = "Equipo: " + Objects.toString(entrega.getNombreEquipo(), tituloBase);
+            } else if (entrega.getGrupo() != null) {
+                claveProyecto = "GRUPO:" + entrega.getGrupo().getId();
+                String ng = entrega.getGrupo().getNombre();
+                tituloBase = (ng != null && !ng.isBlank()) ? ng.trim() + " — " + convocatoria.getTitulo() : convocatoria.getTitulo();
+                autorInfo = "Grupo: " + Objects.toString(ng, "Equipo");
+            } else if (entrega.getEstudiante() != null) {
+                claveProyecto = "EST:" + entrega.getEstudiante().getId();
+                String nom = (Objects.toString(entrega.getEstudiante().getNombre(), "") + " " + Objects.toString(entrega.getEstudiante().getApellido(), "")).trim();
+                tituloBase = nom.isBlank() ? convocatoria.getTitulo() : nom + " — " + convocatoria.getTitulo();
+                autorInfo = "Autor: " + (nom.isBlank() ? entrega.getEstudiante().getEmail() : nom);
+            } else {
+                continue;
+            }
+
+            if (!proyectosProcesados.add(claveProyecto)) continue;
+
+            Path origen = resolverArchivoEntrega(entrega.getArchivoUrl());
+            if (origen == null || !Files.isRegularFile(origen)) continue;
+
+            try {
+                byte[] bytes = Files.readAllBytes(origen);
+                if (bytes.length < 5 || bytes[0] != '%' || bytes[1] != 'P' || bytes[2] != 'D'
+                        || bytes[3] != 'F' || bytes[4] != '-') {
+                    continue;
+                }
+
+                String tituloFinal = tituloBase.substring(0, Math.min(tituloBase.length(), 200));
+                String nombreArch = Objects.toString(entrega.getNombreArchivo(), origen.getFileName().toString());
+                if (nombreArch.length() > 255) nombreArch = nombreArch.substring(0, 255);
+
+                if (documentos.existsByTituloIgnoreCaseAndNombreArchivoIgnoreCase(tituloFinal, nombreArch)) {
+                    continue;
+                }
+
+                String texto;
+                try (PDDocument pdf = Loader.loadPDF(bytes)) {
+                    texto = new PDFTextStripper().getText(pdf);
+                }
+
+                Files.createDirectories(directorio);
+                String rutaDest = UUID.randomUUID() + ".pdf";
+                Files.write(resolver(rutaDest), bytes, StandardOpenOption.CREATE_NEW);
+
+                BibliotecaDocumento doc = new BibliotecaDocumento();
+                doc.setTitulo(tituloFinal);
+                String desc = "Proyecto culminado en " + convocatoria.getTitulo() + ". " + autorInfo + ".";
+                doc.setDescripcion(desc.substring(0, Math.min(desc.length(), 1000)));
+                if (entrega.getFeriaPostulacion() != null) {
+                    doc.setArea(coincideArea(entrega.getFeriaPostulacion().getArea()));
+                    doc.setNivel(coincideNivel(entrega.getFeriaPostulacion().getCategoria()));
+                }
+                doc.setNombreArchivo(nombreArch);
+                doc.setRutaArchivo(rutaDest);
+                doc.setTextoExtraido(texto.substring(0, Math.min(texto.length(), 100_000)));
+                doc.setPublicado(true);
+                documentos.save(doc);
+                publicados++;
+            } catch (Exception ignored) {
+            }
+        }
+        return publicados;
+    }
+
+    private Tarea obtenerTareaFinal(Convocatoria convocatoria) {
+        List<Modulo> listaModulos = modulos.findByConvocatoriaOrderByOrdenAscCreatedAtAsc(convocatoria);
+        for (int i = listaModulos.size() - 1; i >= 0; i--) {
+            List<Tarea> tareasMod = listaModulos.get(i).getTareas();
+            if (tareasMod != null && !tareasMod.isEmpty()) {
+                return tareasMod.stream()
+                        .max(Comparator.comparing((Tarea t) -> t.getFechaEntrega() != null ? t.getFechaEntrega() : t.getCreatedAt())
+                                .thenComparing(Tarea::getId))
+                        .orElse(null);
+            }
+        }
+        List<Tarea> sueltas = tareas.findByConvocatoriaOrderByCreatedAtDesc(convocatoria);
+        return sueltas.isEmpty() ? null : sueltas.get(0);
+    }
+
+    private Path resolverArchivoEntrega(String archivoUrl) {
+        String limpio = archivoUrl.trim();
+        int idx = limpio.lastIndexOf("/api/uploads/");
+        String nombre = idx >= 0 ? limpio.substring(idx + "/api/uploads/".length()) : limpio;
+        nombre = nombre.replace("\\", "/");
+        if (nombre.contains("/")) nombre = nombre.substring(nombre.lastIndexOf('/') + 1);
+        if (nombre.isBlank() || nombre.contains("..")) return null;
+        Path candidato = uploadsRoot.resolve(nombre).normalize();
+        return candidato.startsWith(uploadsRoot) ? candidato : null;
+    }
+
+    private String coincideArea(String valor) {
+        if (valor == null || valor.isBlank()) return null;
+        return BibliotecaValores.AREAS.stream().filter(a -> a.equalsIgnoreCase(valor.trim())).findFirst().orElse(null);
+    }
+
+    private String coincideNivel(String valor) {
+        if (valor == null || valor.isBlank()) return null;
+        return BibliotecaValores.NIVELES.stream().filter(n -> n.equalsIgnoreCase(valor.trim())).findFirst().orElse(null);
     }
 
     private void aplicarDatos(BibliotecaDocumento documento, DocumentoRequest request) {

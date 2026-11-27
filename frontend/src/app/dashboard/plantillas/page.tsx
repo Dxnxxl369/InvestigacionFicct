@@ -54,6 +54,19 @@ export default function PlantillasPage() {
 
   useEffect(() => { if (autorizado) void cargar(); }, [autorizado, cargar]);
 
+  useEffect(() => {
+    if (!autorizado || typeof window === "undefined") return;
+    const onConfirmed = () => { void cargar(); };
+    window.addEventListener("ficct:copiloto-confirmed", onConfirmed);
+    return () => window.removeEventListener("ficct:copiloto-confirmed", onConfirmed);
+  }, [autorizado, cargar]);
+
+  useEffect(() => {
+    if (modalTipos) {
+      setSeleccion(tipos.find(t => t.tipo === tipoActivo)?.plantillaIds || []);
+    }
+  }, [modalTipos, tipoActivo, tipos]);
+
   const editar = (plantilla: PlantillaDTO) => {
     setActual(structuredClone(plantilla));
     setModuloAbierto(false);

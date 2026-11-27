@@ -261,6 +261,9 @@ export default function HomePage() {
             <a href="#actividades" className="hover:text-accent transition-colors">
               Convocatorias
             </a>
+            <Link href="/biblioteca" className="hover:text-accent transition-colors">
+              Biblioteca
+            </Link>
             <a href="#flujo" className="hover:text-accent transition-colors">
               Metodología
             </a>
