@@ -694,9 +694,22 @@ export default function HomePage() {
               {convocatorias.map((c) => (
                 <div
                   key={c.id}
-                  className="bg-paper-raised/80 border border-line/80 rounded-2xl p-6 border-l-4 border-l-accent flex flex-col justify-between glow-card shadow-xs group transition-all"
+                  className="bg-paper-raised/80 border border-line/80 rounded-2xl p-6 border-l-4 border-l-accent flex flex-col justify-between glow-card shadow-xs group transition-all overflow-hidden"
                 >
                   <div>
+                    {c.imagenPortada && (
+                      <div className="mb-4 -mx-6 -mt-6 h-40 overflow-hidden border-b border-line-soft bg-paper-sunken">
+                        <img
+                          src={getMediaUrl(c.imagenPortada)}
+                          alt={c.titulo}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            const parent = e.currentTarget.parentElement;
+                            if (parent) parent.style.display = "none";
+                          }}
+                        />
+                      </div>
+                    )}
                     <div className="flex justify-between items-start mb-2.5">
                       <span className="text-[10px] font-bold text-accent-dark uppercase tracking-wider bg-accent/15 px-2.5 py-0.5 rounded-full font-mono">
                         {c.tipo}

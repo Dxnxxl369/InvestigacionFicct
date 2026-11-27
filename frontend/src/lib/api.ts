@@ -1506,11 +1506,16 @@ export const uploadsAPI = {
  */
 export function getMediaUrl(url?: string): string {
   if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
-    return url;
-  }
+  if (url.startsWith("data:")) return url;
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
   const origin = apiBase.replace(/\/api$/, "");
+  const uploadsIdx = url.indexOf("/api/uploads/");
+  if (uploadsIdx !== -1) {
+    return `${origin}${url.slice(uploadsIdx)}`;
+  }
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
   return `${origin}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
