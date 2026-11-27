@@ -293,6 +293,10 @@ export default function SpeedGraderPanel({
   const totalSinEntrega = participantesDirectorio.filter(
     (est) => !entregas.some((e) => e.estudianteId === est.usuarioId)
   ).length;
+  const totalUnidades = participantesDirectorio.length;
+  const porcentajeProgreso = totalUnidades > 0
+    ? Math.min(100, Math.round((totalCalificadas / totalUnidades) * 100))
+    : 0;
 
   const estudiantesFiltrados = participantesDirectorio.filter((est) => {
     const q = searchEstudiante.toLowerCase().trim();
@@ -445,33 +449,14 @@ export default function SpeedGraderPanel({
               <div className="flex items-center justify-between text-[11px] text-ink-soft">
                 <span>Progreso:</span>
                 <strong className="text-ink">
-                  {seguimiento?.resumen
-                    ? `${seguimiento.resumen.calificados}/${seguimiento.resumen.totalEstudiantes}`
-                    : `${totalCalificadas}/${estudiantesAdmitidos.length}`}{" "}
-                  ({
-                    estudiantesAdmitidos.length > 0
-                      ? Math.round(
-                          ((seguimiento?.resumen.calificados ?? totalCalificadas) /
-                            ((seguimiento?.resumen.totalEstudiantes ?? estudiantesAdmitidos.length) || 1)) *
-                            100
-                        )
-                      : 0
-                  }%)
+                  {totalCalificadas}/{totalUnidades} ({porcentajeProgreso}%)
                 </strong>
               </div>
               <div className="w-full h-1.5 bg-paper-sunken border border-line rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all duration-300"
                   style={{
-                    width: `${
-                      estudiantesAdmitidos.length > 0
-                        ? Math.round(
-                            ((seguimiento?.resumen.calificados ?? totalCalificadas) /
-                              ((seguimiento?.resumen.totalEstudiantes ?? estudiantesAdmitidos.length) || 1)) *
-                              100
-                          )
-                        : 0
-                    }%`,
+                    width: `${porcentajeProgreso}%`,
                   }}
                 />
               </div>
