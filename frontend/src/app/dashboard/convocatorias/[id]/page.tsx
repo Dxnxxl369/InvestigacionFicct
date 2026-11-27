@@ -210,7 +210,7 @@ export default function ConvocatoriaDetallePage() {
   const esEstudianteInscrito = (miParticipacion?.rol === "ESTUDIANTE" || user?.rol === "ESTUDIANTE") && miEstadoInscripcion === "ACEPTADO";
   const esEstudiantePendiente = (miParticipacion?.rol === "ESTUDIANTE" || user?.rol === "ESTUDIANTE") && miEstadoInscripcion === "PENDIENTE";
   const esEstudianteRechazado = (miParticipacion?.rol === "ESTUDIANTE" || user?.rol === "ESTUDIANTE") && miEstadoInscripcion === "RECHAZADO";
-  const puedeGestionarTareas = esAdmin || esDocenteEnEstaArea;
+  const puedeGestionarTareas = esAdmin || user?.rol === "DOCENTE";
   const puedeDesignarJurado = esAdmin || esDocenteEnEstaArea;
   const puedeAdmitirEstudiantes = esAdmin || esDocenteEnEstaArea;
 
